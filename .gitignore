@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+scripts/osm/raw.json
+.vercel
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
+*.log
