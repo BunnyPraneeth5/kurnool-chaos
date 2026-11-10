@@ -5,7 +5,7 @@ One task at a time. Tick it only when every acceptance check passes. Bunny check
 Order: core game first (map, driving, playing together), extras after. If time runs out, extras get cut, not the core.
 
 ## Phase 1: Setup
-- [ ] **1.1 Scaffold.** Vite + TypeScript + Three.js, `npm run dev`, `build`, `typecheck` scripts, `.gitignore`, `.env.example`. git init, first commit.
+- [x] **1.1 Scaffold.** Vite + TypeScript + Three.js, `npm run dev`, `build`, `typecheck` scripts, `.gitignore`, `.env.example`. git init, first commit.
   - Accept: `npm run dev -- --host` shows a spinning cube on laptop and phone. Build and typecheck pass.
 - [ ] **1.2 GitHub repo.** Create public repo `kurnool-chaos` on BunnyPraneeth5 (use `gh repo create` if available, else ask Bunny to create it on github.com) and push.
   - Accept: repo is visible on GitHub with the docs.

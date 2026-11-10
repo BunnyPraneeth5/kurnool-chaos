@@ -4,8 +4,8 @@ Newest entry on top. Each session ends with an entry: what got done, what is hal
 
 ## 2026-11-11: Task 1.1 Scaffold
 - Done: Vite + TypeScript + Three.js scaffold with a spinning cube, dusk colours and the OSM credit. `npm run typecheck` and `npm run build` pass. Checked in the in-app browser at desktop and phone size. First git commit.
-- Half done: 1.1 not ticked yet. Waiting for Bunny to open the dev server on a real phone (same Wi-Fi, `http://<laptop Wi-Fi IP>:5173`, was 192.168.1.35 this session).
-- Next: tick 1.1 after the phone check, then 1.2 GitHub repo.
+- Phone check: Bunny confirmed the cube spins on his phone over Wi-Fi (`http://<laptop Wi-Fi IP>:5173`, was 192.168.1.35 this session). 1.1 ticked.
+- Next: 1.2 GitHub repo.
 - Notes: build warns the JS bundle is over 500 kB. That is Three.js itself (132 kB gzipped). Fine for now, revisit in the performance pass.
 
 ## 2026-11-11: Plan review
