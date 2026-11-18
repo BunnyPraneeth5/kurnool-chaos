@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kurnool map preview</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2b2838; font: 13px system-ui, sans-serif; color: #eee; }
+  canvas { display: block; touch-action: none; cursor: grab; }
+  #panel { position: fixed; top: 10px; left: 10px; max-width: 300px; background: rgba(20, 18, 32, 0.88); padding: 10px 12px; border-radius: 8px; line-height: 1.45; }
+  #panel h1 { font-size: 15px; margin: 0 0 4px; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 6px; }
+  .lm { margin: 1px 0; }
+  .no { color: #ff8f8f; }
+  .out { color: #ffcf7a; }
+  #credit { position: fixed; right: 8px; bottom: 6px; font-size: 11px; color: #ccc; }
+  #hint { color: #aaa; margin-top: 6px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel"></div>
+<div id="credit">© OpenStreetMap contributors</div>
+<script>
+const D = __DATA__;
+const cv = document.getElementById('c');
+const g = cv.getContext('2d');
+let W = 0, H = 0, s = 1, ox = 0, oz = 0, queued = false;
+
+const ROAD_STYLE = [
+  ['#ffd27a', 14], ['#f6e3b0', 11], ['#e9e1d0', 9], ['#cfc8d8', 7], ['#a9a1b8', 5], ['#5f5a72', 1.5],
+];
+
+function panel() {
+  const p = document.getElementById('panel');
+  const st = D.stats;
+  let h = '<h1>Kurnool map preview</h1>';
+  h += `<div>OSM data: ${st.osmBase || 'unknown'}</div>`;
+  h += `<div>Play area ${st.sizeKm}: ${st.roads} roads (${st.roadKm} km), ${st.buildings} buildings</div><br>`;
+  h += '<div><span class="sw" style="background:none;border:2px dashed #ff5d4d"></span>Play area box</div>';
+  h += '<div><span class="sw" style="background:#ffd27a"></span>Main roads <span class="sw" style="background:#cfc8d8;margin-left:8px"></span>Streets</div>';
+  h += '<div><span class="sw" style="background:#ff8a3d"></span>Road bridges <span class="sw" style="background:#3b6fb0;margin-left:8px"></span>Water</div>';
+  h += '<div><span class="sw" style="background:#8a7f8f"></span>Buildings <span class="sw" style="background:#3f6e4f;margin-left:8px"></span>Parks</div><br>';
+  h += '<b>Landmarks</b>';
+  for (const l of D.landmarks) {
+    if (!l.found) h += `<div class="lm no">✗ ${l.en}: not found</div>`;
+    else h += `<div class="lm${l.inside ? '' : ' out'}">✓ ${l.en}${l.inside ? '' : ' (outside box)'}</div>`;
+  }
+  h += '<div id="hint">Drag to move, scroll to zoom.</div>';
+  p.innerHTML = h;
+}
+
+function fit() {
+  const [[ax, az], [bx, bz]] = D.wide;
+  s = Math.min(W / (bx - ax), H / (bz - az)) * 0.95;
+  ox = (ax + bx) / 2 - W / 2 / s;
+  oz = (az + bz) / 2 - H / 2 / s;
+}
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function trace(a, close, off = 0) {
+  g.moveTo((a[off] - ox) * s, (a[off + 1] - oz) * s);
+  for (let i = off + 2; i < a.length; i += 2) g.lineTo((a[i] - ox) * s, (a[i + 1] - oz) * s);
+  if (close) g.closePath();
+}
+function fillAll(list, color) {
+  g.beginPath(); for (const a of list) trace(a, true); g.fillStyle = color; g.fill();
+}
+function strokeAll(list, color, widthM, minPx, off = 0) {
+  g.beginPath(); for (const a of list) trace(a, false, off);
+  g.strokeStyle = color; g.lineWidth = Math.max(minPx, widthM * s); g.stroke();
+}
+
+function draw() {
+  queued = false;
+  g.fillStyle = '#2b2838'; g.fillRect(0, 0, W, H);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  fillAll(D.parks, '#3f6e4f');
+  fillAll(D.water, '#3b6fb0');
+  strokeAll(D.waterLines, '#3b6fb0', 12, 1.5);
+  fillAll(D.buildings, '#8a7f8f');
+  for (let c = 5; c >= 0; c--) {
+    const list = D.roads.filter((r) => r[0] === c);
+    strokeAll(list, ROAD_STYLE[c][0], ROAD_STYLE[c][1], c === 5 ? 0.5 : 1, 1);
+  }
+  g.setLineDash([6, 4]); strokeAll(D.rail, '#d0d0d0', 3, 1.5); g.setLineDash([]);
+  strokeAll(D.bridges, '#ff8a3d', 16, 3);
+
+  const box = (b, color, dash) => {
+    g.setLineDash(dash); g.strokeStyle = color; g.lineWidth = 2;
+    g.strokeRect((b[0][0] - ox) * s, (b[0][1] - oz) * s, (b[1][0] - b[0][0]) * s, (b[1][1] - b[0][1]) * s);
+    g.setLineDash([]);
+  };
+  box(D.wide, '#77718a', [3, 5]);
+  box(D.box, '#ff5d4d', [10, 6]);
+
+  g.font = 'bold 13px system-ui, sans-serif';
+  for (const l of D.landmarks) {
+    if (!l.found) continue;
+    const x = (l.x - ox) * s, y = (l.z - oz) * s;
+    g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2);
+    g.fillStyle = '#ff3d7f'; g.fill(); g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke();
+    const text = l.en;
+    g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,0.75)'; g.strokeText(text, x + 10, y + 4);
+    g.fillStyle = '#fff'; g.fillText(text, x + 10, y + 4);
+  }
+
+  // scale bar
+  const steps = [50, 100, 200, 500, 1000, 2000, 5000];
+  const m = steps.find((v) => v * s > 90) || 5000;
+  g.fillStyle = '#fff'; g.fillRect(16, H - 24, m * s, 4);
+  g.font = '12px system-ui, sans-serif';
+  g.fillText(m >= 1000 ? m / 1000 + ' km' : m + ' m', 16, H - 30);
+}
+function redraw() { if (!queued) { queued = true; requestAnimationFrame(draw); } }
+
+let drag = null;
+cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing'; });
+cv.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  ox -= (e.clientX - drag.x) / s; oz -= (e.clientY - drag.y) / s;
+  drag = { x: e.clientX, y: e.clientY }; redraw();
+});
+cv.addEventListener('pointerup', () => { drag = null; cv.style.cursor = 'grab'; });
+cv.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const wx = ox + e.clientX / s, wz = oz + e.clientY / s;
+  s *= Math.exp(-e.deltaY * 0.0015);
+  ox = wx - e.clientX / s; oz = wz - e.clientY / s; redraw();
+}, { passive: false });
+window.addEventListener('resize', () => { resize(); redraw(); });
+
+panel(); resize(); fit(); draw();
+</script>
+</body>
+</html>

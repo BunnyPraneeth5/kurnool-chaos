@@ -2,8 +2,8 @@
 
 ## Area
 - Centre around the old city, between the Tungabhadra on the north and the railway station on the south.
-- Starting bounding box (UNSURE, verify): south 15.805, west 78.015, north 15.845, east 78.065.
-- Target play area: about 4 x 4 km. If all landmarks fit in less, shrink it. If one falls outside, ask Bunny whether to stretch the box or move the landmark in.
+- Bounding box (confirmed by Bunny at task 1.3): south 15.805, west 78.003, north 15.870, east 78.065. About 6.6 x 7.2 km. Stretched north and a little west from the first guess so the NH44 Tungabhadra bridge is inside.
+- Play area is bigger than the first 4 x 4 km target, to fit the river bridge. Chunk culling and the quality setting have to keep phones at 30+ fps.
 - Real scale, 1 unit = 1 metre. Do not shrink the city itself, only the airport distance.
 - At task 1.3, also check whether the Handri river and the KC Canal fall inside the area. Water blocks driving everywhere except on bridges.
 

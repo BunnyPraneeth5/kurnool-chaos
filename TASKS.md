@@ -9,7 +9,7 @@ Order: core game first (map, driving, playing together), extras after. If time r
   - Accept: `npm run dev -- --host` shows a spinning cube on laptop and phone. Build and typecheck pass.
 - [x] **1.2 GitHub repo.** Create public repo `kurnool-chaos` on BunnyPraneeth5 (use `gh repo create` if available, else ask Bunny to create it on github.com) and push.
   - Accept: repo is visible on GitHub with the docs.
-- [ ] **1.3 OSM fetch.** `scripts/osm/fetch.mjs` with the bbox from MAP-SPEC. Find every landmark in the data and print their positions. Print counts: roads by type, buildings, water areas, bridges. Check whether the Handri river and KC Canal are inside the area.
+- [x] **1.3 OSM fetch.** `scripts/osm/fetch.mjs` with the bbox from MAP-SPEC. Find every landmark in the data and print their positions. Print counts: roads by type, buildings, water areas, bridges. Check whether the Handri river and KC Canal are inside the area.
   - Accept: raw.json saved and a gzipped snapshot committed. A list of landmarks with found/not found. Counts printed.
   - **Bunny check:** show the landmark list and a simple top-down PNG or HTML preview of roads, water and buildings. Bunny confirms the area is right.
 

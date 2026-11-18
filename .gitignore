@@ -4,6 +4,8 @@ dist/
 .env.local
 .env.*.local
 scripts/osm/raw.json
+scripts/osm/preview.html
+scripts/osm/.cache/
 .vercel
 .claude/settings.local.json
 .DS_Store
