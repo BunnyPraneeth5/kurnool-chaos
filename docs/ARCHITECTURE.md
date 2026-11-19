@@ -43,18 +43,32 @@ kurnool-chaos/
 type MapData = {
   version: 1
   center: { lat: number; lon: number }
-  bounds: { minX: number; minZ: number; maxX: number; maxZ: number }
+  bounds: { minX: number; minZ: number; maxX: number; maxZ: number }   // play area + airport
+  playArea: { minX: number; minZ: number; maxX: number; maxZ: number } // the OSM box only
   roads: { id: number; kind: string; width: number; oneway: boolean; bridge: boolean; pts: [number, number][] }[]
-  graph: { nodes: [number, number][]; edges: { a: number; b: number; road: number; len: number }[] }
-  buildings: { pts: [number, number][]; h: number; kind?: string }[]
+  graph: {
+    nodes: [number, number][]
+    // road = index into roads; pts i0..i1 of that road is the edge's polyline (a at i0, b at i1)
+    edges: { a: number; b: number; road: number; len: number; i0: number; i1: number }[]
+  }
+  buildings: { pts: [number, number][]; h: number; kind?: string }[]   // kind 'filler' = generated
   water: { pts: [number, number][] }[]
   parks: { pts: [number, number][] }[]
   rail: { pts: [number, number][] }[]
   landmarks: { id: string; nameEn: string; nameTe: string; type: string; x: number; z: number; pts?: [number, number][] }[]
   airport: { runway: { x: number; z: number; len: number; w: number; heading: number }; terminal: { pts: [number, number][] } }
   spawn: { x: number; z: number; heading: number }
+  meta: { osmBase: string; credit: string }
 }
 ```
+Conventions:
+- Units are metres, rounded to 0.1. X = east, Z = south.
+- Polygons are open rings (no repeated closing point) with positive shoelace area in (x, z).
+- Heading is radians with forward = (sin h, cos h), same as the demo.
+- Roads with `oneway` run in point order. The airport link road has `id: -1`.
+- Rivers and canals that OSM only has as centrelines become strips of quads in `water`.
+- Landmark names come from the table in MAP-SPEC.md. Landmarks OSM lacks get a pin in `scripts/osm/landmarks.mjs` (`MANUAL_PINS`).
+- Build: `npm run map:build`. It also writes `scripts/osm/map-preview.html` (gitignored) for a top-down check.
 
 ## Rendering
 - Ground: one big plane. Roads as merged ribbon meshes per 250 m chunk, slightly above the ground, with polygonOffset.

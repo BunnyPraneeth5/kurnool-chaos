@@ -5,6 +5,7 @@ dist/
 .env.*.local
 scripts/osm/raw.json
 scripts/osm/preview.html
+scripts/osm/map-preview.html
 scripts/osm/.cache/
 .vercel
 .claude/settings.local.json

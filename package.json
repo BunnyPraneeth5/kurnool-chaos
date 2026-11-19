@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "osm:fetch": "node scripts/osm/fetch.mjs",
-    "osm:report": "node scripts/osm/report.mjs"
+    "osm:report": "node scripts/osm/report.mjs",
+    "map:build": "node scripts/osm/build.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

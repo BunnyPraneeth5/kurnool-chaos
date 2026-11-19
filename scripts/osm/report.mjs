@@ -3,83 +3,12 @@
 //
 // Usage: npm run osm:report   (uses raw.json, or raw.json.gz if raw.json is missing)
 import { readFile, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { gunzipSync } from 'node:zlib';
-import { BBOX, WIDE, project, inBox, DRIVABLE, RAW_PATH, RAW_GZ_PATH, PREVIEW_PATH } from './common.mjs';
-
-async function loadRaw() {
-  if (existsSync(RAW_PATH)) return JSON.parse(await readFile(RAW_PATH, 'utf8'));
-  if (existsSync(RAW_GZ_PATH)) return JSON.parse(gunzipSync(await readFile(RAW_GZ_PATH)).toString('utf8'));
-  throw new Error('No OSM data found. Run: npm run osm:fetch');
-}
+import { BBOX, WIDE, project, inBox, DRIVABLE, PREVIEW_PATH, loadRaw } from './common.mjs';
+import { wayLines, polygons, centerOf, lengthM, allNames, label, uid } from './geo.mjs';
+import { SPECS, rankCandidates, loadLandmarkNames } from './landmarks.mjs';
 
 const raw = await loadRaw();
-
-/* ---------- geometry helpers ---------- */
-const pts = (geom) => (geom || []).filter(Boolean).map((p) => [p.lat, p.lon]);
-
-function wayLines(el) {
-  if (el.type === 'way') return el.geometry ? [pts(el.geometry)] : [];
-  if (el.type === 'relation') return (el.members || []).filter((m) => m.geometry).map((m) => pts(m.geometry));
-  return [];
-}
-
-const pkey = (p) => p[0] + ',' + p[1];
-
-// Join multipolygon member ways into rings by matching shared end nodes.
-function joinRings(segs) {
-  const open = segs.filter((s) => s.length > 1).map((s) => s.slice());
-  const rings = [];
-  while (open.length) {
-    let ring = open.pop();
-    let grew = true;
-    while (grew && pkey(ring[0]) !== pkey(ring[ring.length - 1])) {
-      grew = false;
-      const end = pkey(ring[ring.length - 1]);
-      for (let i = 0; i < open.length; i++) {
-        const s = open[i];
-        if (pkey(s[0]) === end) ring = ring.concat(s.slice(1));
-        else if (pkey(s[s.length - 1]) === end) ring = ring.concat(s.slice(0, -1).reverse());
-        else continue;
-        open.splice(i, 1);
-        grew = true;
-        break;
-      }
-    }
-    rings.push(ring);
-  }
-  return rings;
-}
-
-function polygons(el) {
-  if (el.type === 'way') return wayLines(el);
-  const outer = (el.members || []).filter((m) => m.geometry && m.role !== 'inner').map((m) => pts(m.geometry));
-  return joinRings(outer);
-}
-
-function centerOf(el) {
-  if (el.lat != null) return [el.lat, el.lon];
-  if (el.center) return [el.center.lat, el.center.lon];
-  if (el.bounds) return [(el.bounds.minlat + el.bounds.maxlat) / 2, (el.bounds.minlon + el.bounds.maxlon) / 2];
-  const all = wayLines(el).flat();
-  if (!all.length) return null;
-  return [all.reduce((s, p) => s + p[0], 0) / all.length, all.reduce((s, p) => s + p[1], 0) / all.length];
-}
-
-function lengthM(line) {
-  let len = 0;
-  for (let i = 1; i < line.length; i++) {
-    const a = project(line[i - 1][0], line[i - 1][1]);
-    const b = project(line[i][0], line[i][1]);
-    len += Math.hypot(b[0] - a[0], b[1] - a[1]);
-  }
-  return len;
-}
-
-const allNames = (t) =>
-  [t.name, t['name:en'], t['name:te'], t.alt_name, t.old_name, t.official_name].filter(Boolean).join(' | ');
-const label = (t) => t.name || t['name:en'] || t['name:te'] || '(no name)';
-const uid = (el) => el.type[0] + el.id;
+const names = await loadLandmarkNames();
 const xz = (c) => project(c[0], c[1]).map((v) => Math.round(v));
 
 /* ---------- sort the play-area data ---------- */
@@ -167,63 +96,6 @@ console.log(`  railway lines: ${rail.length}, parks/grounds: ${parks.length}`);
 console.log(`  drivable road bridges (wide area): ${bridges.length}`);
 
 /* ---------- landmarks ---------- */
-const SPECS = [
-  {
-    id: 'fort',
-    en: 'Konda Reddy Fort',
-    score: (t) => (/konda ?reddy|kondareddy|buruju|burj|కొండారెడ్డి|బురుజు/i.test(allNames(t)) ? 10 + (t.historic ? 5 : 0) - (t.highway ? 6 : 0) : 0),
-  },
-  {
-    id: 'station',
-    en: 'Kurnool Railway Station',
-    score: (t) => {
-      if (t.railway === 'station') return 5 + (/kurnool|కర్నూలు/i.test(allNames(t)) ? 5 : 0);
-      return /railway station|రైల్వే స్టేషన్/i.test(allNames(t)) && !t.highway ? 4 : 0;
-    },
-  },
-  {
-    id: 'busstand',
-    en: 'Kurnool Bus Stand',
-    score: (t) => {
-      if (t.amenity === 'bus_station') return 5 + (/kurnool|apsrtc|new|central|కర్నూలు/i.test(allNames(t)) ? 5 : 0);
-      return /bus ?stand|bus station|apsrtc|బస్ ?స్టాండ్/i.test(allNames(t)) && !t.highway ? 4 : 0;
-    },
-  },
-  {
-    id: 'ccamp',
-    en: 'C-Camp Centre',
-    score: (t) => (/\bc[ .-]*camp\b|సి ?క్యాంప్/i.test(allNames(t)) ? (t.highway ? 5 : 10) : 0),
-  },
-  {
-    id: 'ggh',
-    en: 'Govt. General Hospital',
-    score: (t) => {
-      const n = allNames(t);
-      if (t.amenity === 'hospital' && /general hospital|\bggh\b|govt|government|సర్వజన/i.test(n)) return 10;
-      return /general hospital|\bggh\b/i.test(n) && !t.highway ? 6 : 0;
-    },
-  },
-  {
-    id: 'kmc',
-    en: 'Kurnool Medical College',
-    score: (t) => {
-      if (!/medical college|వైద్య కళాశాల/i.test(allNames(t)) || t.highway) return 0;
-      if (/hostel|library|canteen|quarters/i.test(allNames(t))) return 4;
-      return t.amenity === 'college' ? 12 : t.building === 'college' ? 11 : 10;
-    },
-  },
-  {
-    id: 'rajvihar',
-    en: 'Rajvihar Centre',
-    score: (t) => (/raj ?vihar|రాజ్ ?విహార్/i.test(allNames(t)) ? (t.highway ? 5 : 10) : 0),
-  },
-  {
-    id: 'akestate',
-    en: 'Abdullah Khan Estate',
-    score: (t) => (/abdul+ah? ?khan|అబ్దుల్లా ?ఖాన్/i.test(allNames(t)) ? (t.highway ? 5 : 10) : 0),
-  },
-];
-
 function tagHint(t) {
   for (const k of ['historic', 'railway', 'amenity', 'place', 'highway', 'building', 'landuse']) if (t[k]) return `${k}=${t[k]}`;
   return '';
@@ -232,27 +104,19 @@ function tagHint(t) {
 const found = [];
 console.log('\nLandmarks (best match first; "outside" = outside the play area)');
 for (const spec of SPECS) {
-  const cands = [];
-  for (const el of pool.values()) {
-    const s = spec.score(el.tags);
-    if (s <= 0) continue;
-    const c = centerOf(el);
-    if (!c) continue;
-    const [x, z] = xz(c);
-    cands.push({ el, s, c, x, z, inside: inBox(c[0], c[1]), d: Math.hypot(x, z) });
-  }
-  cands.sort((a, b) => b.s - a.s || Number(b.inside) - Number(a.inside) || a.d - b.d);
+  const en = names[spec.id].en;
+  const cands = rankCandidates(spec, pool).map((k) => ({ ...k, x: Math.round(k.x), z: Math.round(k.z) }));
   const head = spec.id.padEnd(9);
   if (!cands.length) {
-    console.log(`  ${head} NOT FOUND   (${spec.en})`);
-    found.push({ id: spec.id, en: spec.en, found: false });
+    console.log(`  ${head} NOT FOUND   (${en})`);
+    found.push({ id: spec.id, en, found: false });
     continue;
   }
   const show = (k) =>
     `${label(k.el.tags)} [${tagHint(k.el.tags)}] ${k.c[0].toFixed(5)},${k.c[1].toFixed(5)} x=${k.x} z=${k.z}${k.inside ? '' : ' OUTSIDE'}`;
   console.log(`  ${head} FOUND       ${show(cands[0])}`);
   for (const k of cands.slice(1, 4)) console.log(`  ${''.padEnd(9)}   also:    ${show(k)}`);
-  found.push({ id: spec.id, en: spec.en, found: true, x: cands[0].x, z: cands[0].z, name: label(cands[0].el.tags), inside: cands[0].inside });
+  found.push({ id: spec.id, en, found: true, x: cands[0].x, z: cands[0].z, name: label(cands[0].el.tags), inside: cands[0].inside });
 }
 
 /* ---------- rivers, canals, bridges ---------- */
@@ -334,6 +198,7 @@ const data = {
   bridges: bridges.filter((b) => b.line.length > 1).map((b) => flat(b.line)),
   landmarks: found,
   stats: {
+    title: 'Kurnool map preview (raw OSM)',
     osmBase: raw.osmBase,
     roads: drivableCount,
     roadKm: Math.round(drivableM / 1000),

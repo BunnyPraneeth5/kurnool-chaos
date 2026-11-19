@@ -34,13 +34,15 @@ const ROAD_STYLE = [
 function panel() {
   const p = document.getElementById('panel');
   const st = D.stats;
-  let h = '<h1>Kurnool map preview</h1>';
+  let h = `<h1>${st.title || 'Kurnool map preview'}</h1>`;
   h += `<div>OSM data: ${st.osmBase || 'unknown'}</div>`;
   h += `<div>Play area ${st.sizeKm}: ${st.roads} roads (${st.roadKm} km), ${st.buildings} buildings</div><br>`;
   h += '<div><span class="sw" style="background:none;border:2px dashed #ff5d4d"></span>Play area box</div>';
   h += '<div><span class="sw" style="background:#ffd27a"></span>Main roads <span class="sw" style="background:#cfc8d8;margin-left:8px"></span>Streets</div>';
   h += '<div><span class="sw" style="background:#ff8a3d"></span>Road bridges <span class="sw" style="background:#3b6fb0;margin-left:8px"></span>Water</div>';
-  h += '<div><span class="sw" style="background:#8a7f8f"></span>Buildings <span class="sw" style="background:#3f6e4f;margin-left:8px"></span>Parks</div><br>';
+  h += '<div><span class="sw" style="background:#8a7f8f"></span>Buildings <span class="sw" style="background:#3f6e4f;margin-left:8px"></span>Parks</div>';
+  if (D.filler) h += `<div><span class="sw" style="background:#c98fd9"></span>Generated filler (${D.filler.length})</div>`;
+  h += '<br>';
   h += '<b>Landmarks</b>';
   for (const l of D.landmarks) {
     if (!l.found) h += `<div class="lm no">✗ ${l.en}: not found</div>`;
@@ -86,6 +88,7 @@ function draw() {
   fillAll(D.water, '#3b6fb0');
   strokeAll(D.waterLines, '#3b6fb0', 12, 1.5);
   fillAll(D.buildings, '#8a7f8f');
+  if (D.filler) fillAll(D.filler, '#c98fd9');
   for (let c = 5; c >= 0; c--) {
     const list = D.roads.filter((r) => r[0] === c);
     strokeAll(list, ROAD_STYLE[c][0], ROAD_STYLE[c][1], c === 5 ? 0.5 : 1, 1);

@@ -36,7 +36,7 @@ Browser multiplayer open-city driving game, just for fun with friends. Map is re
 - Ask Bunny when stuck or when a decision is not covered by the docs. Do not guess on scope.
 
 ## Current focus
-Phase 2, task 2.1 (see TASKS.md)
+Phase 2, task 2.2 (see TASKS.md)
 
 ## Gotchas
 (add repeated mistakes here as rules)

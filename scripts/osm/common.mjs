@@ -1,11 +1,23 @@
 // Shared settings for the OSM map pipeline (scripts/osm/*).
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 
 export const DIR = dirname(fileURLToPath(import.meta.url));
 export const RAW_PATH = join(DIR, 'raw.json');
 export const RAW_GZ_PATH = join(DIR, 'raw.json.gz');
 export const PREVIEW_PATH = join(DIR, 'preview.html');
+export const MAP_PREVIEW_PATH = join(DIR, 'map-preview.html');
+export const MAP_OUT_PATH = join(DIR, '..', '..', 'public', 'map', 'kurnool.json');
+
+/** The OSM snapshot: raw.json if present, otherwise the committed raw.json.gz. */
+export async function loadRaw() {
+  if (existsSync(RAW_PATH)) return JSON.parse(await readFile(RAW_PATH, 'utf8'));
+  if (existsSync(RAW_GZ_PATH)) return JSON.parse(gunzipSync(await readFile(RAW_GZ_PATH)).toString('utf8'));
+  throw new Error('No OSM data found. Run: npm run osm:fetch');
+}
 
 // Play area from docs/MAP-SPEC.md. Stretched north and a little west at task 1.3
 // so the NH44 Tungabhadra bridge (about 15.862, 78.010) is inside.

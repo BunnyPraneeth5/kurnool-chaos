@@ -2,6 +2,14 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-19: Task 2.1 Map build script
+- Done: `scripts/osm/build.mjs` (`npm run map:build`) writes `public/map/kurnool.json`: 2.63 MB, 0.64 MB gzipped, builds in about 1.5 s. Rebuild gives an identical file (sha256 172b40fe83180cc3). Validation passes.
+- Contents: 3178 roads + airport link, graph 5532 nodes / 8039 edges, 16876 buildings (10335 OSM, of which 2844 shrunk off roads; 1214 dropped for blocking roads; 6541 filler), 352 parks (44 OSM + 308 filler), 154 water shapes, 16 rail lines, 9 landmarks, airport, spawn at Raj Vihar Circle.
+- Shared helpers moved to `scripts/osm/geo.mjs` and `landmarks.mjs`. Landmark names are read from the MAP-SPEC table. `report.mjs` uses them too.
+- Checked the built-map preview: river, roads, landmarks and airport in place. The wide blue area east of the fort is real (Tungabhadra about 800 m wide, far bank outside the box); confirmed by comparing built water with raw OSM (7.27 km2 match, 0 km2 extra).
+- Still open: Abdullah Khan Estate pin from Bunny (add to `MANUAL_PINS` in `scripts/osm/landmarks.mjs`, then `npm run map:build`).
+- Next: 2.2 render roads, ground, water.
+
 ## 2026-11-18: Task 1.3 OSM fetch
 - Done: `scripts/osm/fetch.mjs` (Overpass download, retries on busy/network errors, per-part cache in `scripts/osm/.cache/` keyed by bbox), `report.mjs` (counts, landmarks, rivers, bridges), `preview-template.html` -> `preview.html` (gitignored). `npm run osm:fetch` / `npm run osm:report`. Snapshot `scripts/osm/raw.json.gz` (1.2 MB) committed.
 - Bunny check: Bunny chose to stretch the box north (and a little west) so the NH44 Tungabhadra bridge is inside. New box S15.805 W78.003 N15.870 E78.065, 6.6 x 7.2 km.
