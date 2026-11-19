@@ -2,6 +2,13 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-19: Task 2.4 Collision grid + on-foot player + camera
+- Done: `src/map/collision.ts` (32 m hash grid of 152k wall segments: building outlines, water banks cut into 4 m pieces with gaps where any road crosses water, railings along bridges and along roads where they are over water; circle push-out; `heightAt` for bridge decks). `src/player/onFoot.ts` (demo figure and tank controls: W/S walk, A/D turn, Shift run), `src/player/chaseCamera.ts` (demo chase camera, kept out of buildings), `src/player/input.ts` (keyboard). Map view moved to the C key. Player spawns at Raj Vihar Circle.
+- Checked by driving the player in code: walking 3 s into a building never gets inside; 8 attempts to walk into the Tungabhadra from different banks, 0 got in; both NH44 Tungabhadra bridges (634 m, 638 m) crossed end to end over water with the player on the deck (y 0.66); walking off a bridge's side is stopped by railings (also on an 11 m secondary bridge). Screenshot shows the figure at Raj Vihar with the chase camera.
+- Not checked: live keyboard walking in the pane (session window was closed, so the render loop was paused). Phones cannot walk yet: touch controls are task 2.5.
+- Dev-only: `window.__game` exposes player, world, map.
+- Next: 2.5 car driving + touch controls.
+
 ## 2026-11-19: Map expansion (Bunny's request, between 2.3 and 2.4)
 - Map box now S15.770 W77.975 N15.870 E78.065 (9.6 x 11.1 km), reaching G. Pulla Reddy College (south) and Peddapadu (west). Re-downloaded (about 25 min on private.coffee), new `raw.json.gz` 1.7 MB.
 - Rebuilt `kurnool.json`: 4.08 MB (0.98 MB gzipped), identical on rebuild. 4615 roads, 26900 buildings (15322 OSM incl. 3725 shrunk, 11578 filler; 1903 dropped on roads), 644 parks, all 9 landmarks still found. Airport link now from Nandikottur Road. Size limit raised to 6 MB.

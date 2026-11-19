@@ -8,6 +8,10 @@ import { buildParks } from './map/parks';
 import { createSky } from './world/sky';
 import { detectQuality } from './world/quality';
 import { FreeCamera } from './player/freeCamera';
+import { CollisionWorld } from './map/collision';
+import { Keyboard } from './player/input';
+import { OnFootPlayer } from './player/onFoot';
+import { ChaseCamera } from './player/chaseCamera';
 import { showLoading, showError, hideStatus } from './ui/status';
 import { createFpsMeter } from './ui/fps';
 
@@ -60,21 +64,49 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   scene.add(buildParks(map, quality));
   scene.add(buildBuildings(map, quality, quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1));
 
+  const world = new CollisionWorld(map);
+  const keys = new Keyboard();
+  const player = new OnFootPlayer(map.spawn.x, map.spawn.z, map.spawn.heading);
+  scene.add(player.figure);
+  const chase = new ChaseCamera(camera);
+  chase.snap(player, world);
+
   const free = new FreeCamera(camera, gl);
-  free.lookAt(map.spawn.x, map.spawn.z, 1400, 0);
+  free.enabled = false;
+  let mapView = false;
 
   hideStatus();
   const hint = document.getElementById('hint');
-  if (hint) hint.hidden = false;
+  const setHint = (): void => {
+    if (!hint) return;
+    hint.hidden = false;
+    hint.textContent = mapView
+      ? 'Map view: drag to move · right-drag or two fingers to turn · scroll or pinch to zoom · C to go back'
+      : 'W/S or arrows to walk · A/D to turn · Shift to run · C for map view';
+  };
+  setHint();
 
-  if (import.meta.env.DEV) Object.assign(window, { __three: { renderer, scene, camera } });
+  if (import.meta.env.DEV) Object.assign(window, { __three: { renderer, scene, camera }, __game: { player, world, map } });
 
   const fps = createFpsMeter(quality.level);
   const timer = new THREE.Timer();
   renderer.setAnimationLoop((ts) => {
     timer.update(ts);
     const dt = Math.min(timer.getDelta(), 1 / 30);
-    free.update(dt);
+    if (keys.consume('KeyC')) {
+      mapView = !mapView;
+      free.enabled = mapView;
+      if (mapView) free.lookAt(player.x, player.z, 400, player.a + Math.PI);
+      else chase.snap(player, world);
+      setHint();
+    }
+    if (mapView) {
+      free.update(dt);
+    } else {
+      player.update(dt, keys.move(), world);
+      chase.update(dt, player, world);
+    }
+    keys.endFrame();
     sky.update(camera);
     renderer.render(scene, camera);
     fps.frame(ts);

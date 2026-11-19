@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
-// Map-style fly-over camera for looking at the city (task 2.2). The on-foot and
-// driving cameras replace it from task 2.4.
+// Map-style fly-over camera for looking at the city. Since task 2.4 it is the
+// "map view", toggled with the C key; the chase camera is used while playing.
 //
 // Mouse: left drag moves, right drag (or shift + drag) rotates, wheel zooms.
 // Keys: WASD / arrows move, Q/E turn, R/F tilt, Shift = faster.
@@ -18,6 +18,8 @@ interface Pointer {
 }
 
 export class FreeCamera {
+  /** Off while the player is walking or driving; mouse and touch are then ignored. */
+  enabled = true;
   private tx = 0;
   private tz = 0;
   private dist = 1200;
@@ -98,6 +100,7 @@ export class FreeCamera {
   }
 
   private readonly onDown = (e: PointerEvent): void => {
+    if (!this.enabled) return;
     this.el.setPointerCapture(e.pointerId);
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.pointers.size === 1) {
@@ -140,6 +143,7 @@ export class FreeCamera {
 
   private readonly onWheel = (e: WheelEvent): void => {
     e.preventDefault();
+    if (!this.enabled) return;
     this.dist *= Math.exp(e.deltaY * 0.0012);
     this.apply();
   };
