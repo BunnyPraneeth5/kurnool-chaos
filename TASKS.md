@@ -16,7 +16,7 @@ Order: core game first (map, driving, playing together), extras after. If time r
 ## Phase 2: The city
 - [x] **2.1 Map build script.** `build.mjs` producing `public/map/kurnool.json` per ARCHITECTURE: seeded heights, buildings overlapping roads removed or shrunk, parks and simple filler buildings where OSM is empty, bridges cross water, validation at the end.
   - Accept: file under 3 MB. Counts of roads, buildings, parks, landmarks printed. Re-running gives an identical file. Validation passes.
-- [ ] **2.2 Render roads, ground, water.** Load the JSON, chunked road meshes, river, dusk sky and fog.
+- [x] **2.2 Render roads, ground, water.** Load the JSON, chunked road meshes, river, dusk sky and fog.
   - Accept: free camera fly-over shows recognizable Kurnool roads and the river. 50+ fps on laptop.
 - [ ] **2.3 Buildings and parks.** Extruded, merged per chunk, colour palette, parks and filler where OSM is empty.
   - Accept: city looks dense, no z-fighting, 30+ fps on Bunny's phone on low quality.

@@ -2,6 +2,15 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-19: Task 2.2 Render roads, ground, water
+- Done: game loads `kurnool.json` with a loading screen and a clear error screen (with Retry) if the map is missing, damaged or WebGL fails. Renders ground, water and chunked road ribbons (250 m chunks, junction discs, bridges lifted 0.5 m), dusk sky dome, sun, fog and lights from the demo. Free fly-over camera in `src/player/freeCamera.ts` (mouse, WASD/Q/E/R/F, touch). FPS readout in dev or with `?fps`.
+- New files: `src/map/{types,loadMap,meshBuilder,ground,water,roads}.ts`, `src/world/sky.ts`, `src/player/freeCamera.ts`, `src/ui/{status,fps}.ts`.
+- Checked in the in-app browser (Intel UHD, 1536x1152): 60 fps live (vsync). Timed renders: about 113 fps at street view, about 71 fps with the whole city on screen (544 draw calls, 105k triangles). Roads, Tungabhadra, Handri and bridges recognizable. Junctions close up have no gaps or flicker.
+- Fog and the camera near plane grow with camera height so the fly-over can see the whole city without road flicker.
+- Not tested: touch controls on a real phone (Bunny can try on the Wi-Fi address). Lane markings not done yet.
+- Dev-only: `window.__three` exposes renderer/scene/camera for checks.
+- Next: 2.3 buildings and parks.
+
 ## 2026-11-19: Task 2.1 Map build script
 - Done: `scripts/osm/build.mjs` (`npm run map:build`) writes `public/map/kurnool.json`: 2.63 MB, 0.64 MB gzipped, builds in about 1.5 s. Rebuild gives an identical file (sha256 172b40fe83180cc3). Validation passes.
 - Contents: 3178 roads + airport link, graph 5532 nodes / 8039 edges, 16876 buildings (10335 OSM, of which 2844 shrunk off roads; 1214 dropped for blocking roads; 6541 filler), 352 parks (44 OSM + 308 filler), 154 water shapes, 16 rail lines, 9 landmarks, airport, spawn at Raj Vihar Circle.
