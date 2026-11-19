@@ -2,12 +2,11 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
-## 2026-11-19: Task 2.5 Car driving + touch controls (waiting for Bunny's phone check)
+## 2026-11-19: Task 2.5 Car driving + touch controls
+- Phone check: Bunny confirmed driving works on his phone. 2.5 ticked.
 - Done: `src/vehicles/{params,carModel,vehicle,parked}.ts` (demo sedan model and arcade handling, fixed 1/120 s sub-steps, two 1.0 m collision circles instead of one 1.6 m circle for narrow streets, crash slow-down and camera shake, bridge deck height), `src/map/roadIndex.ts` (nearest road point), `src/game.ts` (walk/drive state, get in/out on E or the button, exit on the right side, "Slow down first", unstuck on R or the button, map view on C), `src/ui/touch.ts` (demo joystick + Run/Drift, Get in/out, Unstuck buttons), `src/ui/hud.ts` (km/h readout, toasts). 8 parked cars on the left edge of roads 18 to 32 m from the start.
 - Checked by driving the real car physics with an autopilot along shortest road routes: Raj Vihar to Konda Reddy Fort (1.37 km, 90 s, 0 times stuck), then on to the station, bus stand, GGH and C-Camp (about 7.5 km in total, 0 times stuck). Get in and get out work. Unstuck from 45 m off-road puts the car exactly on the road facing along it. Screenshot shows the car, speed and touch controls.
-- Not ticked: acceptance includes driving on a phone with thumbs. Bunny to try on the phone.
-- Not checked: live keyboard driving feel in the pane (render loop paused while the session window was closed).
-- Next: tick 2.5 after the phone check, then 2.6 deploy.
+- Next: 2.6 deploy to Vercel.
 
 ## 2026-11-19: Task 2.4 Collision grid + on-foot player + camera
 - Done: `src/map/collision.ts` (32 m hash grid of 152k wall segments: building outlines, water banks cut into 4 m pieces with gaps where any road crosses water, railings along bridges and along roads where they are over water; circle push-out; `heightAt` for bridge decks). `src/player/onFoot.ts` (demo figure and tank controls: W/S walk, A/D turn, Shift run), `src/player/chaseCamera.ts` (demo chase camera, kept out of buildings), `src/player/input.ts` (keyboard). Map view moved to the C key. Player spawns at Raj Vihar Circle.

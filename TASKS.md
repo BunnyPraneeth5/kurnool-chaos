@@ -22,7 +22,7 @@ Order: core game first (map, driving, playing together), extras after. If time r
   - Accept: city looks dense, no z-fighting, 30+ fps on Bunny's phone on low quality.
 - [x] **2.4 Collision grid + on-foot player + camera.** Port from the demo.
   - Accept: can walk around Rajvihar, cannot walk through buildings or into water, can cross bridges.
-- [ ] **2.5 Car driving + touch controls.** Port demo handling, retune for narrow streets. Enter/exit. Parked cars near spawn. Unstuck button (R key and touch). Touch joystick and buttons from the demo. Capped physics time step.
+- [x] **2.5 Car driving + touch controls.** Port demo handling, retune for narrow streets. Enter/exit. Parked cars near spawn. Unstuck button (R key and touch). Touch joystick and buttons from the demo. Capped physics time step.
   - Accept: drive from Rajvihar to the fort without getting stuck on geometry, on laptop and on phone with thumbs. Unstuck puts you on the nearest road.
 - [ ] **2.6 Deploy.** Connect repo to Vercel. Live link. Loading screen, and a clear error screen if the map fails to load.
   - Accept: link works on phone and laptop. A broken map URL shows a clear error, not a blank screen.
