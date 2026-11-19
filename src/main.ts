@@ -44,14 +44,22 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   window.addEventListener('resize', resize);
   resize();
 
+  // Dev builds can point at another map file to test the error screen: ?map=/map/missing.json
+  const devMap = import.meta.env.DEV ? new URLSearchParams(location.search).get('map') : null;
+  const mapUrl = devMap ?? `${import.meta.env.BASE_URL}map/kurnool.json`;
+
   let map;
   try {
-    map = await loadMap(`${import.meta.env.BASE_URL}map/kurnool.json`);
+    map = await loadMap(mapUrl, (bytes) => showLoading(`Loading Kurnool… ${(bytes / 1e6).toFixed(1)} MB`));
   } catch (err) {
     const detail = err instanceof MapLoadError ? err.message : `Unexpected error: ${String(err)}`;
     showError('Could not load the map', detail);
     return;
   }
+
+  // Let the message paint before the heavy, blocking mesh build.
+  showLoading('Building the city…');
+  await new Promise((r) => setTimeout(r, 30));
 
   scene.add(buildGround(map));
   scene.add(buildWater(map));

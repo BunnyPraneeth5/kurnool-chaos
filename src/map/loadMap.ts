@@ -3,8 +3,11 @@ import type { MapData } from './types';
 /** Thrown with a message that is safe to show to the player. */
 export class MapLoadError extends Error {}
 
-/** Fetch and sanity-check the built map. No fallback: any problem is a clear error. */
-export async function loadMap(url: string): Promise<MapData> {
+/**
+ * Fetch and sanity-check the built map, reporting downloaded bytes as it goes.
+ * No fallback: any problem is a clear error.
+ */
+export async function loadMap(url: string, onProgress?: (bytes: number) => void): Promise<MapData> {
   let res: Response;
   try {
     res = await fetch(url);
@@ -14,9 +17,37 @@ export async function loadMap(url: string): Promise<MapData> {
   if (!res.ok) {
     throw new MapLoadError(`The map file is missing (HTTP ${res.status} for ${url}).`);
   }
+  // Some servers answer a missing file with their HTML page instead of a 404.
+  if ((res.headers.get('content-type') ?? '').includes('text/html')) {
+    throw new MapLoadError(`The map file is missing (the server sent a web page for ${url}).`);
+  }
+
+  let text: string;
+  try {
+    if (res.body) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      const parts: string[] = [];
+      let bytes = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        parts.push(decoder.decode(value, { stream: true }));
+        onProgress?.(bytes);
+      }
+      parts.push(decoder.decode());
+      text = parts.join('');
+    } else {
+      text = await res.text();
+    }
+  } catch {
+    throw new MapLoadError('The map download was interrupted. Check your internet connection and retry.');
+  }
+
   let data: unknown;
   try {
-    data = await res.json();
+    data = JSON.parse(text);
   } catch {
     throw new MapLoadError('The map file is damaged (not valid JSON).');
   }
