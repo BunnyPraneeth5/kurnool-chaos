@@ -26,6 +26,7 @@ function angDiff(a: number, b: number): number {
 
 export class ChaseCamera {
   private camA = 0;
+  private shakeAmt = 0;
   private readonly pos = new THREE.Vector3();
   private readonly target = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
@@ -40,11 +41,21 @@ export class ChaseCamera {
     this.apply(t);
   }
 
+  /** Short camera shake after a crash (demo values 0.5 to 0.55). */
+  shake(amount: number): void {
+    this.shakeAmt = Math.max(this.shakeAmt, amount);
+  }
+
   update(dt: number, t: Followable, world: CollisionWorld, inCar = false): void {
     this.camA += angDiff(t.a, this.camA) * Math.min(1, dt * (inCar ? 3.4 : 4.5));
     this.place(t, world, inCar);
     this.pos.lerp(this.target, Math.min(1, dt * 6));
     this.apply(t);
+    if (this.shakeAmt > 0) {
+      this.shakeAmt = Math.max(0, this.shakeAmt - dt * 1.6);
+      this.camera.position.x += (Math.random() - 0.5) * this.shakeAmt;
+      this.camera.position.y += (Math.random() - 0.5) * this.shakeAmt;
+    }
   }
 
   private place(t: Followable, world: CollisionWorld, inCar: boolean): void {
