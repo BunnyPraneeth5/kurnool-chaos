@@ -615,7 +615,6 @@ for (let j = 0; j < CH; j++) {
 /* ================= AIRPORT + LINK ROAD ================= */
 // Pulled in to about 1.5 km east of the play area (MAP-SPEC), linked from the
 // biggest road that reaches the east edge (trunk, then primary, then secondary).
-// In this snapshot no trunk or primary reaches the east edge, so it is MDR090.
 const LINK_PENALTY = { trunk: 0, primary: 150, secondary: 300 };
 let linkNode = -1;
 let linkScore = Infinity;

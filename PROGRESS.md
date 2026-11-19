@@ -2,6 +2,13 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-19: Map expansion (Bunny's request, between 2.3 and 2.4)
+- Map box now S15.770 W77.975 N15.870 E78.065 (9.6 x 11.1 km), reaching G. Pulla Reddy College (south) and Peddapadu (west). Re-downloaded (about 25 min on private.coffee), new `raw.json.gz` 1.7 MB.
+- Rebuilt `kurnool.json`: 4.08 MB (0.98 MB gzipped), identical on rebuild. 4615 roads, 26900 buildings (15322 OSM incl. 3725 shrunk, 11578 filler; 1903 dropped on roads), 644 parks, all 9 landmarks still found. Airport link now from Nandikottur Road. Size limit raised to 6 MB.
+- Performance fixes found while checking: trees were one always-drawn instanced mesh (5649 trees, ~180k triangles); now instanced per 500 m chunk with cheaper trunks. Buildings chunked at 250 m. Camera far plane now stops just past the fog (sky dome scales to fit). Street-level drawn triangles fell from ~230k to 40k-66k (24 to 62 draw calls).
+- Not measured: real fps after these changes (session window was closed, so browser timing was throttled). Expect better than the 60 fps Bunny saw on his phone before.
+- Abdullah Khan Estate pin still needed.
+
 ## 2026-11-19: Task 2.3 Buildings and parks
 - Phone check: Bunny's phone shows 60 fps on low. 2.3 ticked.
 - Bunny feedback: some buildings, rivers and canals look misplaced or mismatched, and landmarks do not look like the real ones. Landmark models are task 4.1 (not built yet). Accuracy fix options discussed with Bunny, see the next entry when decided.

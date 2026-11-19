@@ -4,11 +4,12 @@ import type { QualitySettings } from '../world/quality';
 import { SolidMeshBuilder } from './meshBuilder';
 import { makeRng, pointInRing } from '../util/rng';
 
-// Extruded building footprints merged per 500 m chunk (MAP-SPEC: Buildings).
+// Extruded building footprints merged per 250 m chunk (MAP-SPEC: Buildings).
+// Buildings are most of the triangles, so they get finer chunks than roads for tighter culling.
 // Warm Indian city palette, window texture on walls, a lighter parapet band on top,
 // darker flat roofs and black water tanks on some roofs.
 
-export const BUILDING_CHUNK = 500;
+export const BUILDING_CHUNK = 250;
 const TILE_M = 3.2; // one window bay / one floor
 const BAYS = 8; // the texture holds 8 x 8 bays; bay column 0 is plain wall
 const TEX_M = TILE_M * BAYS;

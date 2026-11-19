@@ -34,7 +34,7 @@ kurnool-chaos/
    - Water: river polygons. River centreline as fallback if no polygon. Roads tagged `bridge=yes` cross water: water collision is removed under them.
    - Landmarks: id, name_en, name_te, position, footprint, type.
    - Adds the airport block (see MAP-SPEC) and the highway link to it.
-   - Rounds coordinates to 0.1 m to keep the file small. Target under 3 MB.
+   - Rounds coordinates to 0.1 m to keep the file small. Target under 6 MB (about 1.5 MB gzipped); raised from 3 MB when the map was expanded.
    - Validates before writing: no NaN, every point inside bounds, polygons with 3+ points and no self-crossing, `version` set. Fails loudly if not.
 3. Output JSON is committed. A gzipped `scripts/osm/raw.json.gz` snapshot is committed too, so the build can be re-run on the same data later. Game loads the map with `fetch('/map/kurnool.json')` and shows a clear error screen if the fetch or parse fails.
 

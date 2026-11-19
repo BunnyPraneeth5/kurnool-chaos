@@ -5,7 +5,7 @@ import { FlatMeshBuilder } from './meshBuilder';
 // Road ribbons merged per 500 m chunk so the renderer can cull off-screen chunks
 // while keeping draw calls low on phones.
 // Bigger roads sit slightly higher so they draw over smaller ones where they overlap.
-export const ROAD_CHUNK = 500;
+export const ROAD_CHUNK = 500; // roads are light; buildings use 250 m chunks
 const BRIDGE_LIFT = 0.5;
 const MAX_MITER = 2.5;
 const DISC_SEGMENTS = 12;

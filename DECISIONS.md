@@ -30,13 +30,17 @@
 | 2026-11-11 | Commits use the GitHub noreply email, not Bunny's personal email | Public repo, keeps the email private |
 | 2026-11-18 | Play area S15.805 W78.003 N15.870 E78.065 (6.6 x 7.2 km), bigger than the first guess | Bunny's pick, so the NH44 Tungabhadra bridge is inside |
 | 2026-11-18 | Bus stand = main APSRTC Bus Station Kurnool (15.8240, 78.0278). The Rajvihar bus station is part of Rajvihar Centre | Two APSRTC stations in OSM; the main one fits "Kurnool Bus Stand" |
+| 2026-11-19 | Map expanded south to G. Pulla Reddy College and west to Peddapadu: S15.770 W77.975 N15.870 E78.065 (9.6 x 11.1 km) | Bunny's request |
+| 2026-11-19 | Map file limit raised from 3 MB to 6 MB (now 4.08 MB, 0.98 MB gzipped) | Bigger area; cutting detail would hurt more than a 1 MB download |
+| 2026-11-19 | Airport link now from Nandikottur Road (the bigger road reaching the new east edge); rule unchanged: trunk, then primary, then secondary | Map expansion changed which road is nearest |
+| 2026-11-19 | Far plane stops just past the fog; buildings chunked at 250 m, trees instanced per 500 m chunk | Trees were one always-drawn mesh (180k triangles); street-level triangles fell from ~230k to 40k-66k |
 | 2026-11-19 | Quality defaults: phones (coarse pointer) low, laptops high; `?quality=` overrides until the menu toggle in 7.1 | Phones need the cheap path without a menu yet |
 | 2026-11-19 | Buildings and roads merged per 500 m chunk (was 250 m for roads) | Fewer draw calls for phones; fog limits the view anyway |
 | 2026-11-19 | One building material: window texture with a plain bay column, roofs/parapets/tanks sample the plain column | One draw call per chunk instead of two |
 | 2026-11-19 | Road layers 0.08 to 0.16 m above ground by road size, water 0.04 m, bridges +0.5 m; near plane grows with camera height | Small steps keep vehicles looking grounded; dynamic near plane avoids flicker from high up |
 | 2026-11-19 | Road colours get lighter with road size; ground darkened | Main routes need to stand out for Kurnool to be recognizable from above |
 | 2026-11-19 | Temporary map-style fly-over camera for 2.2/2.3 | Lets Bunny check the city before on-foot and driving cameras exist (2.4) |
-| 2026-11-19 | Airport highway links from MDR090 (secondary road reaching the middle of the east edge) | No trunk or primary road reaches the east edge in OSM; the Nandyal road leaves to the south |
+| 2026-11-19 | Airport highway linked from MDR090 (superseded by the map expansion, see above) | No trunk or primary road reached the old east edge |
 | 2026-11-19 | Buildings that block roads are shrunk toward their centre (85/70/55%), dropped if still blocking | Keeps lanes drivable while keeping most of the city. 2844 shrunk, 1214 dropped |
 | 2026-11-19 | Filler: 80 m cells with roads but 3 or fewer OSM buildings; 20% become parks, the rest get up to 8 simple houses along the roads | Simple, seeded, keeps the file under 3 MB |
 | 2026-11-19 | River/canal centrelines without OSM polygons become 30 m / 12 m wide quad strips; streams and drains skipped | Drains everywhere would block streets |

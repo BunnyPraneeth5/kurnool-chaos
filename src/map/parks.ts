@@ -5,11 +5,12 @@ import type { QualitySettings } from '../world/quality';
 import { FlatMeshBuilder } from './meshBuilder';
 import { makeRng, pointInRing } from '../util/rng';
 
-// Green park patches plus low-poly trees drawn as one instanced mesh.
+// Green park patches plus low-poly trees, instanced per 500 m chunk.
 
 const PARK_Y = 0.02;
 const M2_PER_TREE = 140;
 const MAX_TREES_PER_PARK = 40;
+const TREE_CHUNK = 500;
 
 function area(r: Pt[]): number {
   let a = 0;
@@ -35,7 +36,8 @@ function treeGeometry(): THREE.BufferGeometry {
     ng.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     return ng;
   };
-  const trunk = paint(new THREE.BoxGeometry(0.35, 2.2, 0.35).translate(0, 1.1, 0), 0x6b4a35);
+  // Open four-sided trunk (8 triangles); its top is hidden inside the canopy.
+  const trunk = paint(new THREE.CylinderGeometry(0.18, 0.22, 2.2, 4, 1, true).translate(0, 1.1, 0), 0x6b4a35);
   const canopy = paint(new THREE.IcosahedronGeometry(1.9, 0).translate(0, 3.5, 0), 0x55804c);
   const merged = mergeGeometries([trunk, canopy]);
   if (!merged) throw new Error('Could not build the tree model');
@@ -85,28 +87,36 @@ export function buildParks(map: MapData, quality: QualitySettings): THREE.Group 
     group.add(new THREE.Mesh(mb.build(), mat));
   }
 
-  if (trees.length) {
-    const mesh = new THREE.InstancedMesh(
-      treeGeometry(),
-      new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }),
-      trees.length,
-    );
+  // One instanced mesh per 500 m chunk, so trees out of view are culled.
+  const byChunk = new Map<string, typeof trees>();
+  for (const t of trees) {
+    const k = `${Math.floor(t.x / TREE_CHUNK)},${Math.floor(t.z / TREE_CHUNK)}`;
+    let list = byChunk.get(k);
+    if (!list) byChunk.set(k, (list = []));
+    list.push(t);
+  }
+  if (byChunk.size) {
+    const geo = treeGeometry();
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
     const p = new THREE.Vector3();
     const s = new THREE.Vector3();
     const c = new THREE.Color();
-    trees.forEach((t, i) => {
-      q.setFromAxisAngle(up, t.r);
-      p.set(t.x, 0, t.z);
-      s.setScalar(t.s);
-      mesh.setMatrixAt(i, m.compose(p, q, s));
-      mesh.setColorAt(i, c.setHSL(0.25 + t.tint * 0.1, 0.25, 0.85 + t.tint * 0.3));
-    });
-    mesh.computeBoundingSphere();
-    mesh.name = 'trees';
-    group.add(mesh);
+    for (const [key, list] of byChunk) {
+      const mesh = new THREE.InstancedMesh(geo, mat, list.length);
+      list.forEach((t, i) => {
+        q.setFromAxisAngle(up, t.r);
+        p.set(t.x, 0, t.z);
+        s.setScalar(t.s);
+        mesh.setMatrixAt(i, m.compose(p, q, s));
+        mesh.setColorAt(i, c.setHSL(0.25 + t.tint * 0.1, 0.25, 0.85 + t.tint * 0.3));
+      });
+      mesh.computeBoundingSphere();
+      mesh.name = `trees ${key}`;
+      group.add(mesh);
+    }
   }
   return group;
 }

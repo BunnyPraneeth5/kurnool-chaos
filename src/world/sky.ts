@@ -79,9 +79,13 @@ export function createSky(scene: THREE.Scene, renderer: THREE.WebGLRenderer, fog
       fog.near = FOG_NEAR + h * 1.5;
       fog.far = FOG_FAR + h * 3;
       // Near plane grows with height so road layers stay crisp from high up.
+      // Nothing past the fog's far distance is visible, so the far plane stops
+      // just beyond it; whole chunks behind the fog are then culled. The sky
+      // dome is scaled to stay inside the far plane.
       const near = THREE.MathUtils.clamp(h * 0.01, 0.3, 20);
-      const far = Math.max(1300, fog.far + 600);
-      if (camera.near !== near || camera.far !== far) {
+      const far = fog.far * 1.05 + 10;
+      group.scale.setScalar((far * 0.95) / R);
+      if (Math.abs(camera.near - near) > 1e-3 || Math.abs(camera.far - far) > 1e-3) {
         camera.near = near;
         camera.far = far;
         camera.updateProjectionMatrix();
