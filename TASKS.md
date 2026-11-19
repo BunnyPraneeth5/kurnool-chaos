@@ -18,7 +18,7 @@ Order: core game first (map, driving, playing together), extras after. If time r
   - Accept: file under 3 MB. Counts of roads, buildings, parks, landmarks printed. Re-running gives an identical file. Validation passes.
 - [x] **2.2 Render roads, ground, water.** Load the JSON, chunked road meshes, river, dusk sky and fog.
   - Accept: free camera fly-over shows recognizable Kurnool roads and the river. 50+ fps on laptop.
-- [ ] **2.3 Buildings and parks.** Extruded, merged per chunk, colour palette, parks and filler where OSM is empty.
+- [x] **2.3 Buildings and parks.** Extruded, merged per chunk, colour palette, parks and filler where OSM is empty.
   - Accept: city looks dense, no z-fighting, 30+ fps on Bunny's phone on low quality.
 - [ ] **2.4 Collision grid + on-foot player + camera.** Port from the demo.
   - Accept: can walk around Rajvihar, cannot walk through buildings or into water, can cross bridges.

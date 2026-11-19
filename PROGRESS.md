@@ -2,7 +2,9 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
-## 2026-11-19: Task 2.3 Buildings and parks (waiting for Bunny's phone check)
+## 2026-11-19: Task 2.3 Buildings and parks
+- Phone check: Bunny's phone shows 60 fps on low. 2.3 ticked.
+- Bunny feedback: some buildings, rivers and canals look misplaced or mismatched, and landmarks do not look like the real ones. Landmark models are task 4.1 (not built yet). Accuracy fix options discussed with Bunny, see the next entry when decided.
 - Done: `src/map/buildings.ts` extrudes all 16876 buildings, merged per 500 m chunk: palette colours, shared window texture (8x8 bays, bay 0 plain), lit windows as an emissive map on high quality, lighter parapet band on buildings 6 m+, darker roofs, black water tanks on 15% of roofs. Tiny per-building height offsets stop coplanar roofs flickering. `src/map/parks.ts`: green park patches plus low-poly trees in one instanced mesh. `src/world/quality.ts`: low (phones, pixel ratio 1, fog 420 m, no lit windows, half the trees) or high (laptops); override with `?quality=low|high`. Road chunks raised to 500 m to cut draw calls. Junction discs at bridge ends now use the normal road's style (no raised caps).
 - Checked on the laptop (Intel UHD), timed renders: high = about 114 fps at street level, 66 fps with the whole city on screen (353 draw calls, 519k triangles). Low = 160 to 185 fps (24 to 30 draw calls, 90k to 115k triangles). Live counter 60 fps (vsync). No z-fighting seen on roofs, walls, parks or roads.
 - Not ticked: acceptance needs 30+ fps on Bunny's phone on low. Phones get low automatically. Bunny: run the dev server, open `http://<laptop Wi-Fi IP>:5173` on the phone, read the fps number in the top-left corner.
