@@ -7,16 +7,17 @@ import * as THREE from 'three';
 
 export const FOG_COLOR = 0xf0a584;
 
-// Fog at street level, as in the demo. It is pushed out as the camera rises.
+// Fog at street level, as in the demo (far distance comes from the quality
+// setting). It is pushed out as the camera rises.
 const FOG_NEAR = 90;
-const FOG_FAR = 580;
 
 export interface Sky {
   /** Keep the dome on the camera and fit fog and clip planes to its height. */
   update(camera: THREE.PerspectiveCamera): void;
 }
 
-export function createSky(scene: THREE.Scene, renderer: THREE.WebGLRenderer): Sky {
+export function createSky(scene: THREE.Scene, renderer: THREE.WebGLRenderer, fogFar: number): Sky {
+  const FOG_FAR = fogFar;
   renderer.setClearColor(FOG_COLOR);
   const fog = new THREE.Fog(FOG_COLOR, FOG_NEAR, FOG_FAR);
   scene.fog = fog;

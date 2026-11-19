@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import type { MapData, Pt } from './types';
 import { FlatMeshBuilder } from './meshBuilder';
 
-// Road ribbons merged per 250 m chunk so the renderer can cull off-screen chunks.
+// Road ribbons merged per 500 m chunk so the renderer can cull off-screen chunks
+// while keeping draw calls low on phones.
 // Bigger roads sit slightly higher so they draw over smaller ones where they overlap.
-export const ROAD_CHUNK = 250;
+export const ROAD_CHUNK = 500;
 const BRIDGE_LIFT = 0.5;
 const MAX_MITER = 2.5;
 const DISC_SEGMENTS = 12;
@@ -116,7 +117,8 @@ export function buildRoads(map: MapData): THREE.Group {
   }
 
   // Junction discs: at every node where two or more road pieces meet, a disc the
-  // size and colour of the widest one closes the gaps between ribbons.
+  // size and colour of the widest one closes the gaps between ribbons. Where a
+  // bridge meets a normal road, the normal road wins so no raised cap sticks out.
   const widest = new Map<number, { hw: number; kind: string; bridge: boolean }>();
   const degree = new Map<number, number>();
   for (const e of map.graph.edges) {
@@ -125,9 +127,12 @@ export function buildRoads(map: MapData): THREE.Group {
       degree.set(n, (degree.get(n) ?? 0) + 1);
       const cur = widest.get(n);
       const hw = road.width / 2;
-      if (!cur || hw > cur.hw || (hw === cur.hw && roadY(road.kind, road.bridge) > roadY(cur.kind, cur.bridge))) {
-        widest.set(n, { hw, kind: road.kind, bridge: road.bridge });
-      }
+      const better =
+        !cur ||
+        (cur.bridge && !road.bridge) ||
+        (cur.bridge === road.bridge &&
+          (hw > cur.hw || (hw === cur.hw && roadY(road.kind, road.bridge) > roadY(cur.kind, cur.bridge))));
+      if (better) widest.set(n, { hw, kind: road.kind, bridge: road.bridge });
     }
   }
   for (const [n, d] of degree) {

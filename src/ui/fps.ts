@@ -11,7 +11,7 @@ declare global {
   }
 }
 
-export function createFpsMeter(): FpsMeter {
+export function createFpsMeter(label: string): FpsMeter {
   const show = import.meta.env.DEV || new URLSearchParams(location.search).has('fps');
   const el = document.getElementById('fps');
   if (el) el.hidden = !show;
@@ -23,7 +23,7 @@ export function createFpsMeter(): FpsMeter {
       if (now - last >= 500) {
         const fps = (frames * 1000) / (now - last);
         window.__fps = Math.round(fps);
-        if (el && show) el.textContent = `${Math.round(fps)} fps`;
+        if (el && show) el.textContent = `${Math.round(fps)} fps · ${label}`;
         frames = 0;
         last = now;
       }

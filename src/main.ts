@@ -3,7 +3,10 @@ import { loadMap, MapLoadError } from './map/loadMap';
 import { buildGround } from './map/ground';
 import { buildWater } from './map/water';
 import { buildRoads } from './map/roads';
+import { buildBuildings } from './map/buildings';
+import { buildParks } from './map/parks';
 import { createSky } from './world/sky';
+import { detectQuality } from './world/quality';
 import { FreeCamera } from './player/freeCamera';
 import { showLoading, showError, hideStatus } from './ui/status';
 import { createFpsMeter } from './ui/fps';
@@ -24,11 +27,12 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     showError('3D graphics not available', 'This browser or device could not start WebGL. Try Chrome, or turn on hardware acceleration.');
     return;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const quality = detectQuality();
+  renderer.setPixelRatio(quality.pixelRatio);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(58, 1, 0.5, 1300);
-  const sky = createSky(scene, renderer);
+  const sky = createSky(scene, renderer, quality.fogFar);
 
   const resize = (): void => {
     const w = window.innerWidth || 800;
@@ -53,6 +57,8 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   scene.add(buildGround(map));
   scene.add(buildWater(map));
   scene.add(buildRoads(map));
+  scene.add(buildParks(map, quality));
+  scene.add(buildBuildings(map, quality, quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1));
 
   const free = new FreeCamera(camera, gl);
   free.lookAt(map.spawn.x, map.spawn.z, 1400, 0);
@@ -63,7 +69,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
 
   if (import.meta.env.DEV) Object.assign(window, { __three: { renderer, scene, camera } });
 
-  const fps = createFpsMeter();
+  const fps = createFpsMeter(quality.level);
   const timer = new THREE.Timer();
   renderer.setAnimationLoop((ts) => {
     timer.update(ts);
