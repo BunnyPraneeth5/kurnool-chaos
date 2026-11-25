@@ -19,6 +19,17 @@ export async function loadRaw() {
   throw new Error('No OSM data found. Run: npm run osm:fetch');
 }
 
+// Overture Maps buildings snapshot (task K.1), written by scripts/osm/overture.py.
+export const OVERTURE_GZ_PATH = join(DIR, 'overture-buildings.json.gz');
+
+/** The committed Overture buildings snapshot. Fails loudly if it is missing. */
+export async function loadOverture() {
+  if (!existsSync(OVERTURE_GZ_PATH)) {
+    throw new Error('No Overture buildings snapshot (scripts/osm/overture-buildings.json.gz). Run scripts/osm/overture.py, see its header.');
+  }
+  return JSON.parse(gunzipSync(await readFile(OVERTURE_GZ_PATH)).toString('utf8'));
+}
+
 // Play area from docs/MAP-SPEC.md. Stretched north at task 1.3 so the NH44
 // Tungabhadra bridge (about 15.862, 78.010) is inside, then south to G. Pulla Reddy
 // College (15.775, 78.057) and west to Peddapadu (15.807, 77.981) on Bunny's request.

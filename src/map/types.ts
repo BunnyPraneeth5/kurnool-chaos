@@ -34,6 +34,13 @@ export interface Building {
   kind?: string;
 }
 
+/** A building as stored in the file: p = [x0, z0, dx1, dz1, ...] in whole decimetres, k = kind. */
+export interface PackedBuilding {
+  p: number[];
+  h: number;
+  k?: string;
+}
+
 export interface Landmark {
   id: string;
   nameEn: string;
@@ -45,7 +52,7 @@ export interface Landmark {
 }
 
 export interface MapData {
-  version: 1;
+  version: 2;
   center: { lat: number; lon: number };
   bounds: Rect;
   playArea: Rect;
@@ -61,5 +68,5 @@ export interface MapData {
     terminal: { pts: Pt[] };
   };
   spawn: { x: number; z: number; heading: number };
-  meta: { osmBase: string; credit: string };
+  meta: { osmBase: string; overtureRelease?: string; credit: string };
 }

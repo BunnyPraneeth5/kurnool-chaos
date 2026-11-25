@@ -44,7 +44,7 @@ Find each one in the OSM data (by name tag) or with Nominatim. If not found, ask
 - Junctions: fill with a simple polygon so ribbons don't show gaps.
 
 ## Buildings
-- Use OSM footprints. Remove or shrink any that overlap a drivable road (half road width + 1 m), so narrow lanes stay drivable.
+- Use OSM footprints first, then Overture Maps footprints (Google Open Buildings, Microsoft ML Buildings) where OSM has none (task K.1). Remove or shrink any that overlap a drivable road (half road width + 1 m), so narrow lanes stay drivable.
 - Where an area has almost no buildings, fill it with a mix of parks (green patches, a few trees) and simple random buildings along the roads. No need to be precise.
 - Random choices (heights, colours, filler) are seeded by OSM id or position, so every build gives the same city.
 - Heights: 1 to 4 floors at 3.2 m per floor. Commercial areas around Rajvihar, Park Road and the bus stand get 3 to 6 floors.
@@ -52,4 +52,4 @@ Find each one in the OSM data (by name tag) or with Nominatim. If not found, ask
 
 ## Look
 - Dusk lighting, fog and sky from the reference demo.
-- On-screen credit: "© OpenStreetMap contributors" (bottom corner, always visible).
+- On-screen credit: "© OpenStreetMap contributors, Overture Maps Foundation" (bottom corner, always visible).

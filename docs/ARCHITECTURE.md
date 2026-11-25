@@ -30,7 +30,8 @@ kurnool-chaos/
    - Roads: keep drivable highway types, assign width by type, simplify with Douglas-Peucker (about 1 m tolerance), build a road graph (nodes at intersections, edges with polylines) for traffic AI.
    - Buildings: footprint polygons. Height from `building:levels` if present, otherwise 1 to 4 floors from a random generator seeded by the OSM id (same output every run), taller near commercial centres. Drop tiny ones (< 12 m2).
    - Road cleanup: drop or shrink any building that overlaps a drivable road (half road width + 1 m), so narrow old-city lanes stay drivable.
-   - Filler: where an area has almost no OSM buildings, add parks (green patches, a few trees) and simple random buildings along road edges. Seeded, not precise.
+   - Overture buildings (task K.1): `scripts/osm/overture.py` downloads Overture Maps buildings (pinned release, `overturemaps` Python tool) into the committed `scripts/osm/overture-buildings.json.gz`. The build adds every Overture building that is not more than 20% on an OSM outline (2 m raster), with the same road clean-up. Real heights or floor counts are used when Overture has them, otherwise seeded floors like OSM.
+   - Filler: where an area has almost no OSM or Overture buildings, add parks (green patches, a few trees) and simple random buildings along road edges. Seeded, not precise.
    - Water: river polygons. River centreline as fallback if no polygon. Roads tagged `bridge=yes` cross water: water collision is removed under them.
    - Landmarks: id, name_en, name_te, position, footprint, type.
    - Adds the airport block (see MAP-SPEC) and the highway link to it.
@@ -41,7 +42,7 @@ kurnool-chaos/
 ### kurnool.json shape
 ```ts
 type MapData = {
-  version: 1
+  version: 2
   center: { lat: number; lon: number }
   bounds: { minX: number; minZ: number; maxX: number; maxZ: number }   // play area + airport
   playArea: { minX: number; minZ: number; maxX: number; maxZ: number } // the OSM box only
@@ -51,18 +52,20 @@ type MapData = {
     // road = index into roads; pts i0..i1 of that road is the edge's polyline (a at i0, b at i1)
     edges: { a: number; b: number; road: number; len: number; i0: number; i1: number }[]
   }
-  buildings: { pts: [number, number][]; h: number; kind?: string }[]   // kind 'filler' = generated
+  buildings: { p: number[]; h: number; k?: string }[]   // file form; the loader unpacks it to { pts, h, kind }. kind 'filler' = generated
   water: { pts: [number, number][] }[]
   parks: { pts: [number, number][] }[]
   rail: { pts: [number, number][] }[]
   landmarks: { id: string; nameEn: string; nameTe: string; type: string; x: number; z: number; pts?: [number, number][] }[]
   airport: { runway: { x: number; z: number; len: number; w: number; heading: number }; terminal: { pts: [number, number][] } }
   spawn: { x: number; z: number; heading: number }
-  meta: { osmBase: string; credit: string }
+  meta: { osmBase: string; overtureRelease: string; credit: string }
 }
 ```
+Building outlines are packed to keep the file small: `p = [x0, z0, dx1, dz1, ...]` in whole decimetres (first point absolute, then deltas), `k` = kind. `src/map/loadMap.ts` unpacks them into `pts` in metres.
 Conventions:
 - Units are metres, rounded to 0.1. X = east, Z = south.
+- Credit (`meta.credit` and `#credit` in index.html): "© OpenStreetMap contributors, Overture Maps Foundation". Both sources are ODbL.
 - Polygons are open rings (no repeated closing point) with positive shoelace area in (x, z).
 - Heading is radians with forward = (sin h, cos h), same as the demo.
 - Roads with `oneway` run in point order. The airport link road has `id: -1`.

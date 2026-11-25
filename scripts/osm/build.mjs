@@ -6,7 +6,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { BBOX, CENTER, project, DRIVABLE, loadRaw, MAP_OUT_PATH, MAP_PREVIEW_PATH } from './common.mjs';
+import { BBOX, CENTER, project, DRIVABLE, loadRaw, loadOverture, MAP_OUT_PATH, MAP_PREVIEW_PATH } from './common.mjs';
 import {
   wayLines, polygons, allNames, uid, polyLen, ringArea, ringCentroid, pointInRing,
   segDist, segSegDist, selfIntersects, simplify, clipRingToRect, makeRng, hash32,
@@ -312,9 +312,39 @@ function floorsFor(rng, x, z, filler) {
   return filler ? 1 + Math.floor(rng() * 3) : 1 + Math.floor(rng() * 4); // 1..3 filler, 1..4 OSM
 }
 
+const SHRINK = [0.85, 0.7, 0.55];
+/**
+ * Road clean-up shared by every building source: rings that block a road are shrunk toward
+ * their centre (85/70/55%). Returns the finished ring, or a reason string when it is dropped.
+ */
+function fitBuilding(ring, c, stats) {
+  if (overlapsRoad(ring)) {
+    let fixed = null;
+    for (const f of SHRINK) {
+      const r = ring.map((p) => [c[0] + (p[0] - c[0]) * f, c[1] + (p[1] - c[1]) * f]);
+      if (Math.abs(ringArea(r)) >= MIN_BUILDING_AREA && !overlapsRoad(r)) {
+        fixed = r;
+        break;
+      }
+    }
+    if (!fixed) {
+      stats.dropped++;
+      return null;
+    }
+    ring = fixed;
+    stats.shrunk++;
+  }
+  const fr = finishRing(ring);
+  if (fr.length < 3 || !fr.every((p) => inPA(p[0], p[1])) || selfIntersects(fr)) {
+    stats.broken++;
+    return null;
+  }
+  return fr;
+}
+
 const bStats = { osm: 0, outside: 0, tiny: 0, broken: 0, shrunk: 0, dropped: 0, kept: 0 };
 const buildings = [];
-const SHRINK = [0.85, 0.7, 0.55];
+const osmFootprints = []; // every usable OSM outline before road clean-up, so Overture never re-adds one
 for (const el of main) {
   const t = el.tags;
   if (!t?.building || (el.type !== 'way' && el.type !== 'relation')) continue;
@@ -338,27 +368,9 @@ for (const el of main) {
     bStats.broken++;
     continue;
   }
-  if (overlapsRoad(ring)) {
-    let fixed = null;
-    for (const f of SHRINK) {
-      const r = ring.map((p) => [c[0] + (p[0] - c[0]) * f, c[1] + (p[1] - c[1]) * f]);
-      if (Math.abs(ringArea(r)) >= MIN_BUILDING_AREA && !overlapsRoad(r)) {
-        fixed = r;
-        break;
-      }
-    }
-    if (!fixed) {
-      bStats.dropped++;
-      continue;
-    }
-    ring = fixed;
-    bStats.shrunk++;
-  }
-  const fr = finishRing(ring);
-  if (fr.length < 3 || !fr.every((p) => inPA(p[0], p[1])) || selfIntersects(fr)) {
-    bStats.broken++;
-    continue;
-  }
+  osmFootprints.push(ring);
+  const fr = fitBuilding(ring, c, bStats);
+  if (!fr) continue;
   const levels = parseFloat(t['building:levels']);
   const rng = makeRng(hash32('b', el.type, el.id));
   const floors = Number.isFinite(levels) && levels > 0 && levels < 40 ? levels : floorsFor(rng, c[0], c[1], false);
@@ -366,6 +378,106 @@ for (const el of main) {
   if (t.building !== 'yes') b.kind = t.building;
   buildings.push(b);
   bStats.kept++;
+}
+
+/* ---------- Overture buildings (task K.1): only where OSM has none ---------- */
+// A 2 m raster of every OSM outline. An Overture building is skipped if more than
+// OV_MAX_COVER of it lies on an OSM building (Overture already merges OSM, Microsoft
+// and Google outlines, so its own buildings do not overlap each other).
+const OV_RES = 2;
+const OV_MAX_COVER = 0.2;
+const OV_SIMPLIFY = 0.5; // m
+const ovW = Math.ceil((PA.maxX - PA.minX) / OV_RES);
+const ovH = Math.ceil((PA.maxZ - PA.minZ) / OV_RES);
+const osmOcc = new Uint8Array(ovW * ovH);
+/** Calls fn(index) for each raster cell whose centre is inside the ring. */
+function scanRing(ring, fn) {
+  let z0 = Infinity, z1 = -Infinity;
+  for (const p of ring) {
+    z0 = Math.min(z0, p[1]);
+    z1 = Math.max(z1, p[1]);
+  }
+  const j0 = Math.max(0, Math.floor((z0 - PA.minZ) / OV_RES));
+  const j1 = Math.min(ovH - 1, Math.floor((z1 - PA.minZ) / OV_RES));
+  const xs = [];
+  for (let j = j0; j <= j1; j++) {
+    const zc = PA.minZ + (j + 0.5) * OV_RES;
+    xs.length = 0;
+    for (let k = 0, n = ring.length; k < n; k++) {
+      const a = ring[k];
+      const b = ring[(k + 1) % n];
+      if ((a[1] <= zc && b[1] > zc) || (b[1] <= zc && a[1] > zc)) xs.push(a[0] + ((zc - a[1]) / (b[1] - a[1])) * (b[0] - a[0]));
+    }
+    xs.sort((p, q) => p - q);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const i0 = Math.max(0, Math.ceil((xs[k] - PA.minX) / OV_RES - 0.5));
+      const i1 = Math.min(ovW - 1, Math.floor((xs[k + 1] - PA.minX) / OV_RES - 0.5));
+      for (let i = i0; i <= i1; i++) fn(j * ovW + i);
+    }
+  }
+}
+for (const r of osmFootprints) scanRing(r, (k) => (osmOcc[k] = 1));
+/** Share of a ring's raster cells already on an OSM building (centroid cell for tiny rings). */
+function osmCover(ring, c) {
+  let n = 0, hit = 0;
+  scanRing(ring, (k) => {
+    n++;
+    hit += osmOcc[k];
+  });
+  if (n === 0) {
+    const i = Math.floor((c[0] - PA.minX) / OV_RES);
+    const j = Math.floor((c[1] - PA.minZ) / OV_RES);
+    return i >= 0 && j >= 0 && i < ovW && j < ovH ? osmOcc[j * ovW + i] : 0;
+  }
+  return hit / n;
+}
+
+const overture = await loadOverture();
+const oStats = { total: 0, outside: 0, tiny: 0, broken: 0, onOsm: 0, shrunk: 0, dropped: 0, kept: 0, realHeight: 0, realFloors: 0 };
+const oBySource = {};
+for (const f of overture.buildings) {
+  oStats.total++;
+  let ring = toRing(f.ring.map(([lon, lat]) => [lat, lon]));
+  if (ring.length < 3) {
+    oStats.broken++;
+    continue;
+  }
+  ring = simplify([...ring, ring[0]], OV_SIMPLIFY).slice(0, -1);
+  const c = ringCentroid(ring);
+  if (!inPA(c[0], c[1])) {
+    oStats.outside++;
+    continue;
+  }
+  if (ring.length < 3 || selfIntersects(ring)) {
+    oStats.broken++;
+    continue;
+  }
+  if (Math.abs(ringArea(ring)) < MIN_BUILDING_AREA) {
+    oStats.tiny++;
+    continue;
+  }
+  if (osmCover(ring, c) > OV_MAX_COVER) {
+    oStats.onOsm++;
+    continue;
+  }
+  const fr = fitBuilding(ring, c, oStats);
+  if (!fr) continue;
+  let h;
+  if (Number.isFinite(f.h) && f.h >= 2.5 && f.h < 120) {
+    h = f.h;
+    oStats.realHeight++;
+  } else if (Number.isInteger(f.floors) && f.floors > 0 && f.floors < 40) {
+    h = f.floors * FLOOR_H;
+    oStats.realFloors++;
+  } else {
+    h = floorsFor(makeRng(hash32('ov', f.id)), c[0], c[1], false) * FLOOR_H;
+  }
+  const b = { pts: fr, h: r1(h) };
+  if (f.class) b.kind = f.class;
+  buildings.push(b);
+  oStats.kept++;
+  const src = f.src.join('+');
+  oBySource[src] = (oBySource[src] || 0) + 1;
 }
 
 /* ================= WATER, RAIL, PARKS ================= */
@@ -677,7 +789,7 @@ const bounds = {
   maxZ: r1(Math.max(PA.maxZ, termCz + 300)),
 };
 const map = {
-  version: 1,
+  version: 2,
   center: { lat: CENTER.lat, lon: CENTER.lon },
   bounds,
   playArea: PA,
@@ -690,7 +802,7 @@ const map = {
   landmarks,
   airport: { runway, terminal },
   spawn,
-  meta: { osmBase: raw.osmBase, credit: '© OpenStreetMap contributors' },
+  meta: { osmBase: raw.osmBase, overtureRelease: overture.release, credit: '© OpenStreetMap contributors, Overture Maps Foundation' },
 };
 
 function validate(m) {
@@ -706,7 +818,7 @@ function validate(m) {
     pts.forEach((p, i) => pt(p, `${what} point ${i}`));
     if (checkCross && selfIntersects(pts)) err(`${what}: self-crossing`);
   };
-  if (m.version !== 1) err('version is not 1');
+  if (m.version !== 2) err('version is not 2');
   for (const k of ['minX', 'minZ', 'maxX', 'maxZ']) if (!Number.isFinite(B[k])) err(`bounds.${k} not finite`);
   m.roads.forEach((r, i) => {
     if (!Number.isFinite(r.width) || r.width <= 0) err(`road ${i}: bad width`);
@@ -741,7 +853,21 @@ function validate(m) {
 }
 validate(map);
 
-const json = JSON.stringify(map);
+// Building outlines go into the file as whole-decimetre deltas (src/map/loadMap.ts unpacks them).
+function packBuilding(b) {
+  const p = [];
+  let px = 0, pz = 0;
+  for (const [x, z] of b.pts) {
+    const X = Math.round(x * 10), Z = Math.round(z * 10);
+    p.push(X - px, Z - pz);
+    px = X;
+    pz = Z;
+  }
+  const o = { p, h: b.h };
+  if (b.kind) o.k = b.kind;
+  return o;
+}
+const json = JSON.stringify({ ...map, buildings: buildings.map(packBuilding) });
 await mkdir(dirname(MAP_OUT_PATH), { recursive: true });
 await writeFile(MAP_OUT_PATH, json);
 const gzBytes = gzipSync(json, { level: 9 }).length;
@@ -755,6 +881,12 @@ console.log(
   `Buildings: ${bStats.kept} from OSM (${bStats.shrunk} shrunk off roads) + ${fillerBuildings} filler = ${buildings.length}. ` +
     `Dropped: ${bStats.dropped} on roads, ${bStats.tiny} tiny, ${bStats.broken} broken, ${bStats.outside} outside`,
 );
+console.log(
+  `Overture (${overture.release}): ${oStats.kept} added (${oStats.shrunk} shrunk off roads; real height ${oStats.realHeight}, real floors ${oStats.realFloors}) of ${oStats.total}. ` +
+    `Skipped: ${oStats.onOsm} already in OSM, ${oStats.dropped} on roads, ${oStats.tiny} tiny, ${oStats.broken} broken, ${oStats.outside} outside`,
+);
+console.log(`  Overture added by source: ${Object.entries(oBySource).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+console.log(`Buildings total: ${buildings.length} = OSM ${bStats.kept} + Overture ${oStats.kept} + filler ${fillerBuildings}`);
 console.log(`Parks: ${osmParks} from OSM + ${fillerParks} filler. Water: ${wStats.polygons} polygons + ${wStats.lineStrips} river/canal strips (${wStats.broken} broken dropped). Rail: ${rail.length}`);
 console.log(`Landmarks: ${landmarks.map((l) => l.id).join(', ')}`);
 if (missing.length) console.log(`MISSING landmarks (need a pin from Bunny in scripts/osm/landmarks.mjs MANUAL_PINS): ${missing.join(', ')}`);

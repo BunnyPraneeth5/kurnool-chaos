@@ -1,4 +1,4 @@
-import type { MapData } from './types';
+import type { Building, MapData, PackedBuilding, Pt } from './types';
 
 /** Thrown with a message that is safe to show to the player. */
 export class MapLoadError extends Error {}
@@ -51,9 +51,9 @@ export async function loadMap(url: string, onProgress?: (bytes: number) => void)
   } catch {
     throw new MapLoadError('The map file is damaged (not valid JSON).');
   }
-  const m = data as Partial<MapData>;
+  const m = data as Partial<Omit<MapData, 'buildings'>> & { buildings?: unknown };
   const problems: string[] = [];
-  if (m.version !== 1) problems.push(`unsupported version ${String(m.version)}`);
+  if (m.version !== 2) problems.push(`unsupported version ${String(m.version)}`);
   if (!m.bounds || !m.playArea) problems.push('missing bounds');
   if (!Array.isArray(m.roads) || m.roads.length === 0) problems.push('no roads');
   if (!m.graph || !Array.isArray(m.graph.nodes)) problems.push('no road graph');
@@ -63,5 +63,28 @@ export async function loadMap(url: string, onProgress?: (bytes: number) => void)
   if (problems.length) {
     throw new MapLoadError(`The map file is not usable: ${problems.join(', ')}. Rebuild it with npm run map:build.`);
   }
-  return m as MapData;
+  let buildings: Building[];
+  try {
+    buildings = (m.buildings as PackedBuilding[]).map(unpackBuilding);
+  } catch {
+    throw new MapLoadError('The map file is damaged (bad building outlines). Rebuild it with npm run map:build.');
+  }
+  return { ...(m as Omit<MapData, 'buildings'>), buildings };
+}
+
+/** Building outlines are stored as decimetre deltas (see docs/ARCHITECTURE.md) to keep the file small. */
+function unpackBuilding(b: PackedBuilding): Building {
+  const p = b.p;
+  if (!Array.isArray(p) || p.length < 6 || p.length % 2) throw new Error('bad outline');
+  const pts: Pt[] = [];
+  let x = 0;
+  let z = 0;
+  for (let i = 0; i < p.length; i += 2) {
+    x += p[i];
+    z += p[i + 1];
+    pts.push([x / 10, z / 10]);
+  }
+  const out: Building = { pts, h: b.h };
+  if (b.k) out.kind = b.k;
+  return out;
 }

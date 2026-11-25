@@ -2,6 +2,14 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-25: Task K.1 Real building outlines (accuracy track, branch claude/accuracy-dab84d)
+- Done: `scripts/osm/overture.py` downloads Overture Maps buildings (release 2026-11-18.0, pinned) for the map box into the committed `scripts/osm/overture-buildings.json.gz` (4.1 MB, 73,949 outlines: Google Open Buildings 48,615, OSM 17,739, Microsoft ML Buildings 7,595). `build.mjs` keeps OSM first, then adds Overture outlines that are not on an OSM building, with the same road clean-up; filler only where neither source has buildings.
+- Build: 66,607 buildings = 15,322 OSM + 47,650 Overture (40,876 Google, 6,765 Microsoft, 9 newer OSM; 8,019 shrunk off roads) + 3,635 filler (was 11,578). Skipped Overture: 17,216 already in OSM, 7,350 blocking roads, 1,630 tiny. Overture has almost no heights for Kurnool (2 heights, 73 floor counts, all on buildings OSM already had), so heights stay seeded.
+- File: version 2 with packed building outlines (decimetre deltas, unpacked in `loadMap.ts`): 5.02 MB, 1.39 MB gzipped (was 4.08 / 0.98). Rebuild identical (sha256 320536fe27b95d38).
+- Credit now "© OpenStreetMap contributors, Overture Maps Foundation" in-game and in `meta.credit` (Overture buildings are ODbL). Fits on one line under the buttons at phone width.
+- Measured on the laptop, street level at 7 landmarks x 4 headings: low quality 39k to 77k triangles (avg 55k), 33 to 48 draw calls, 2.9 ms per timed frame (Intel UHD); high 43k to 83k. Was 40k to 66k before. Boot 2.8 s on the laptop.
+- Waiting: Bunny's phone check on the preview link (30+ fps on low) before ticking K.1.
+
 ## 2026-11-25: Parallel work set up
 - Bunny chose to run accuracy and multiplayer at the same time. Added Phase K (K.1 to K.4) to TASKS.md; 4.1 now uses Bunny's photos. Two sessions start from this commit, each on its own branch: "Kurnool accuracy" (K.1 onwards) and "Multiplayer" (3.1 onwards). This session coordinates and merges into `main`.
 - Rules for both: commit and push only to your own branch (Vercel makes a preview link per branch), never merge into `main`, only tick your own tasks, add your own PROGRESS entries.

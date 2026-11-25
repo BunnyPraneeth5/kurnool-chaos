@@ -30,6 +30,11 @@
 | 2026-11-11 | Commits use the GitHub noreply email, not Bunny's personal email | Public repo, keeps the email private |
 | 2026-11-18 | Play area S15.805 W78.003 N15.870 E78.065 (6.6 x 7.2 km), bigger than the first guess | Bunny's pick, so the NH44 Tungabhadra bridge is inside |
 | 2026-11-18 | Bus stand = main APSRTC Bus Station Kurnool (15.8240, 78.0278). The Rajvihar bus station is part of Rajvihar Centre | Two APSRTC stations in OSM; the main one fits "Kurnool Bus Stand" |
+| 2026-11-25 | K.1: Overture buildings release 2026-11-18.0 pinned; snapshot `overture-buildings.json.gz` (4.1 MB) committed next to `raw.json.gz` | Reproducible build; same idea as the OSM snapshot |
+| 2026-11-25 | K.1: Overture downloaded through the `overturemaps` library with the STAC catalog off, not the CLI | The CLI checks the release against stac.overturemaps.org, which kept answering 429 |
+| 2026-11-25 | K.1: an Overture building is skipped when more than 20% of it (2 m raster) is on an OSM outline, including OSM outlines later dropped for blocking roads | OSM stays first; a dropped OSM building must not come back from Overture's copy of OSM |
+| 2026-11-25 | K.1: credit is now "© OpenStreetMap contributors, Overture Maps Foundation" | Overture buildings are ODbL; this is Overture's own attribution line |
+| 2026-11-25 | K.1: map file version 2, building outlines packed as whole-decimetre deltas | 66.6k buildings made the file 7.4 MB; packed it is 5.0 MB (1.4 MB gzipped), under the 6 MB limit without asking for more |
 | 2026-11-25 | New Phase K (Kurnool accuracy) runs in parallel with Phase 3 (multiplayer), each in its own session and git branch; the coordinator session merges into `main` | Bunny wants both; separate branches keep the sessions from overwriting each other |
 | 2026-11-25 | `overturemaps` Python tool approved for downloading Overture building outlines (dev tool only, not shipped in the game) | Real building positions instead of generated filler |
 | 2026-11-25 | Live at https://kurnool-chaos.vercel.app/ with Vercel defaults (Vite preset, no vercel.json) | Static build needs nothing more; map gets brotli and revalidation by default |
