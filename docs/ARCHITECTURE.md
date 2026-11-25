@@ -158,7 +158,7 @@ No blank screens. Each failure shows a plain message with a Retry button:
 Nicknames and any player text are shown with `textContent`, never `innerHTML`.
 
 ## Env
-- `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env.local` and in Vercel project settings. Both are public by design. Security comes from RLS.
+- `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` in `.env.local` and in Vercel project settings (Production and Preview). No `VITE_` prefix, because Vercel refuses key-like variables with a public framework prefix; `vite.config.ts` bakes exactly these two names into the game at build time and nothing else. Both are public by design. Security comes from RLS. Never add the Supabase secret key to this list.
 
 ## Open questions
 - Exact bounding box and landmark coordinates: confirm with Bunny in task 1.3.

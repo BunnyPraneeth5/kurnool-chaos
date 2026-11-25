@@ -42,6 +42,7 @@
 | 2026-11-25 | Friend's car drawn in the colour of the parked car they took (cars are on the same spots everywhere); our copy is hidden while they drive it and left where they park it | Avoids a ghost parked car under every friend's car |
 | 2026-11-25 | After the page was hidden 4 s or more (phone lock, app switch), the room channel is torn down and rejoined with the same id, nickname and slot; "Reconnecting…" shows until it is back. Socket drops retry with backoff (1 s up to 10 s) | A locked phone's socket can look open while dead |
 | 2026-11-25 | Background tabs keep sending a heartbeat from a 1 s timer | Animation frames stop in background tabs; friends would see you vanish |
+| 2026-11-25 | Env vars renamed to `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (no `VITE_` prefix); `vite.config.ts` injects only these two at build time | Vercel would not save a key-like variable with the `VITE_` public prefix |
 | 2026-11-25 | New Phase K (Kurnool accuracy) runs in parallel with Phase 3 (multiplayer), each in its own session and git branch; the coordinator session merges into `main` | Bunny wants both; separate branches keep the sessions from overwriting each other |
 | 2026-11-25 | `overturemaps` Python tool approved for downloading Overture building outlines (dev tool only, not shipped in the game) | Real building positions instead of generated filler |
 | 2026-11-25 | Live at https://kurnool-chaos.vercel.app/ with Vercel defaults (Vite preset, no vercel.json) | Static build needs nothing more; map gets brotli and revalidation by default |

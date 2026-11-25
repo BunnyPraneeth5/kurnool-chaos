@@ -18,7 +18,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--port", "5176", "--strictPort"],
       "port": 5176,
-      "env": { "VITE_SUPABASE_URL": "https://nosuchproject0000.supabase.co", "VITE_SUPABASE_PUBLISHABLE_KEY": "" }
+      "env": { "SUPABASE_URL": "https://nosuchproject0000.supabase.co", "SUPABASE_PUBLISHABLE_KEY": "" }
     }
   ]
 }
