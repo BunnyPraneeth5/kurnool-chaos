@@ -3,7 +3,7 @@ import type { MapData } from './map/types';
 import { CollisionWorld } from './map/collision';
 import { RoadIndex } from './map/roadIndex';
 import { Keyboard, type MoveInput } from './player/input';
-import { OnFootPlayer } from './player/onFoot';
+import { OnFootPlayer, PLAYER_RADIUS } from './player/onFoot';
 import { ChaseCamera } from './player/chaseCamera';
 import { FreeCamera } from './player/freeCamera';
 import { Vehicle } from './vehicles/vehicle';
@@ -37,10 +37,11 @@ export class Game {
     scene: THREE.Scene,
     camera: THREE.PerspectiveCamera,
     canvas: HTMLCanvasElement,
+    shirt?: number,
   ) {
     this.world = new CollisionWorld(map);
     this.roads = new RoadIndex(map);
-    this.player = new OnFootPlayer(map.spawn.x, map.spawn.z, map.spawn.heading);
+    this.player = new OnFootPlayer(map.spawn.x, map.spawn.z, map.spawn.heading, shirt);
     scene.add(this.player.figure);
     this.vehicles = spawnParkedCars(map.spawn.x, map.spawn.z, this.roads, this.world);
     for (const v of this.vehicles) scene.add(v.mesh);
@@ -80,6 +81,20 @@ export class Game {
     this.hud.speed(!!this.car, this.car ? this.car.speed : 0);
     this.hud.update(dt);
     this.keys.endFrame();
+  }
+
+  toast(msg: string): void {
+    this.hud.toast(msg);
+  }
+
+  /** Put the on-foot player somewhere else (rooms spread players out at the start). */
+  placeAt(x: number, z: number, heading: number): void {
+    const r = this.world.collide(x, z, PLAYER_RADIUS);
+    this.player.x = r.x;
+    this.player.z = r.z;
+    this.player.a = heading;
+    this.player.update(0, { thr: 0, steer: 0, hand: false }, this.world);
+    this.chase.snap(this.player, this.world);
   }
 
   private toggleMapView(): void {

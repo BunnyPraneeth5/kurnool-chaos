@@ -30,12 +30,12 @@ export class OnFootPlayer {
   private readonly armL: Limb;
   private readonly armR: Limb;
 
-  constructor(x: number, z: number, heading: number) {
+  constructor(x: number, z: number, heading: number, shirt = 0xffc247) {
     this.x = x;
     this.z = z;
     this.a = heading;
     const f = this.figure;
-    const torso = box(0.62, 0.72, 0.36, 0xffc247);
+    const torso = box(0.62, 0.72, 0.36, shirt);
     torso.position.y = 1.16;
     const head = box(0.38, 0.38, 0.38, 0xd9a07c);
     head.position.y = 1.74;
@@ -53,8 +53,8 @@ export class OnFootPlayer {
     };
     this.legL = limb(0.16, 0.8, 0.26, 0.8, 0x2b2a4a);
     this.legR = limb(-0.16, 0.8, 0.26, 0.8, 0x2b2a4a);
-    this.armL = limb(0.42, 1.5, 0.18, 0.66, 0xffc247);
-    this.armR = limb(-0.42, 1.5, 0.18, 0.66, 0xffc247);
+    this.armL = limb(0.42, 1.5, 0.18, 0.66, shirt);
+    this.armR = limb(-0.42, 1.5, 0.18, 0.66, shirt);
     const shadow = new THREE.Mesh(
       new THREE.CircleGeometry(0.55, 14).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }),
@@ -77,16 +77,21 @@ export class OnFootPlayer {
     // Step up onto bridge decks smoothly.
     const ground = world.heightAt(this.x, this.z);
     this.y += (ground - this.y) * Math.min(1, dt * 12);
-    this.phase += Math.abs(sp) * dt * 2.4;
-    const sw = Math.sin(this.phase) * 0.75 * Math.min(1, Math.abs(sp) / 4);
+    this.animate(dt, sp);
+    this.sync();
+  }
+
+  /** Swing arms and legs for walking at `speed` m/s (also used for friends' figures). */
+  animate(dt: number, speed: number): void {
+    this.phase += Math.abs(speed) * dt * 2.4;
+    const sw = Math.sin(this.phase) * 0.75 * Math.min(1, Math.abs(speed) / 4);
     this.legL.rotation.x = sw;
     this.legR.rotation.x = -sw;
     this.armL.rotation.x = -sw;
     this.armR.rotation.x = sw;
-    this.sync();
   }
 
-  private sync(): void {
+  sync(): void {
     this.figure.position.set(this.x, this.y, this.z);
     this.figure.rotation.y = this.a;
   }

@@ -11,14 +11,26 @@ export function showLoading(text: string): void {
   box.replaceChildren(Object.assign(document.createElement('p'), { textContent: text }));
 }
 
-export function showError(title: string, detail: string): void {
+export interface StatusAction {
+  label: string;
+  run: () => void;
+}
+
+/** Error screen. Without actions it offers Retry (reload the page). */
+export function showError(title: string, detail: string, actions?: StatusAction[]): void {
   box.hidden = false;
   box.className = 'error';
   const h = Object.assign(document.createElement('h2'), { textContent: title });
   const p = Object.assign(document.createElement('p'), { textContent: detail });
-  const btn = Object.assign(document.createElement('button'), { type: 'button', textContent: 'Retry' });
-  btn.addEventListener('click', () => location.reload());
-  box.replaceChildren(h, p, btn);
+  const list = actions ?? [{ label: 'Retry', run: () => location.reload() }];
+  const row = document.createElement('div');
+  row.className = 'actions';
+  for (const a of list) {
+    const btn = Object.assign(document.createElement('button'), { type: 'button', textContent: a.label });
+    btn.addEventListener('click', a.run);
+    row.append(btn);
+  }
+  box.replaceChildren(h, p, row);
 }
 
 export function hideStatus(): void {
