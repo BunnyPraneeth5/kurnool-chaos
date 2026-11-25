@@ -29,11 +29,11 @@ Order: core game first (map, driving, playing together), extras after. If time r
   - **Bunny check:** Bunny drives around and reports streets that look wrong.
 
 ## Phase 3: Friends
-- [ ] **3.1 Supabase project.** Create project, add env vars locally and on Vercel. Check the current free-plan Realtime limits (messages per month and per second) and log them in DECISIONS.md.
+- [x] **3.1 Supabase project.** Create project, add env vars locally and on Vercel. Check the current free-plan Realtime limits (messages per month and per second) and log them in DECISIONS.md.
   - Accept: the app joins a Realtime channel with the publishable key. Missing env vars or a failed connection show a clear error.
 - [x] **3.2 Rooms.** Create room, share link, nickname prompt, presence list, soft 8-player cap, spread-out spawn.
   - Accept: 2 browser tabs join the same room, both see the player list, and they spawn apart.
-- [ ] **3.3 Live sync.** 5 Hz broadcast (heartbeat only while idle), 200 ms interpolation, remote vehicle models, name tags, bounce off friends' cars, recover after phone lock or app switch.
+- [x] **3.3 Live sync.** 5 Hz broadcast (heartbeat only while idle), 200 ms interpolation, remote vehicle models, name tags, bounce off friends' cars, recover after phone lock or app switch.
   - Accept: phone and laptop in one room see each other move smoothly at normal driving speed. Locking the phone for 10 s and coming back recovers without a refresh.
 
 ## Phase K: Kurnool accuracy (runs in parallel with Phase 3, on its own branch)
