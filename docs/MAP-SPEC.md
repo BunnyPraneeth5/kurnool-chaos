@@ -52,4 +52,4 @@ Find each one in the OSM data (by name tag) or with Nominatim. If not found, ask
 
 ## Look
 - Dusk lighting, fog and sky from the reference demo.
-- On-screen credit: "© OpenStreetMap contributors, Overture Maps Foundation" (bottom corner, always visible).
+- On-screen credit: "© OpenStreetMap contributors, Overture Maps Foundation, Google Open Buildings, Dynamic World" (bottom corner, always visible).

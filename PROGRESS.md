@@ -2,6 +2,14 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-25: Task K.5 part 2, satellite heights and water widths (accuracy track)
+- Bunny registered Google Earth Engine (free noncommercial Community tier, valid to May 2028) and signed in on the laptop (the first two sign-ins failed because two sign-in listeners were waiting on the same port; the third worked). `earthengine-api` installed as a uv tool.
+- Done: `scripts/osm/earthengine.py` downloaded Google Open Buildings 2.5D heights (2023, 4 m grid, 2411 x 2767) and Dynamic World water probability (5 m grid) into committed snapshots (0.86 MB + 0.40 MB). `build.mjs` gives 58,902 buildings their satellite height (70 keep OSM levels, 7,585 not seen by the satellite keep their style height). Floors now 1: 29k, 2: 26k, 3: 8k, 4: 2.1k, 5: 0.6k, 6+: 0.5k; median 5 m, tallest 67 m.
+- Water widths measured every 20 m: KC Canal west reach 29 m, its unnamed head reach 36 m, Handri 41 m; satellite water centres are 1 to 5 m from the OSM lines, so the OSM positions are right. The KC Canal city reach is too narrow for 10 m pixels and stays 12 m. Widths depend on the threshold (see DECISIONS), so they are approximate.
+- Credit now adds "Google Open Buildings, Dynamic World" (CC BY 4.0); on phones it is 9 px and sits under the joystick and buttons (checked portrait 375x812 and landscape 740x360).
+- File 5.67 MB (1.58 MB gzipped), rebuild identical (sha256 1789e6b3be8a7a9b). Autopilot 5 routes: 0 stuck, 0 crashes. Low quality street level: avg 65k, max 99k triangles. No console errors.
+- Waiting for Bunny: phone check of the preview; the real width of the KC Canal in the city (if he knows it) and the Abdullah Khan Estate pin for K.4.
+
 ## 2026-11-25: Task K.5 Railway, KC Canal and rivers, part 1 (accuracy track, Bunny's request)
 - Done: `src/map/rail.ts` draws the OSM railway: 15 runs (main line and station sidings), ballast with sleepers and two rails at broad gauge, the 897 m Tungabhadra rail bridge and the Handri rail bridge 6 m high on piers with girder sides, overhead line masts and contact wire on the electrified line, raised red-and-white barrier booms at the 20 places where roads cross the track at ground level. `src/map/waterways.ts` draws concrete walls along the KC Canal (gaps where roads cross), sand banks along the Handri and other river lines, and the KC Canal's 241 m aqueduct over the Handri as a raised trough on piers. Build: rail keeps OSM bridge/electrified/siding tags, waterway centre lines are kept, culverts are not drawn as water, 20 buildings standing in water dropped, the mistagged "site1" rail loop skipped.
 - Also fixed: kerbs, dividers and canal walls lost their corners (cut by about a metre).

@@ -66,6 +66,23 @@ export async function loadCorrections() {
   return c;
 }
 
+// Satellite grids from Google Earth Engine (task K.5), written by scripts/osm/earthengine.py.
+export const EARTHENGINE_PATH = join(DIR, 'earthengine.json');
+
+/** Heights (half metres, 4 m) and water probability (percent, 5 m) grids. Fails loudly if missing. */
+export async function loadEarthEngine() {
+  if (!existsSync(EARTHENGINE_PATH)) throw new Error('No Earth Engine snapshot (scripts/osm/earthengine.json). Run scripts/osm/earthengine.py, see its header.');
+  const meta = JSON.parse(await readFile(EARTHENGINE_PATH, 'utf8'));
+  const out = { licence: meta.licence };
+  for (const k of ['heights', 'water']) {
+    const g = meta[k];
+    const data = gunzipSync(await readFile(join(DIR, g.file)));
+    if (data.length !== g.width * g.height) throw new Error(`Earth Engine ${k} grid is ${data.length} bytes, expected ${g.width} x ${g.height}`);
+    out[k] = { ...g, data };
+  }
+  return out;
+}
+
 // Play area from docs/MAP-SPEC.md. Stretched north at task 1.3 so the NH44
 // Tungabhadra bridge (about 15.862, 78.010) is inside, then south to G. Pulla Reddy
 // College (15.775, 78.057) and west to Peddapadu (15.807, 77.981) on Bunny's request.
@@ -90,6 +107,11 @@ const M_LON = 111412.84 * Math.cos(phi) - 93.5 * Math.cos(3 * phi);
 /** lat/lon -> local metres. X = east, Z = south (matches Three.js with Y up). */
 export function project(lat, lon) {
   return [(lon - CENTER.lon) * M_LON, (CENTER.lat - lat) * M_LAT];
+}
+
+/** Local metres -> [lat, lon] (inverse of project). */
+export function unproject(x, z) {
+  return [CENTER.lat - z / M_LAT, CENTER.lon + x / M_LON];
 }
 
 export const bboxStr = (b) => `${b.south},${b.west},${b.north},${b.east}`;

@@ -6,7 +6,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { BBOX, CENTER, project, DRIVABLE, loadRaw, loadOverture, loadDetails, loadCorrections, MAP_OUT_PATH, MAP_PREVIEW_PATH } from './common.mjs';
+import { BBOX, CENTER, project, unproject, loadEarthEngine, DRIVABLE, loadRaw, loadOverture, loadDetails, loadCorrections, MAP_OUT_PATH, MAP_PREVIEW_PATH } from './common.mjs';
 import {
   wayLines, polygons, centerOf, allNames, uid, polyLen, ringArea, ringCentroid, pointInRing,
   segDist, segSegDist, selfIntersects, simplify, clipRingToRect, makeRng, hash32,
@@ -36,6 +36,21 @@ const byId = (a, b) => (a.type < b.type ? -1 : a.type > b.type ? 1 : a.id - b.id
 const raw = await loadRaw();
 const names = await loadLandmarkNames();
 const corrections = await loadCorrections();
+const eeGrids = await loadEarthEngine();
+/** Fractional pixel position of local metres on an Earth Engine lat/lon grid (pixel i covers i..i+1). */
+const gridPx = (g, x, z) => {
+  const [lat, lon] = unproject(x, z);
+  return [(lon - g.west) / g.dLon, (g.north - lat) / g.dLat];
+};
+const gridCell = (g, i, j) => (i >= 0 && j >= 0 && i < g.width && j < g.height ? g.data[j * g.width + i] : 0);
+/** Bilinear value of a grid at local metres. */
+function gridSample(g, x, z) {
+  const [fi, fj] = gridPx(g, x, z);
+  const u = fi - 0.5, v = fj - 0.5;
+  const i = Math.floor(u), j = Math.floor(v);
+  const fx = u - i, fy = v - j;
+  return gridCell(g, i, j) * (1 - fx) * (1 - fy) + gridCell(g, i + 1, j) * fx * (1 - fy) + gridCell(g, i, j + 1) * (1 - fx) * fy + gridCell(g, i + 1, j + 1) * fx * fy;
+}
 const applied = []; // corrections report
 const normName = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 const main = [...raw.main].sort(byId);
@@ -510,6 +525,57 @@ for (const el of main) {
 // for banks and canal walls. Aqueducts (the KC Canal over the Handri) are drawn raised and
 // culverts (under roads) are not drawn, so neither goes into `water`.
 const LINE_WIDTH = { river: 30, canal: 12 };
+// Width from the satellite water map (Dynamic World, 90th percentile over a year): every 20 m,
+// look across the line for the wettest spot near it and measure the water there.
+const WET = 50; // percent water probability counted as water (halfway across a blurred edge)
+const eeWidths = [];
+function measureWidth(line, kind) {
+  const maxHalf = kind === 'river' ? 150 : 40;
+  const search = kind === 'river' ? 40 : 15;
+  const widths = [];
+  const offsets = [];
+  let stations = 0;
+  let along = 0;
+  let next = 10;
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1], b = line[i];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (L < 1e-6) continue;
+    const ux = (b[0] - a[0]) / L, uz = (b[1] - a[1]) / L;
+    const nx = -uz, nz = ux;
+    while (next <= along + L) {
+      const t = next - along;
+      const cx = a[0] + ux * t, cz = a[1] + uz * t;
+      next += 20;
+      stations++;
+      const p = (s) => gridSample(eeGrids.water, cx + nx * s, cz + nz * s);
+      let best = -1, bs = 0;
+      for (let s = -search; s <= search; s++) {
+        const v = p(s);
+        if (v > best) {
+          best = v;
+          bs = s;
+        }
+      }
+      if (best < WET) continue;
+      let l = bs, r = bs;
+      while (l > -maxHalf && p(l - 1) >= WET) l--;
+      while (r < maxHalf && p(r + 1) >= WET) r++;
+      if (l <= -maxHalf || r >= maxHalf) continue; // runs into a lake or the big river, not a channel width
+      widths.push(r - l + 1);
+      offsets.push((l + r) / 2);
+    }
+    along += L;
+  }
+  const med = (arr) => {
+    const v = [...arr].sort((x, y) => x - y);
+    return v.length ? v[Math.floor(v.length / 2)] : null;
+  };
+  const wet = widths.length;
+  const ok = wet >= 3 && wet >= stations * 0.3;
+  const width = ok ? Math.min(kind === 'river' ? 250 : 60, Math.max(5, Math.round(med(widths) * 2) / 2)) : null;
+  return { stations, wet, width, offset: ok ? med(offsets) : null };
+}
 const waterFixUsed = new Set();
 const waterways = [];
 const wwStats = { aqueduct: 0, culvert: 0 };
@@ -519,7 +585,7 @@ for (const el of main) {
   const tagged = parseFloat(t.width);
   const fix = corrections.waterWidths.find((c) => normName(t.name).includes(normName(c.name)) && normName(c.name));
   if (fix) waterFixUsed.add(fix);
-  const w = fix ? fix.width : Number.isFinite(tagged) && tagged > 1 && tagged < 300 ? tagged : LINE_WIDTH[t.waterway];
+  const wDefault = Number.isFinite(tagged) && tagged > 1 && tagged < 300 ? tagged : LINE_WIDTH[t.waterway];
   const part = t.bridge === 'aqueduct' ? 'aqueduct' : t.tunnel === 'culvert' || t.tunnel === 'yes' ? 'culvert' : null;
   if (part) wwStats[part]++;
   // Runs of the line inside the play area.
@@ -536,6 +602,9 @@ for (const el of main) {
   for (const run of runs) {
     const line = simplify(run, 2).map((q) => [r1(q[0]), r1(q[1])]);
     if (line.length < 2) continue;
+    const m = part ? null : measureWidth(line, t.waterway);
+    const w = fix ? fix.width : m?.width ?? wDefault;
+    if (m) eeWidths.push({ name: t.name || `unnamed ${t.waterway}`, len: Math.round(polyLen(line)), ...m, used: fix ? 'correction' : m.width ? 'satellite' : 'default' });
     const ww = { pts: line, w: r1(w), kind: t.waterway };
     if (t.name) ww.name = t.name;
     if (part) ww.part = part;
@@ -819,6 +888,59 @@ for (let j = 0; j < CH; j++) {
       }
     }
   }
+}
+
+/* ================= SATELLITE HEIGHTS (task K.5) ================= */
+// Google Open Buildings 2.5D heights (2023, 4 m pixels). A building without an OSM level
+// count takes the 80th percentile of the pixels inside its outline, if enough of them show a
+// building; otherwise its style height stays.
+const hStats = { satellite: 0, osmLevels: 0, notSeen: 0 };
+const hFloors = [0, 0, 0, 0, 0, 0]; // 1, 2, 3, 4, 5, 6+ floors
+{
+  const g = eeGrids.heights;
+  for (const b of buildings) {
+    if (b.real) {
+      hStats.osmLevels++;
+      continue;
+    }
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const p of b.pts) {
+      x0 = Math.min(x0, p[0]); z0 = Math.min(z0, p[1]);
+      x1 = Math.max(x1, p[0]); z1 = Math.max(z1, p[1]);
+    }
+    const [i0, j0] = gridPx(g, x0, z0); // north-west corner: smallest i and j
+    const [i1, j1] = gridPx(g, x1, z1);
+    const vals = [];
+    let n = 0;
+    for (let j = Math.floor(j0); j <= Math.floor(j1); j++) {
+      for (let i = Math.floor(i0); i <= Math.floor(i1); i++) {
+        const lon = g.west + (i + 0.5) * g.dLon;
+        const lat = g.north - (j + 0.5) * g.dLat;
+        const [px, pz] = project(lat, lon);
+        if (!pointInRing(px, pz, b.pts)) continue;
+        n++;
+        const v = gridCell(g, i, j);
+        if (v > 0) vals.push(v / 2);
+      }
+    }
+    if (n === 0) {
+      const c = ringCentroid(b.pts);
+      const [ci, cj] = gridPx(g, c[0], c[1]);
+      n = 1;
+      const v = gridCell(g, Math.floor(ci), Math.floor(cj));
+      if (v > 0) vals.push(v / 2);
+    }
+    if (!vals.length || vals.length < n * 0.3) {
+      hStats.notSeen++;
+      continue;
+    }
+    vals.sort((p, q) => p - q);
+    const h = Math.min(100, Math.max(3, vals[Math.min(vals.length - 1, Math.floor(vals.length * 0.8))]));
+    b.h = r1(h);
+    b.real = true;
+    hStats.satellite++;
+  }
+  for (const b of buildings) hFloors[Math.min(5, Math.max(0, Math.round(b.h / FLOOR_H) - 1))]++;
 }
 
 /* ================= KURNOOL STYLES (task K.2) ================= */
@@ -1406,7 +1528,7 @@ const map = {
   props,
   airport: { runway, terminal },
   spawn,
-  meta: { osmBase: raw.osmBase, overtureRelease: overture.release, credit: '© OpenStreetMap contributors, Overture Maps Foundation' },
+  meta: { osmBase: raw.osmBase, overtureRelease: overture.release, credit: '© OpenStreetMap contributors, Overture Maps Foundation, Google Open Buildings, Dynamic World' },
 };
 
 function validate(m) {
@@ -1522,6 +1644,8 @@ console.log(
   `Street details (K.3): ${poleCount} electric poles in ${poleRuns.length} wired runs, ${trees.length / 2} roadside trees, ${hoardings.length / 3} hoardings, ` +
     `${worship.length} places of worship (${['h', 'm', 'c'].map((r) => `${worship.filter((w) => w.r === r).length} ${{ h: 'temples', m: 'mosques', c: 'churches' }[r]}`).join(', ')}; ${removeBuilding.size} replace a building, ${worshipSkipped} skipped), ${autoStands.length / 4} auto stands`,
 );
+console.log(`Heights (K.5): ${hStats.satellite} from Google Open Buildings 2.5D, ${hStats.osmLevels} from OSM levels, ${hStats.notSeen} not seen by the satellite (style height). Floors 1/2/3/4/5/6+: ${hFloors.join('/')}`);
+console.log(`Water widths (K.5, Dynamic World): ${eeWidths.map((e) => `${e.name} ${e.len} m: ${e.wet}/${e.stations} wet, ${e.width ?? '-'} m${e.offset != null ? ' (centre ' + e.offset + ' m off OSM)' : ''} [${e.used}]`).join('; ')}`);
 console.log(`Corrections (K.4, scripts/osm/corrections.json): ${applied.length ? applied.join('; ') : 'none'}`);
 console.log(
   `Rail (K.5): ${rail.length} runs, ${rail.filter((r) => r.bridge).length} bridges (${rail.filter((r) => r.overWater).length} over water, drawn high), ${rail.filter((r) => r.electric).length} electrified${railSkipped.length ? '; skipped ' + railSkipped.join(', ') : ''}. ` +

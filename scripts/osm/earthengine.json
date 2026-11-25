@@ -1,0 +1,25 @@
+{
+  "heights": {
+    "west": 77.975,
+    "north": 15.87,
+    "dLon": 3.7337943544935724e-05,
+    "dLat": 3.614778824277379e-05,
+    "width": 2411,
+    "height": 2767,
+    "file": "ee-heights.bin.gz",
+    "unit": "half metres",
+    "source": "GOOGLE/Research/open-buildings-temporal/v1, 2023, building_height"
+  },
+  "water": {
+    "west": 77.975,
+    "north": 15.87,
+    "dLon": 4.667242943116966e-05,
+    "dLat": 4.518473530346724e-05,
+    "width": 1929,
+    "height": 2214,
+    "file": "ee-water.bin.gz",
+    "unit": "percent",
+    "source": "GOOGLE/DYNAMICWORLD/V1, water probability, 90th percentile 2023-06 to 2024-06"
+  },
+  "licence": "CC BY 4.0 (Google Open Buildings 2.5D Temporal; Dynamic World)"
+}

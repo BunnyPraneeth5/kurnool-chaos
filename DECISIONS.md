@@ -30,6 +30,11 @@
 | 2026-11-11 | Commits use the GitHub noreply email, not Bunny's personal email | Public repo, keeps the email private |
 | 2026-11-18 | Play area S15.805 W78.003 N15.870 E78.065 (6.6 x 7.2 km), bigger than the first guess | Bunny's pick, so the NH44 Tungabhadra bridge is inside |
 | 2026-11-18 | Bus stand = main APSRTC Bus Station Kurnool (15.8240, 78.0278). The Rajvihar bus station is part of Rajvihar Centre | Two APSRTC stations in OSM; the main one fits "Kurnool Bus Stand" |
+| 2026-11-25 | K.5: building heights from Google Open Buildings 2.5D (2023) for 58,902 buildings; OSM building:levels still win | Real heights instead of made-up ones; OSM levels are hand-entered |
+| 2026-11-25 | K.5: canal and river widths from Dynamic World at the 50% water edge; widths change a lot with the threshold (KC Canal west reach 35/29/16 m at 40/50/60%), so they are approximate | 10 m pixels are close to the canal's width; 50% is the unbiased edge of a blurred boundary |
+| 2026-11-25 | K.5: the KC Canal's city reach keeps 12 m (satellite sees water at only 11 of 201 points); Bunny can set it in corrections.json | Too narrow for 10 m pixels; no silent guess from neighbouring reaches |
+| 2026-11-25 | K.5: Earth Engine project id passed in EE_PROJECT, not committed | It is tied to Bunny's Google account; the repo is public |
+| 2026-11-25 | K.5: credit adds "Google Open Buildings, Dynamic World"; phones show it at 9 px under the controls | Both are CC BY 4.0; the longer line overlapped the buttons at 11 px |
 | 2026-11-25 | K.5 (Bunny's request): railway, KC Canal and rivers drawn from OSM; canal and Handri widths later from Earth Engine water maps | OSM has the right positions but only centre lines for the canal and the Handri |
 | 2026-11-25 | K.5: only rail bridges that cross water stand high on piers; other OSM rail bridges stay at ground level | One OSM "bridge" is a 973 m siding beside the station; raising it would look wrong |
 | 2026-11-25 | K.5: the OSM rail way "site1" (closed 1.9 km loop, not connected to any track) is skipped and reported | Almost surely mistagged |
