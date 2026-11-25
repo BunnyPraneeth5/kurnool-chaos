@@ -14,6 +14,7 @@ import { cssColour, playerColour, type PlayerInfo } from './roomTypes';
 const TAG_RANGE = 300; // m
 const TAG_HEIGHT_FOOT = 2.5;
 const TAG_HEIGHT_CAR = 2.3;
+const BUBBLE_MS = 4500;
 
 interface View {
   info: PlayerInfo;
@@ -23,6 +24,10 @@ interface View {
   /** -1 on foot, k = driving our parked car k, -2 = another car */
   carIndex: number;
   tag: HTMLDivElement;
+  nick: HTMLSpanElement;
+  bubble: HTMLSpanElement;
+  bubbleUntil: number;
+  blocked: boolean;
   last: Pose | null;
 }
 
@@ -50,8 +55,8 @@ export class RemotePlayers {
       const v = this.views.get(p.id);
       if (v) {
         v.info = p;
-        v.tag.textContent = p.nick;
-        v.tag.style.borderLeft = `4px solid ${cssColour(playerColour(p.slot))}`;
+        v.nick.textContent = p.nick;
+        v.nick.style.borderLeft = `4px solid ${cssColour(playerColour(p.slot))}`;
       } else {
         this.views.set(p.id, this.makeView(p));
       }
@@ -73,12 +78,40 @@ export class RemotePlayers {
     b.push(s, recvMs);
   }
 
+  /** Hide a player on this screen only: no model, no tag, not solid. */
+  setBlocked(id: string, blocked: boolean): void {
+    const v = this.views.get(id);
+    if (!v) return;
+    v.blocked = blocked;
+    if (blocked) {
+      this.setCar(v, -1, null);
+      this.hide(v);
+    }
+  }
+
+  /** Speech bubble over a friend's name tag (chat line or emote). */
+  say(id: string, text: string, nowMs: number): void {
+    const v = this.views.get(id);
+    if (!v || v.blocked) return;
+    v.bubble.textContent = text;
+    v.bubbleUntil = nowMs + BUBBLE_MS;
+  }
+
+  /** Where a friend is drawn right now, or null if we cannot see them. */
+  poseOf(id: string): Pose | null {
+    const v = this.views.get(id);
+    if (!v || v.blocked || performance.now() - v.buf.lastRecv > STALE_MS) return null;
+    return v.last;
+  }
+
   update(dt: number, nowMs: number, playerCount: number): void {
     const delay = interpDelayMs(playerCount);
     this.carColliders.length = 0;
     const w = window.innerWidth;
     const h = window.innerHeight;
     for (const v of this.views.values()) {
+      if (v.blocked) continue;
+      v.bubble.hidden = nowMs > v.bubbleUntil;
       const stale = nowMs - v.buf.lastRecv > STALE_MS;
       const pose = stale ? null : v.buf.sample(nowMs, delay);
       if (!pose) {
@@ -117,13 +150,19 @@ export class RemotePlayers {
     this.scene.add(figure.figure);
     const tag = document.createElement('div');
     tag.className = 'nametag';
-    tag.textContent = p.nick;
-    tag.style.borderLeft = `4px solid ${cssColour(playerColour(p.slot))}`;
+    const bubble = document.createElement('span');
+    bubble.className = 'bubble';
+    bubble.hidden = true;
+    const nick = document.createElement('span');
+    nick.className = 'nick';
+    nick.textContent = p.nick;
+    nick.style.borderLeft = `4px solid ${cssColour(playerColour(p.slot))}`;
+    tag.append(bubble, nick);
     tag.hidden = true;
     document.body.append(tag);
     const buf = this.early.get(p.id) ?? new SnapshotBuffer();
     this.early.delete(p.id);
-    return { info: p, buf, figure, car: null, carIndex: -1, tag, last: null };
+    return { info: p, buf, figure, car: null, carIndex: -1, tag, nick, bubble, bubbleUntil: 0, blocked: false, last: null };
   }
 
   /** Switch which parked car (if any) this friend is driving. */

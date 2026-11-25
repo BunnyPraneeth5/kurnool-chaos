@@ -32,3 +32,13 @@ export function playerColour(slot: number): number {
 export function cssColour(hex: number): string {
   return `#${hex.toString(16).padStart(6, '0')}`;
 }
+
+/** Quick emotes (broadcast event `c` with `e`), one tap each. */
+export const EMOTES = ['👋', '👍', '😂', '😮', '😡', '🔥', '🏁', '🙏'] as const;
+export const CHAT_MAX = 80;
+
+export interface ChatMsg {
+  id: string;
+  text: string;
+  emote: boolean;
+}

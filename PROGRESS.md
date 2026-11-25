@@ -2,6 +2,11 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-25: Task 3.4 Room controls (Bunny's request after 3.3)
+- Done: `src/net/roomSession.ts` (room wiring moved out of main.ts), `src/ui/chat.ts`, player menu in `src/ui/roomHud.ts`, host/kick/chat/rename/leave in `src/net/room.ts`, block and speech bubbles in `remotePlayers.ts`, `Game.teleport()`, keyboard ignores typing in text boxes.
+- Checked with 2 tabs and a test bot: host badge; chat both ways (HTML shown as text), emote bubbles appear on arrival, second message within 0.8 s refused; rename shows in list, tag and a notice; Go to lands 7 m behind the friend; Block hides model, tag, collisions and chat, Unblock brings them back; guests get no Kick; host Kick (asks "Kick?") shows the kicked tab "You were removed" and the rejoin is refused for 10 min; a bot that ignores the kick stays hidden, also after the host passes on; host Leave returns to the start screen and the next player gets "You are now the host"; T opens chat, typing W does not drive, Esc closes; solo Exit returns to the start screen.
+- Not checked: on a phone (Bunny), and how it looks (pane hidden, checked in code).
+
 ## 2026-11-25: Phase 3 Multiplayer (tasks 3.1 to 3.3, branch `claude/multiplayer-0fc95f`)
 - 3.1: Supabase project `kurnool-chaos` created on Bunny's account (free plan, Mumbai, ref lpafbvfxmbapagjozlvt). `.env.local` written (gitignored). `@supabase/supabase-js` 2.119 added, loaded only when playing in a room. Free-plan Realtime limits logged in DECISIONS (2M messages/month, 100/s; a broadcast counts 1 + 1 per receiver). Checked: the app joins a room channel with the publishable key; missing key shows "Multiplayer is not set up"; an unreachable server shows "Could not connect to the room" with Try again.
 - 3.2: start screen (nickname + Create room / Join with code / Play alone), room links skip to the nickname, room panel with code, Share button and player list, soft 8-player cap ("Room full" checked with 2 tabs + 6 bots + a 9th tab), lowest free slot sets colour and spawn on a ring around Raj Vihar (8 points, 14.7 m apart at least). Checked with 2 tabs: both see the list and spawn 31 m apart. Nicknames shown with textContent (tested with `Bunny<b>`).

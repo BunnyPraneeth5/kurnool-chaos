@@ -52,6 +52,37 @@ export function saveNick(nick: string): void {
   }
 }
 
+/** Chat text: no control characters, single spaces, capped. Shown with textContent only. */
+export function cleanChat(raw: unknown, max: number): string {
+  if (typeof raw !== 'string') return '';
+  // eslint-disable-next-line no-control-regex
+  return raw.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+const KICK_STORE = 'kc.kicked';
+const KICK_BLOCK_MS = 10 * 60 * 1000;
+
+/** Remember that the host removed us, so the same link does not drop us straight back in. */
+export function markKicked(code: string): void {
+  try {
+    localStorage.setItem(KICK_STORE, JSON.stringify({ code, until: Date.now() + KICK_BLOCK_MS }));
+  } catch {
+    // private mode: nothing remembered
+  }
+}
+
+/** Minutes until we may rejoin `code` after a kick, or 0. */
+export function kickedMinutesLeft(code: string): number {
+  try {
+    const v = JSON.parse(localStorage.getItem(KICK_STORE) ?? 'null') as { code?: string; until?: number } | null;
+    if (!v || v.code !== code || typeof v.until !== 'number') return 0;
+    const ms = v.until - Date.now();
+    return ms > 0 ? Math.ceil(ms / 60000) : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export function roomLink(code: string): string {
   const u = new URL(location.href);
   u.search = '';

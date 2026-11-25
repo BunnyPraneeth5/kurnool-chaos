@@ -1,18 +1,30 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import type { NetConfig } from './config';
-import { cleanNick } from './ids';
+import { cleanChat, cleanNick, markKicked } from './ids';
 import { parseState, type NetState } from './interp';
-import { ROOM_CAP, RoomError, type PlayerInfo, type RoomStatus } from './roomTypes';
+import { CHAT_MAX, EMOTES, ROOM_CAP, RoomError, type ChatMsg, type PlayerInfo, type RoomStatus } from './roomTypes';
 
 export { ROOM_CAP, RoomError, type PlayerInfo, type RoomStatus };
 
 // One Supabase Realtime channel per room (ARCHITECTURE: Multiplayer):
-// presence says who is in the room, broadcast event `s` carries player state.
+// presence says who is in the room, broadcast events carry player state (`s`),
+// chat and emotes (`c`) and host kicks (`k`). The host is whoever joined first.
 
 const JOIN_TIMEOUT_MS = 12000;
 const FIRST_SYNC_WAIT_MS = 2500;
 /** Coming back after the page was hidden this long forces a fresh connection. */
 const HIDDEN_RECONNECT_MS = 4000;
+const CHAT_GAP_MS = 800;
+
+function parseChat(p: unknown): ChatMsg | null {
+  if (!p || typeof p !== 'object') return null;
+  const o = p as Record<string, unknown>;
+  if (typeof o.id !== 'string') return null;
+  const id = o.id.slice(0, 32);
+  if (typeof o.e === 'string') return (EMOTES as readonly string[]).includes(o.e) ? { id, text: o.e, emote: true } : null;
+  const text = cleanChat(o.text, CHAT_MAX);
+  return text ? { id, text, emote: false } : null;
+}
 
 function parsePlayer(key: string, p: unknown): PlayerInfo | null {
   if (!p || typeof p !== 'object') return null;
@@ -31,8 +43,16 @@ export class Room {
   onStatus: (status: RoomStatus) => void = () => {};
   /** Someone new arrived (or we reconnected): send our state right away. */
   onNeedState: () => void = () => {};
+  onChat: (m: ChatMsg) => void = () => {};
+  /** The host removed someone else. */
+  onKick: (target: PlayerInfo) => void = () => {};
+  /** The host removed us; the room is already closed. */
+  onKicked: () => void = () => {};
 
   private readonly client: SupabaseClient;
+  /** Players the host removed: hidden and ignored even if their client stays. */
+  private readonly banned = new Set<string>();
+  private lastChat = -Infinity;
   private channel: RealtimeChannel | null = null;
   private me!: PlayerInfo;
   private hiddenAt = 0;
@@ -93,6 +113,68 @@ export class Room {
     return true;
   }
 
+  /** Whoever joined first; passes on automatically when they leave. */
+  get hostId(): string {
+    return this.players[0]?.id ?? this.myId;
+  }
+
+  get isHost(): boolean {
+    return this.hostId === this.myId;
+  }
+
+  /** Chat line or emote. False if sent too fast or offline. */
+  chat(text: string, emote = false): boolean {
+    const now = performance.now();
+    const t = emote ? text : cleanChat(text, CHAT_MAX);
+    if (!t || now - this.lastChat < CHAT_GAP_MS) return false;
+    if (!this.sendEvent('c', emote ? { id: this.myId, e: t } : { id: this.myId, text: t })) return false;
+    this.lastChat = now;
+    return true;
+  }
+
+  /** Host only: remove a player from the room. */
+  kick(targetId: string): boolean {
+    if (!this.isHost || targetId === this.myId) return false;
+    const target = this.players.find((p) => p.id === targetId);
+    if (!target || !this.sendEvent('k', { by: this.myId, target: targetId })) return false;
+    this.banned.add(targetId);
+    this.onKick(target); // before the list update, so it is not reported as "left"
+    this.syncPlayers();
+    return true;
+  }
+
+  /** New nickname for everyone (presence update). */
+  async rename(nick: string): Promise<boolean> {
+    const n = cleanNick(nick);
+    if (!n || this.status !== 'online') return false;
+    const old = this.me.nick;
+    this.me = { ...this.me, nick: n };
+    try {
+      await this.track();
+    } catch {
+      this.me = { ...this.me, nick: old };
+      return false;
+    }
+    this.syncPlayers();
+    return true;
+  }
+
+  /** Leave on purpose: tell the others right away, then disconnect. */
+  async leave(): Promise<void> {
+    const ch = this.channel;
+    if (ch && ch.state === 'joined') {
+      await Promise.race([ch.untrack().catch(() => {}), new Promise((r) => setTimeout(r, 1000))]);
+    }
+    this.close();
+  }
+
+  private sendEvent(event: string, payload: Record<string, unknown>): boolean {
+    const ch = this.channel;
+    if (this.status !== 'online' || !ch || ch.state !== 'joined') return false;
+    void ch.send({ type: 'broadcast', event, payload });
+    return true;
+  }
+
   close(): void {
     this.closed = true;
     clearTimeout(this.retryTimer);
@@ -122,7 +204,16 @@ export class Room {
     ch.on('broadcast', { event: 's' }, (msg) => {
       if (gen !== this.generation) return;
       const s = parseState(msg.payload);
-      if (s && s.id !== this.myId) this.onState(s, performance.now());
+      if (s && s.id !== this.myId && !this.banned.has(s.id)) this.onState(s, performance.now());
+    });
+    ch.on('broadcast', { event: 'c' }, (msg) => {
+      if (gen !== this.generation) return;
+      const m = parseChat(msg.payload);
+      if (m && m.id !== this.myId && !this.banned.has(m.id)) this.onChat(m);
+    });
+    ch.on('broadcast', { event: 'k' }, (msg) => {
+      if (gen !== this.generation) return;
+      this.receiveKick(msg.payload);
     });
 
     return new Promise<void>((resolve, reject) => {
@@ -251,8 +342,30 @@ export class Room {
     return list;
   }
 
+  private receiveKick(p: unknown): void {
+    if (!p || typeof p !== 'object') return;
+    const { by, target } = p as Record<string, unknown>;
+    // Only the host (by our own presence list) can kick, and not themselves.
+    if (typeof by !== 'string' || typeof target !== 'string' || by !== this.hostId || by === target) return;
+    if (target === this.myId) {
+      markKicked(this.code);
+      this.close();
+      this.onKicked();
+      return;
+    }
+    if (this.banned.has(target)) return;
+    const who = this.players.find((q) => q.id === target);
+    this.banned.add(target);
+    if (who) this.onKick(who);
+    this.syncPlayers();
+  }
+
   private syncPlayers(): void {
-    const list = this.readPresence();
+    const all = this.readPresence();
+    // A removed player whose client ignored the kick is still in presence: the host
+    // repeats the kick so newcomers hide them too.
+    if (this.isHost) for (const p of all) if (this.banned.has(p.id)) this.sendEvent('k', { by: this.myId, target: p.id });
+    const list = all.filter((p) => !this.banned.has(p.id));
     if (!list.some((p) => p.id === this.myId)) list.push(this.me); // our own track may not be echoed yet
     list.sort((a, b) => a.joinedAt - b.joinedAt || (a.id < b.id ? -1 : 1));
     const before = new Set(this.players.map((p) => p.id));

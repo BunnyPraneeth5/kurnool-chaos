@@ -11,14 +11,12 @@ import { Game } from './game';
 import { showLoading, showError, hideStatus } from './ui/status';
 import { createFpsMeter } from './ui/fps';
 import { readNetConfig, NetConfigError, type NetConfig } from './net/config';
-import { parseRoomCode, newPlayerId, roomLink } from './net/ids';
+import { parseRoomCode, newPlayerId, roomLink, kickedMinutesLeft } from './net/ids';
 import { RoomError, playerColour } from './net/roomTypes';
 import type { Room } from './net/room';
-import { spawnPoint } from './net/spawn';
+import { startRoomSession } from './net/roomSession';
 import { runLobby } from './ui/lobby';
-import { RoomHud } from './ui/roomHud';
-import { RemotePlayers } from './net/remotePlayers';
-import { NetSync } from './net/sync';
+import { addSoloExit } from './ui/roomHud';
 
 // Boot: renderer, sky, map meshes, then the game loop (see game.ts).
 
@@ -105,6 +103,13 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     if (!cfg) return;
     roomCode = choice.code;
     history.replaceState(null, '', roomLink(roomCode));
+    const wait = kickedMinutesLeft(roomCode);
+    if (wait > 0) {
+      showError('You were removed from this room', `The host removed you from room ${roomCode}. You can join again in ${wait} min.`, [
+        { label: 'Back to start', run: goToStart },
+      ]);
+      return;
+    }
     const myId = newPlayerId();
     joinP = import('./net/room').then(({ Room }) => Room.join(cfg, roomCode, choice.nick, myId));
     joinP.catch(() => {}); // handled below, after the city is built
@@ -152,26 +157,16 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
 
   const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined);
   if (room) {
-    const r = room;
-    const sp = spawnPoint(map, game.roads, r.self.slot);
-    game.placeAt(sp.x, sp.z, sp.heading);
-    const hud = new RoomHud(r.code, r.myId, (m) => game.toast(m));
-    const remotes = new RemotePlayers(scene, camera, r.myId, game.vehicles, () => game.car);
-    const sync = new NetSync(r, game);
-    hud.setPlayers(r.players);
-    remotes.setPlayers(r.players);
-    r.onPlayers = (players) => {
-      hud.setPlayers(players);
-      remotes.setPlayers(players);
-    };
-    r.onStatus = (st) => hud.setStatus(st);
-    r.onState = (st, recv) => remotes.push(st, recv);
-    beforeUpdate = (dt) => {
-      remotes.update(dt, performance.now(), r.players.length);
-      game.extraCars = remotes.carColliders;
-    };
-    afterUpdate = () => sync.update(performance.now());
-    if (import.meta.env.DEV) Object.assign(window, { __remotes: remotes, __sync: sync });
+    const code = room.code;
+    const session = startRoomSession(room, game, map, scene, camera, {
+      onLeave: goToStart,
+      onKicked: () =>
+        showError('You were removed from the room', `The host removed you from room ${code}.`, [{ label: 'Back to start', run: goToStart }]),
+    });
+    beforeUpdate = session.before;
+    afterUpdate = session.after;
+  } else {
+    addSoloExit(goToStart);
   }
   hideStatus();
 

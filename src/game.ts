@@ -146,24 +146,27 @@ export class Game {
       this.hud.toast('No road nearby');
       return;
     }
-    if (this.car) {
-      const c = this.car;
-      c.x = p.x;
-      c.z = p.z;
-      c.a = c.va = p.heading;
-      c.speed = 0;
-      c.pushOut(this.world);
-      c.sync();
-      this.chase.snap(c, this.world, true);
-    } else {
-      const r = this.world.collide(p.x, p.z, 0.5);
-      this.player.x = r.x;
-      this.player.z = r.z;
-      this.player.a = p.heading;
-      this.player.update(0, { thr: 0, steer: 0, hand: false }, this.world);
-      this.chase.snap(this.player, this.world);
-    }
+    this.teleport(p.x, p.z, p.heading);
     this.hud.toast('Back on the road');
+  }
+
+  /** Move the player, or their car with them in it, stopped, pushed clear of walls. */
+  teleport(x: number, z: number, heading: number): void {
+    if (this.mapView) this.toggleMapView();
+    const c = this.car;
+    if (!c) {
+      this.placeAt(x, z, heading);
+      return;
+    }
+    c.x = x;
+    c.z = z;
+    c.a = c.va = heading;
+    c.speed = 0;
+    c.pushOut(this.world);
+    c.sync();
+    this.player.x = c.x;
+    this.player.z = c.z;
+    this.chase.snap(c, this.world, true);
   }
 
   /** Where this player is, for the network (ARCHITECTURE: broadcast event `s`). */

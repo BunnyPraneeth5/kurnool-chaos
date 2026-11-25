@@ -291,25 +291,77 @@ body.touch #hint {
   color: #1c1a3a;
   font: 700 12px system-ui, sans-serif;
 }
+#room .head span {
+  margin-right: auto;
+}
+#room button.leave {
+  background: rgba(255, 243, 224, 0.18);
+  color: #fff3e0;
+}
+#room button.armed {
+  background: #e4573d;
+  color: #fff;
+}
 #room ul {
   margin: 4px 0 0;
   padding: 0;
   list-style: none;
 }
-#room li {
+#room li.blocked {
+  opacity: 0.55;
+}
+#room button.prow {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
+  padding: 2px 4px;
+  background: none;
+  color: #fff3e0;
+  font-weight: 400;
   line-height: 1.5;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
+}
+#room button.prow span {
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+#room button.prow:hover {
+  background: rgba(255, 243, 224, 0.1);
 }
 #room li i {
   flex: none;
   width: 9px;
   height: 9px;
   border-radius: 50%;
+}
+#room b.host {
+  margin-left: auto;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #ffc247;
+  color: #1c1a3a;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+#room .pmenu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 4px 6px 19px;
+}
+#room .pmenu input {
+  width: 110px;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 243, 224, 0.4);
+  border-radius: 6px;
+  background: rgba(24, 20, 48, 0.7);
+  color: #fff3e0;
+  font-size: 12px;
+  -webkit-user-select: text;
+  user-select: text;
 }
 body.mapview #room {
   display: none;
@@ -330,20 +382,126 @@ body.mapview #room {
   display: none;
 }
 
-/* Name tags over friends. */
+/* Name tags over friends, with a speech bubble for chat and emotes. */
 .nametag {
   position: fixed;
   left: 0;
   top: 0;
-  padding: 2px 7px;
-  border-radius: 6px;
-  background: rgba(24, 20, 48, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   color: #fff;
   font: 700 12px system-ui, sans-serif;
   white-space: nowrap;
   pointer-events: none;
   will-change: transform;
 }
-.nametag[hidden] {
+.nametag .nick {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(24, 20, 48, 0.6);
+}
+.nametag .bubble {
+  max-width: 200px;
+  padding: 4px 9px;
+  border-radius: 10px;
+  background: #fff3e0;
+  color: #1c1a3a;
+  font-size: 14px;
+  white-space: normal;
+  text-align: center;
+}
+.nametag[hidden],
+.nametag .bubble[hidden] {
   display: none;
+}
+
+/* Chat feed (top left) and chat bar (top centre). */
+#chatfeed {
+  position: fixed;
+  top: max(26px, calc(env(safe-area-inset-top) + 20px));
+  left: max(8px, env(safe-area-inset-left));
+  max-width: min(46vw, 360px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: #fff3e0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+#chatfeed div {
+  transition: opacity 1s;
+  overflow-wrap: anywhere;
+}
+#chatfeed div.notice {
+  font-style: italic;
+  color: #d3c8dc;
+}
+#chatfeed div.fade {
+  opacity: 0;
+}
+body.mapview #chatfeed {
+  display: none;
+}
+#chatbar {
+  position: fixed;
+  top: max(44px, calc(env(safe-area-inset-top) + 38px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 92vw);
+  box-sizing: border-box;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(24, 20, 48, 0.85);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#chatbar[hidden] {
+  display: none;
+}
+#chatbar .emotes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+#chatbar .emotes button {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 243, 224, 0.14);
+  font-size: 22px;
+}
+#chatbar .row {
+  display: flex;
+  gap: 6px;
+}
+#chatbar input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 243, 224, 0.4);
+  border-radius: 8px;
+  background: rgba(24, 20, 48, 0.7);
+  color: #fff3e0;
+  font-size: 15px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+#chatbar .row button {
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #ffc247;
+  color: #1c1a3a;
+  font: 700 14px system-ui, sans-serif;
+}
+#chatbar .row button.x {
+  padding: 0 12px;
+  background: rgba(255, 243, 224, 0.18);
+  color: #fff3e0;
 }
