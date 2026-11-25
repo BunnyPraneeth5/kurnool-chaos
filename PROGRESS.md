@@ -2,6 +2,12 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-25: Task 2.6 Deploy (waiting for Bunny check)
+- Live: https://kurnool-chaos.vercel.app/ (Bunny connected the GitHub repo in the Vercel dashboard; auto-deploys from `main`).
+- Done: loading screen shows downloaded MB, then "Building the city…"; clear error with Retry for a missing map (404, or an HTML page instead of JSON), damaged JSON, interrupted download, or no WebGL. Dev-only `?map=` override to test the error screen locally.
+- Checked live: page and map served with brotli, map as `application/json`, 1.06 MB download; missing file returns 404; http redirects to https. Live game loads on the laptop in the in-app browser, spawns at Raj Vihar, no console errors, OSM credit visible, dev hooks and fps readout hidden in production (`?fps` shows it).
+- Not ticked: Bunny to open the link on his phone and drive around, then report streets that look wrong (start of the corrections list).
+
 ## 2026-11-19: Task 2.5 Car driving + touch controls
 - Phone check: Bunny confirmed driving works on his phone. 2.5 ticked.
 - Done: `src/vehicles/{params,carModel,vehicle,parked}.ts` (demo sedan model and arcade handling, fixed 1/120 s sub-steps, two 1.0 m collision circles instead of one 1.6 m circle for narrow streets, crash slow-down and camera shake, bridge deck height), `src/map/roadIndex.ts` (nearest road point), `src/game.ts` (walk/drive state, get in/out on E or the button, exit on the right side, "Slow down first", unstuck on R or the button, map view on C), `src/ui/touch.ts` (demo joystick + Run/Drift, Get in/out, Unstuck buttons), `src/ui/hud.ts` (km/h readout, toasts). 8 parked cars on the left edge of roads 18 to 32 m from the start.
