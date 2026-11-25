@@ -40,6 +40,8 @@ export class Room {
   private retryDelay = 1000;
   private generation = 0;
   private closed = false;
+  private rejoining = false;
+  private rejoinAgain = false;
 
   private constructor(
     cfg: NetConfig,
@@ -96,7 +98,7 @@ export class Room {
     clearTimeout(this.retryTimer);
     if (this.channel) void this.client.removeChannel(this.channel);
     this.channel = null;
-    this.client.realtime.disconnect();
+    void this.client.realtime.disconnect();
   }
 
   // --- connection ---
@@ -173,11 +175,30 @@ export class Room {
   /** Tear down and rejoin with the same id, nickname and slot. Retries with backoff until it works. */
   private async reconnect(): Promise<void> {
     if (this.closed) return;
+    if (this.rejoining) {
+      this.rejoinAgain = true; // one more round once the current attempt ends
+      return;
+    }
+    this.rejoining = true;
+    try {
+      await this.rejoinOnce();
+    } finally {
+      this.rejoining = false;
+    }
+    if (this.rejoinAgain && !this.closed) {
+      this.rejoinAgain = false;
+      this.scheduleReconnect(0);
+    }
+  }
+
+  private async rejoinOnce(): Promise<void> {
     const old = this.channel;
     this.channel = null;
     this.generation++; // ignore late events from the old channel
     if (old) await this.client.removeChannel(old).catch(() => {});
-    this.client.realtime.disconnect();
+    // The socket may be dead without knowing it (phone was locked). Close it fully
+    // first: a connect() while it is still closing does nothing.
+    await this.client.realtime.disconnect().catch(() => {});
     try {
       await this.connect();
       await this.track();

@@ -2,6 +2,15 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-25: Phase 3 Multiplayer (tasks 3.1 to 3.3, branch `claude/multiplayer-0fc95f`)
+- 3.1: Supabase project `kurnool-chaos` created on Bunny's account (free plan, Mumbai, ref lpafbvfxmbapagjozlvt). `.env.local` written (gitignored). `@supabase/supabase-js` 2.119 added, loaded only when playing in a room. Free-plan Realtime limits logged in DECISIONS (2M messages/month, 100/s; a broadcast counts 1 + 1 per receiver). Checked: the app joins a room channel with the publishable key; missing key shows "Multiplayer is not set up"; an unreachable server shows "Could not connect to the room" with Try again.
+- 3.2: start screen (nickname + Create room / Join with code / Play alone), room links skip to the nickname, room panel with code, Share button and player list, soft 8-player cap ("Room full" checked with 2 tabs + 6 bots + a 9th tab), lowest free slot sets colour and spawn on a ring around Raj Vihar (8 points, 14.7 m apart at least). Checked with 2 tabs: both see the list and spawn 31 m apart. Nicknames shown with textContent (tested with `Bunny<b>`).
+- 3.3: adaptive send rate (5 Hz up to 4 players, 80/N² above, 2 s heartbeat when idle, nothing when alone), interpolation one interval + 100 ms behind, remote car and on-foot models with name tags, friends' cars are solid (my car got shoved 7.5 m and never came closer than 3.0 m), friend driving parked car k hides my copy and leaves it where they park, recovery after phone lock.
+- Checked with a Node test bot driving known circles: at 12 m/s drawn angular speed 0.600 ± 0.002 rad/s (true 0.6), under 5 cm off the path; at 25 m/s (90 km/h) drawn speed 25.19 m/s ± 0.08. Faked a 10 s phone lock: "Reconnecting…" then back online in 0.6 s, friend visible again; same with the socket killed while hidden. Idle heartbeat about every 2.5 s. Solo play unchanged and never downloads Supabase.
+- Not checked yet: real phone + laptop together on the Vercel preview (needs the two env vars in Vercel first, see below), and how it looks on screen (the browser pane was hidden, so checks were done in code).
+- Bunny to do: add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in Vercel (Production and Preview), redeploy the branch preview, then test phone + laptop in one room.
+- Known v1 limits: parked cars moved before you joined are at their original spots for you; `CLAUDE.md` modules list still says 10 Hz (ARCHITECTURE has the real rate).
+
 ## 2026-11-25: Parallel work set up
 - Bunny chose to run accuracy and multiplayer at the same time. Added Phase K (K.1 to K.4) to TASKS.md; 4.1 now uses Bunny's photos. Two sessions start from this commit, each on its own branch: "Kurnool accuracy" (K.1 onwards) and "Multiplayer" (3.1 onwards). This session coordinates and merges into `main`.
 - Rules for both: commit and push only to your own branch (Vercel makes a preview link per branch), never merge into `main`, only tick your own tasks, add your own PROGRESS entries.

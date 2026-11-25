@@ -6,7 +6,7 @@ import { Keyboard, type MoveInput } from './player/input';
 import { OnFootPlayer, PLAYER_RADIUS } from './player/onFoot';
 import { ChaseCamera } from './player/chaseCamera';
 import { FreeCamera } from './player/freeCamera';
-import { Vehicle } from './vehicles/vehicle';
+import { Vehicle, type Bumper } from './vehicles/vehicle';
 import { spawnParkedCars } from './vehicles/parked';
 import { TouchControls } from './ui/touch';
 import { Hud } from './ui/hud';
@@ -23,6 +23,8 @@ export class Game {
   readonly player: OnFootPlayer;
   readonly vehicles: Vehicle[];
   car: Vehicle | null = null;
+  /** Friends' cars (set by the room code each frame): solid, cannot be pushed. */
+  extraCars: readonly Bumper[] = [];
   private mapView = false;
   private readonly keys = new Keyboard();
   private readonly touch = new TouchControls();
@@ -66,7 +68,7 @@ export class Game {
     if (this.keys.consume('KeyR') || this.touch.consumeUnstuck()) this.unstuck();
 
     if (this.car) {
-      const crash = this.car.drive(dt, inp, this.world, this.vehicles);
+      const crash = this.car.drive(dt, inp, this.world, this.solidCars());
       if (crash > 0) this.chase.shake(crash);
       this.player.x = this.car.x;
       this.player.z = this.car.z;
@@ -164,9 +166,23 @@ export class Game {
     this.hud.toast('Back on the road');
   }
 
+  /** Where this player is, for the network (ARCHITECTURE: broadcast event `s`). */
+  netState(): { x: number; z: number; y: number; h: number; v: number; mode: 'car' | 'foot'; car: number } {
+    const c = this.car;
+    if (c) return { x: c.x, z: c.z, y: c.y, h: c.a, v: c.speed, mode: 'car', car: this.vehicles.indexOf(c) };
+    const p = this.player;
+    return { x: p.x, z: p.z, y: p.y, h: p.a, v: p.speed, mode: 'foot', car: -1 };
+  }
+
+  /** Visible parked cars (a friend may be driving our copy of one) and friends' cars. */
+  private solidCars(): Bumper[] {
+    const list: Bumper[] = this.vehicles.filter((v) => v !== this.car && v.mesh.visible);
+    return list.concat(this.extraCars);
+  }
+
   private keepOffCars(): void {
     const p = this.player;
-    for (const c of this.vehicles) {
+    for (const c of this.solidCars()) {
       const dx = p.x - c.x;
       const dz = p.z - c.z;
       const d = Math.hypot(dx, dz);
@@ -181,6 +197,7 @@ export class Game {
     let best: Vehicle | null = null;
     let bd = ENTER_RANGE;
     for (const c of this.vehicles) {
+      if (!c.mesh.visible) continue; // a friend is driving it
       const d = Math.hypot(c.x - this.player.x, c.z - this.player.z);
       if (d < bd) {
         bd = d;

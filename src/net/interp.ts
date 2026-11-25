@@ -41,6 +41,8 @@ export interface NetState {
   h: number;
   v: number;
   mode: Mode;
+  /** index of the parked car being driven (same spots on every screen), -1 on foot */
+  car: number;
 }
 
 export interface Pose {
@@ -50,6 +52,7 @@ export interface Pose {
   h: number;
   v: number;
   mode: Mode;
+  car: number;
 }
 
 function angLerp(a: number, b: number, f: number): number {
@@ -67,6 +70,7 @@ function angLerp(a: number, b: number, f: number): number {
 export class SnapshotBuffer {
   private readonly snaps: NetState[] = [];
   private offset = Number.POSITIVE_INFINITY;
+  private late = 0;
   lastRecv = 0;
 
   push(s: NetState, recvMs: number): void {
@@ -75,6 +79,13 @@ export class SnapshotBuffer {
     const o = recvMs - s.t;
     if (o < this.offset) this.offset = o;
     else this.offset += (o - this.offset) * 0.005;
+    // Several messages in a row over a second "late": a clock jumped (phone slept,
+    // our page was frozen). Start over from the current delay.
+    this.late = o - this.offset > 1000 ? this.late + 1 : 0;
+    if (this.late >= 3) {
+      this.offset = o;
+      this.late = 0;
+    }
     this.lastRecv = recvMs;
     this.snaps.push(s);
     const cutoff = s.t - KEEP_MS;
@@ -107,6 +118,7 @@ export class SnapshotBuffer {
         h: last.h,
         v: last.v,
         mode: last.mode,
+        car: last.car,
       };
     }
     let i = n - 2;
@@ -114,7 +126,7 @@ export class SnapshotBuffer {
     const a = this.snaps[i];
     const b = this.snaps[i + 1];
     const f = (target - a.t) / (b.t - a.t);
-    if (Math.hypot(b.x - a.x, b.z - a.z) > TELEPORT_M || a.mode !== b.mode) {
+    if (Math.hypot(b.x - a.x, b.z - a.z) > TELEPORT_M || a.mode !== b.mode || a.car !== b.car) {
       return { ...(f < 0.5 ? a : b) };
     }
     return {
@@ -124,6 +136,7 @@ export class SnapshotBuffer {
       h: angLerp(a.h, b.h, f),
       v: a.v + (b.v - a.v) * f,
       mode: a.mode,
+      car: a.car,
     };
   }
 }
@@ -137,5 +150,6 @@ export function parseState(p: unknown): NetState | null {
   if (typeof o.id !== 'string' || t === null || x === null || z === null || y === null || h === null || v === null) return null;
   if (o.mode !== 'foot' && o.mode !== 'car') return null;
   if (Math.abs(x) > 1e5 || Math.abs(z) > 1e5 || Math.abs(y) > 1e3 || Math.abs(v) > 200) return null;
-  return { id: o.id.slice(0, 32), t, x, z, y, h, v, mode: o.mode };
+  const car = typeof o.car === 'number' && Number.isInteger(o.car) && o.car >= 0 && o.car < 64 ? o.car : -1;
+  return { id: o.id.slice(0, 32), t, x, z, y, h, v, mode: o.mode, car: o.mode === 'car' ? car : -1 };
 }

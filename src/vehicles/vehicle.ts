@@ -14,6 +14,12 @@ const RIDE_Y = 0.12; // wheels sit on the road layers
 
 export type VehicleKind = 'parked' | 'player';
 
+/** Anything a car bounces off: parked cars, friends' cars. */
+export interface Bumper {
+  x: number;
+  z: number;
+}
+
 function clamp(v: number, a: number, b: number): number {
   return v < a ? a : v > b ? b : v;
 }
@@ -54,7 +60,7 @@ export class Vehicle {
    * Drive for one frame. Returns the strength of any hard crash this frame
    * (0 if none) so the camera can shake.
    */
-  drive(dt: number, inp: MoveInput, world: CollisionWorld, others: Vehicle[]): number {
+  drive(dt: number, inp: MoveInput, world: CollisionWorld, others: readonly Bumper[]): number {
     let crash = 0;
     this.acc += dt;
     while (this.acc >= SUBSTEP) {
@@ -67,7 +73,7 @@ export class Vehicle {
     return crash;
   }
 
-  private step(h: number, inp: MoveInput, world: CollisionWorld, others: Vehicle[]): number {
+  private step(h: number, inp: MoveInput, world: CollisionWorld, others: readonly Bumper[]): number {
     const t = this.t;
     const { thr, steer, hand } = inp;
     let crash = 0;
@@ -98,7 +104,7 @@ export class Vehicle {
     }
     this.wasHit = hit;
 
-    // Other vehicles: parked ones do not move, we bounce off.
+    // Other vehicles: parked ones and friends' cars do not move, we bounce off.
     for (const o of others) {
       if (o === this) continue;
       const dx = this.x - o.x;

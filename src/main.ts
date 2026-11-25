@@ -17,6 +17,8 @@ import type { Room } from './net/room';
 import { spawnPoint } from './net/spawn';
 import { runLobby } from './ui/lobby';
 import { RoomHud } from './ui/roomHud';
+import { RemotePlayers } from './net/remotePlayers';
+import { NetSync } from './net/sync';
 
 // Boot: renderer, sky, map meshes, then the game loop (see game.ts).
 
@@ -131,6 +133,8 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   scene.add(buildBuildings(map, quality, quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1));
 
   let room: Room | null = null;
+  let beforeUpdate: (dt: number) => void = () => {};
+  let afterUpdate: () => void = () => {};
   if (joinP) {
     showLoading(`Joining room ${roomCode}…`);
     try {
@@ -152,9 +156,22 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     const sp = spawnPoint(map, game.roads, r.self.slot);
     game.placeAt(sp.x, sp.z, sp.heading);
     const hud = new RoomHud(r.code, r.myId, (m) => game.toast(m));
+    const remotes = new RemotePlayers(scene, camera, r.myId, game.vehicles, () => game.car);
+    const sync = new NetSync(r, game);
     hud.setPlayers(r.players);
-    r.onPlayers = (players) => hud.setPlayers(players);
+    remotes.setPlayers(r.players);
+    r.onPlayers = (players) => {
+      hud.setPlayers(players);
+      remotes.setPlayers(players);
+    };
     r.onStatus = (st) => hud.setStatus(st);
+    r.onState = (st, recv) => remotes.push(st, recv);
+    beforeUpdate = (dt) => {
+      remotes.update(dt, performance.now(), r.players.length);
+      game.extraCars = remotes.carColliders;
+    };
+    afterUpdate = () => sync.update(performance.now());
+    if (import.meta.env.DEV) Object.assign(window, { __remotes: remotes, __sync: sync });
   }
   hideStatus();
 
@@ -166,7 +183,9 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     timer.update(ts);
     // Capped so a stalled frame never teleports anything; vehicles also sub-step.
     const dt = Math.min(timer.getDelta(), 1 / 30);
+    beforeUpdate(dt);
     game.update(dt);
+    afterUpdate();
     sky.update(camera);
     renderer.render(scene, camera);
     fps.frame(ts);

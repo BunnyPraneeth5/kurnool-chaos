@@ -113,14 +113,16 @@ Numbers are starting points. Tune in play-tests.
 ## Multiplayer (Supabase Realtime)
 - Room URL: `/?room=ABC123`. 6-char code, uppercase letters and digits without 0/O/1/I.
 - Channel: `room:ABC123` with `config: { broadcast: { self: false }, presence: { key: playerId } }`.
-- Presence payload: `{ id, nick, color, joinedAt }`.
-- Broadcast event `s` at 5 Hz: `{ id, t, x, z, y, h, v, mode }` where `mode` is the vehicle type or `foot` and `h` is heading in radians. Keep it small. While standing still, send only a heartbeat every 2 s.
-- Remote players: buffer snapshots stamped with local receive time, render 200 ms in the past, interpolate position and heading. Drop players missing for 5 s.
+- Start screen without a room link: nickname + Create room / Join with code / Play alone. A room link goes straight to the nickname box.
+- Presence payload: `{ id, nick, slot, joinedAt }`. Each player takes the lowest free slot 0..7; the slot sets their colour and their spawn point on the ring around Raj Vihar.
+- Broadcast event `s`: `{ id, t, x, z, y, h, v, mode, car }` where `t` is the sender's `Date.now()`, `mode` is the vehicle type or `foot`, `h` is heading in radians and `car` is the index of the parked car being driven (-1 on foot). Keep it small. Rate adapts to the room: 5 Hz up to 4 players, then 80 / N² Hz (1.25 Hz with 8), nothing when alone. While standing still, send only a heartbeat every 2 s.
+- Remote players: buffer snapshots, map sender `t` onto the local clock using local receive times (fastest message seen), render one send interval + 100 ms in the past (300 ms at 5 Hz), interpolate position and heading. Hide players missing for 5 s.
+- Parked cars are on the same spots on every screen, so when a friend drives parked car k, your copy of car k is hidden, theirs is drawn in its colour, and it stays where they leave it.
 - Remote vehicles are solid for you: you bounce off them like a wall. You cannot push them.
 - Phone lock or app switch (`visibilitychange`): on return, cap the time step, rejoin presence, show "Reconnecting" until the channel is back.
 - Events: `race_setup`, `race_start` (sends `delayMs`, about 5000; each client starts its countdown when the message arrives, because phone clocks differ), `race_finish`.
-- Limit: 8 players per room, soft cap. Presence can briefly disagree, so each client sorts players by presence order and leaves with "Room full" if it is past 8.
-- Message budget: the Supabase free plan limits Realtime messages per month and per second. Check the current numbers in task 3.1 and log them in DECISIONS.md.
+- Limit: 8 players per room, soft cap. A newcomer that finds 8 others in presence leaves with "Room full" before announcing itself; players already in are never kicked. Presence can briefly disagree, so a 9th can slip in when two join at once.
+- Message budget (free plan, checked 2026-11-25): 2 million messages per month, 100 per second; one broadcast counts 1 + 1 per receiver, so N players at f Hz cost f x N² per second. The adaptive rate keeps a full room near 80/s. See DECISIONS.md.
 
 ## Races
 - Races are secondary. Any player opens race setup and picks a preset route. Presets are chosen after the map is built. Custom routes on the minimap are out of scope.
