@@ -55,6 +55,24 @@ export interface Landmark {
   pts?: Pt[];
 }
 
+/** A railway track run. Bridges over water are drawn high on piers; other bridges stay at ground level. */
+export interface RailRun {
+  pts: Pt[];
+  bridge?: boolean;
+  overWater?: boolean;
+  electric?: boolean;
+  service?: string;
+}
+
+/** A river or canal centreline (OSM has no outline for it); its water is also in `water` unless it is an aqueduct or culvert. */
+export interface Waterway {
+  pts: Pt[];
+  w: number;
+  kind: 'river' | 'canal';
+  name?: string;
+  part?: 'aqueduct' | 'culvert';
+}
+
 /** A temple (h), mosque (m) or church (c): box centre, heading of the box's w side (forward = (sin a, cos a)), size. */
 export interface Worship {
   x: number;
@@ -85,7 +103,8 @@ export interface MapData {
   buildings: Building[];
   water: { pts: Pt[] }[];
   parks: { pts: Pt[] }[];
-  rail: { pts: Pt[] }[];
+  rail: RailRun[];
+  waterways: Waterway[];
   landmarks: Landmark[];
   props: Props;
   airport: {

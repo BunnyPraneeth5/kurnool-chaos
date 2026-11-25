@@ -58,7 +58,8 @@ type MapData = {
   buildings: { p: number[]; h: number; k?: string; s?: number; w?: number }[]   // file form; the loader unpacks it to { pts, h, kind, style, gate }. kind 'filler' = generated
   water: { pts: [number, number][] }[]
   parks: { pts: [number, number][] }[]
-  rail: { pts: [number, number][] }[]
+  rail: { pts: [number, number][]; bridge?: true; overWater?: true; electric?: true; service?: string }[]
+  waterways: { pts: [number, number][]; w: number; kind: 'river' | 'canal'; name?: string; part?: 'aqueduct' | 'culvert' }[] // OSM centre lines
   landmarks: { id: string; nameEn: string; nameTe: string; type: string; x: number; z: number; pts?: [number, number][] }[]
   props: {                                  // street details (K.3), flat arrays in whole decimetres
     poles: number[][]                       // wired runs [x0, z0, dx1, dz1, ...]
@@ -87,6 +88,8 @@ Conventions:
 - Ground: one big plane. Roads as merged ribbon meshes per 250 m chunk, slightly above the ground, with polygonOffset.
 - Buildings: extruded footprints merged per chunk into one geometry with vertex colors. Frustum culling per chunk. One material: a texture atlas with one row per wall pattern (windows, old-city shuttered windows, shop fronts with signboards, campus ribbon windows, colony barred windows, sheet metal, old-city doors and shops); the shader picks the row from the style and the floor (wall v = 64 x style + floors). Shop rows are not tinted by the wall colour. Outskirts and sheds with four corners get gable sheet or tile roofs. Compound walls are in the same mesh and in collision.
 - Street details (`src/map/props.ts`): black-and-yellow kerbs on trunk, primary and secondary roads and a green divider with street lights on two-way trunk and primary roads (gaps at junctions, U-turn openings every 300 m) come from the road shapes; poles, wires, trees, hoardings, temples, mosques, churches and auto stands come from `map.props`. Per 500 m chunk: one merged props mesh (hoarding atlas), one kerb mesh (stripe texture), one instanced neem mesh, one set of wire lines. Poles, tree trunks, hoarding posts, places of worship, autos and dividers are solid; kerbs are not.
+- Railway (`src/map/rail.ts`): ballast and sleepers from one repeating texture, two rails at broad gauge, bridges over water 6 m high on piers with girder sides, other bridges at ground level with low side rails, overhead line masts and contact wire on electrified track, raised barrier booms where a road crosses at ground level. Masts and barrier posts are solid.
+- Waterways (`src/map/waterways.ts`): KC Canal walls along both banks (gaps where roads cross), sand banks along river lines, the aqueduct over the Handri as a raised trough on piers. Culverts are not drawn.
 - Landmarks: hand-built low-poly groups (fort tower, bridge with railings, station shed, hospital block). Signboards are CanvasTexture planes with English and Telugu text. Wait for `document.fonts.load` on Noto Sans Telugu before drawing them, otherwise the text shows as boxes.
 - Dusk sky, fog and lights reused from the demo.
 - Quality setting: low / high. Low = pixel ratio 1, shorter fog distance, fewer traffic cars, no window emissive.

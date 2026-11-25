@@ -2,6 +2,13 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-25: Task K.5 Railway, KC Canal and rivers, part 1 (accuracy track, Bunny's request)
+- Done: `src/map/rail.ts` draws the OSM railway: 15 runs (main line and station sidings), ballast with sleepers and two rails at broad gauge, the 897 m Tungabhadra rail bridge and the Handri rail bridge 6 m high on piers with girder sides, overhead line masts and contact wire on the electrified line, raised red-and-white barrier booms at the 20 places where roads cross the track at ground level. `src/map/waterways.ts` draws concrete walls along the KC Canal (gaps where roads cross), sand banks along the Handri and other river lines, and the KC Canal's 241 m aqueduct over the Handri as a raised trough on piers. Build: rail keeps OSM bridge/electrified/siding tags, waterway centre lines are kept, culverts are not drawn as water, 20 buildings standing in water dropped, the mistagged "site1" rail loop skipped.
+- Also fixed: kerbs, dividers and canal walls lost their corners (cut by about a metre).
+- File 5.74 MB (1.55 MB gzipped), rebuild identical (sha256 c091fc9a7f44f298).
+- Checked in the game: screenshots of the main line with masts and wires, the Tungabhadra rail bridge, the aqueduct, a canal stretch with wall gaps at a road, a level crossing. Autopilot over the 5 routes (8.8 km): 0 times stuck, 0 crashes. Railway and waterways add about 2.8k triangles on average (low quality, street level: avg 67k, max 107k this run). No console errors.
+- Still to do: KC Canal and Handri widths are still guesses (12 m, 30 m) until Earth Engine water maps; Bunny is registering (free Community tier, organisation type "Other").
+
 ## 2026-11-25: Task K.4 Corrections file, half done (accuracy track)
 - Done: `scripts/osm/corrections.json` (with a help list inside) applied by `build.mjs`: landmark pins, remove buildings (under a point or within a radius), add buildings (outline, floors, style), river and canal widths by name, and circles kept free of props. The build report lists every correction; one that matches nothing (for example a misspelt canal name) stops the build with an error. Tested all five kinds with a temporary file, then restored it: with no corrections the map is identical to K.3 (sha256 614b792dca17a2af).
 - Waiting for Bunny: the Abdullah Khan Estate pin (lat, lon from Google Maps) and any wrong spots he has seen (buildings that should not be there, missing buildings, canal or river widths). K.4 needs at least one real correction before it can be ticked.

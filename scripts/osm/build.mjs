@@ -505,9 +505,14 @@ for (const el of main) {
     wStats.polygons++;
   }
 }
-// River and canal centrelines become strips of quads (fallback where OSM has no polygon).
+// River and canal centrelines (OSM has no outline for the KC Canal or the Handri) become
+// strips of quads in `water` (drawn and solid), and are also kept as lines in `waterways`
+// for banks and canal walls. Aqueducts (the KC Canal over the Handri) are drawn raised and
+// culverts (under roads) are not drawn, so neither goes into `water`.
 const LINE_WIDTH = { river: 30, canal: 12 };
 const waterFixUsed = new Set();
+const waterways = [];
+const wwStats = { aqueduct: 0, culvert: 0 };
 for (const el of main) {
   const t = el.tags || {};
   if (el.type !== 'way' || !LINE_WIDTH[t.waterway]) continue;
@@ -515,23 +520,44 @@ for (const el of main) {
   const fix = corrections.waterWidths.find((c) => normName(t.name).includes(normName(c.name)) && normName(c.name));
   if (fix) waterFixUsed.add(fix);
   const w = fix ? fix.width : Number.isFinite(tagged) && tagged > 1 && tagged < 300 ? tagged : LINE_WIDTH[t.waterway];
-  const line = simplify(wayLines(el)[0].map(P), 2);
-  for (let i = 1; i < line.length; i++) {
-    const [ax, az] = line[i - 1];
-    const [bx, bz] = line[i];
-    const L = Math.hypot(bx - ax, bz - az);
-    if (L < 0.5) continue;
-    const ux = (bx - ax) / L, uz = (bz - az) / L;
-    const nx = -uz * (w / 2), nz = ux * (w / 2);
-    const ex = ux * (w / 4), ez = uz * (w / 4); // overlap neighbours at bends
-    const quad = [
-      [ax - ex + nx, az - ez + nz], [bx + ex + nx, bz + ez + nz],
-      [bx + ex - nx, bz + ez - nz], [ax - ex - nx, az - ez - nz],
-    ];
-    const r = clipPA(quad);
-    if (r.length < 3 || Math.abs(ringArea(r)) < 5) continue;
-    water.push({ pts: finishRing(r) });
-    wStats.lineStrips++;
+  const part = t.bridge === 'aqueduct' ? 'aqueduct' : t.tunnel === 'culvert' || t.tunnel === 'yes' ? 'culvert' : null;
+  if (part) wwStats[part]++;
+  // Runs of the line inside the play area.
+  const runs = [];
+  let cur = [];
+  for (const p of wayLines(el)[0].map(P)) {
+    if (inPA(p[0], p[1])) cur.push(p);
+    else {
+      if (cur.length > 1) runs.push(cur);
+      cur = [];
+    }
+  }
+  if (cur.length > 1) runs.push(cur);
+  for (const run of runs) {
+    const line = simplify(run, 2).map((q) => [r1(q[0]), r1(q[1])]);
+    if (line.length < 2) continue;
+    const ww = { pts: line, w: r1(w), kind: t.waterway };
+    if (t.name) ww.name = t.name;
+    if (part) ww.part = part;
+    waterways.push(ww);
+    if (part) continue;
+    for (let i = 1; i < line.length; i++) {
+      const [ax, az] = line[i - 1];
+      const [bx, bz] = line[i];
+      const L = Math.hypot(bx - ax, bz - az);
+      if (L < 0.5) continue;
+      const ux = (bx - ax) / L, uz = (bz - az) / L;
+      const nx = -uz * (w / 2), nz = ux * (w / 2);
+      const ex = ux * (w / 4), ez = uz * (w / 4); // overlap neighbours at bends
+      const quad = [
+        [ax - ex + nx, az - ez + nz], [bx + ex + nx, bz + ez + nz],
+        [bx + ex - nx, bz + ez - nz], [ax - ex - nx, az - ez - nz],
+      ];
+      const r = clipPA(quad);
+      if (r.length < 3 || Math.abs(ringArea(r)) < 5) continue;
+      water.push({ pts: finishRing(r) });
+      wStats.lineStrips++;
+    }
   }
 }
 
@@ -540,18 +566,75 @@ for (const c of corrections.waterWidths) {
   applied.push(`water width ${c.width} m for "${c.name}"`);
 }
 
+const cellAt = (x, z) => {
+  const i = Math.floor((x - PA.minX) / OV_RES);
+  const j = Math.floor((z - PA.minZ) / OV_RES);
+  return i >= 0 && j >= 0 && i < ovW && j < ovH ? j * ovW + i : -1;
+};
+// No building stands in water: drop any that is more than 30% on water.
+const waterOcc = new Uint8Array(ovW * ovH);
+for (const w of water) scanRing(w.pts, (k) => (waterOcc[k] = 1));
+let inWater = 0;
+{
+  const keep = buildings.filter((b) => {
+    let n = 0, hit = 0;
+    scanRing(b.pts, (k) => {
+      n++;
+      hit += waterOcc[k];
+    });
+    const wet = n > 0 && hit / n > 0.3;
+    if (wet) inWater++;
+    return !wet;
+  });
+  buildings.length = 0;
+  buildings.push(...keep);
+}
+
+// Railway: runs inside the play area, keeping OSM's bridge, electrification and siding tags.
+// A closed rail loop that shares no node with other rail is a tagging mistake and is skipped.
+const railWays = main.filter((el) => el.type === 'way' && el.tags?.railway === 'rail' && el.nodes);
+const railNodeUse = new Map();
+for (const el of railWays) for (const n of new Set(el.nodes)) railNodeUse.set(n, (railNodeUse.get(n) || 0) + 1);
 const rail = [];
-for (const el of main) {
-  if (el.type !== 'way' || el.tags?.railway !== 'rail') continue;
+const railSkipped = [];
+for (const el of railWays) {
+  const t = el.tags;
+  const loop = el.nodes[0] === el.nodes[el.nodes.length - 1];
+  if (loop && !el.nodes.some((n) => railNodeUse.get(n) > 1)) {
+    railSkipped.push(`${t.name || 'way ' + el.id} (closed loop, not connected)`);
+    continue;
+  }
+  const flags = {};
+  if (t.bridge && t.bridge !== 'no') flags.bridge = true;
+  if (t.electrified && t.electrified !== 'no') flags.electric = true;
+  if (t.service) flags.service = t.service;
   let cur = [];
+  const flush = () => {
+    if (cur.length > 1) {
+      const run = { pts: simplify(cur, SIMPLIFY_TOL).map((q) => [r1(q[0]), r1(q[1])]), ...flags };
+      // Bridges that cross water are drawn high on piers; the rest stay at ground level.
+      if (run.bridge) {
+        let n = 0, wet = 0;
+        for (let i = 1; i < run.pts.length; i++) {
+          const a = run.pts[i - 1], b = run.pts[i];
+          const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          for (let d = 0; d < L; d += 2) {
+            const k = cellAt(a[0] + ((b[0] - a[0]) * d) / L, a[1] + ((b[1] - a[1]) * d) / L);
+            n++;
+            if (k >= 0 && waterOcc[k]) wet++;
+          }
+        }
+        if (n && wet / n > 0.2) run.overWater = true;
+      }
+      rail.push(run);
+    }
+    cur = [];
+  };
   for (const p of wayLines(el)[0].map(P)) {
     if (inPA(p[0], p[1])) cur.push(p);
-    else {
-      if (cur.length > 1) rail.push({ pts: simplify(cur, SIMPLIFY_TOL).map((q) => [r1(q[0]), r1(q[1])]) });
-      cur = [];
-    }
+    else flush();
   }
-  if (cur.length > 1) rail.push({ pts: simplify(cur, SIMPLIFY_TOL).map((q) => [r1(q[0]), r1(q[1])]) });
+  flush();
 }
 
 const parks = [];
@@ -1064,14 +1147,7 @@ const spawn = { x: sx, z: sz, heading: Math.round(Math.atan2(tx - sx, tz - sz) *
 // stands, placed where the ground is free: no building, water or other road. Kerbs,
 // dividers and divider lights come from the road shapes in the game (src/map/props.ts).
 const dm = (v) => Math.round(v * 10);
-const waterOcc = new Uint8Array(ovW * ovH);
-for (const w of water) scanRing(w.pts, (k) => (waterOcc[k] = 1));
 const propOcc = new Uint8Array(ovW * ovH); // props already placed
-const cellAt = (x, z) => {
-  const i = Math.floor((x - PA.minX) / OV_RES);
-  const j = Math.floor((z - PA.minZ) / OV_RES);
-  return i >= 0 && j >= 0 && i < ovW && j < ovH ? j * ovW + i : -1;
-};
 /** True if a disc of radius r is clear of buildings, water, placed props and every road's surface (plus margin). */
 const clearZones = corrections.clearProps.map((c) => {
   const [x, z] = P(c.at);
@@ -1325,6 +1401,7 @@ const map = {
   water,
   parks,
   rail,
+  waterways,
   landmarks,
   props,
   airport: { runway, terminal },
@@ -1367,6 +1444,10 @@ function validate(m) {
   m.water.forEach((w, i) => poly(w.pts, `water ${i}`));
   m.parks.forEach((p, i) => poly(p.pts, `park ${i}`));
   m.rail.forEach((r, i) => r.pts.forEach((p, k) => pt(p, `rail ${i} point ${k}`)));
+  m.waterways.forEach((w, i) => {
+    if (!(w.w > 0) || w.pts.length < 2) err(`waterway ${i}: bad width or too short`);
+    w.pts.forEach((p, k) => pt(p, `waterway ${i} point ${k}`));
+  });
   m.landmarks.forEach((l) => {
     pt([l.x, l.z], `landmark ${l.id}`);
     if (!l.nameEn || !l.nameTe) err(`landmark ${l.id}: missing name`);
@@ -1434,7 +1515,7 @@ console.log(
     `Skipped: ${oStats.onOsm} already in OSM, ${oStats.dropped} on roads, ${oStats.tiny} tiny, ${oStats.broken} broken, ${oStats.outside} outside`,
 );
 console.log(`  Overture added by source: ${Object.entries(oBySource).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`);
-console.log(`Buildings total: ${buildings.length} = OSM ${bStats.kept} + Overture ${oStats.kept} + filler ${fillerBuildings}`);
+console.log(`Buildings total: ${buildings.length} = OSM ${bStats.kept} + Overture ${oStats.kept} + filler ${fillerBuildings} - ${inWater} in water - ${removeBuilding.size} replaced by temples, mosques, churches (corrections listed below)`);
 console.log(`Styles (K.2): ${Object.entries(styleCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}; ${walled} colony houses with compound walls`);
 console.log(`  from ${zoneCount} land-use/amenity areas, ${shopCount} shops and businesses, ${places.length} named places (${places.filter((p) => p.kind === 'old').map((p) => p.name).join(', ')} = old city)`);
 console.log(
@@ -1442,6 +1523,10 @@ console.log(
     `${worship.length} places of worship (${['h', 'm', 'c'].map((r) => `${worship.filter((w) => w.r === r).length} ${{ h: 'temples', m: 'mosques', c: 'churches' }[r]}`).join(', ')}; ${removeBuilding.size} replace a building, ${worshipSkipped} skipped), ${autoStands.length / 4} auto stands`,
 );
 console.log(`Corrections (K.4, scripts/osm/corrections.json): ${applied.length ? applied.join('; ') : 'none'}`);
+console.log(
+  `Rail (K.5): ${rail.length} runs, ${rail.filter((r) => r.bridge).length} bridges (${rail.filter((r) => r.overWater).length} over water, drawn high), ${rail.filter((r) => r.electric).length} electrified${railSkipped.length ? '; skipped ' + railSkipped.join(', ') : ''}. ` +
+    `Waterways: ${waterways.length} canal/river lines (${waterways.filter((w) => w.part === 'aqueduct').length} aqueduct, ${waterways.filter((w) => w.part === 'culvert').length} culvert). ${inWater} buildings dropped for standing in water`,
+);
 console.log(`Parks: ${osmParks} from OSM + ${fillerParks} filler. Water: ${wStats.polygons} polygons + ${wStats.lineStrips} river/canal strips (${wStats.broken} broken dropped). Rail: ${rail.length}`);
 console.log(`Landmarks: ${landmarks.map((l) => l.id).join(', ')}`);
 if (missing.length) console.log(`MISSING landmarks (need a pin from Bunny in scripts/osm/corrections.json landmarkPins): ${missing.join(', ')}`);

@@ -79,9 +79,10 @@ class PointGrid {
 }
 
 /** Splits a polyline into the runs where keep(x, z, along) holds, checked every metre. */
-function clipRuns(pts: Pt[], keep: (x: number, z: number, along: number) => boolean): Pt[][] {
+export function clipRuns(pts: Pt[], keep: (x: number, z: number, along: number) => boolean): Pt[][] {
   const runs: Pt[][] = [];
   let cur: Pt[] = [];
+  let lastPinned = false; // the run's last point is a corner or its start, so it must stay
   let along = 0;
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1];
@@ -92,12 +93,15 @@ function clipRuns(pts: Pt[], keep: (x: number, z: number, along: number) => bool
       const t = s / steps;
       const p: Pt = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
       if (keep(p[0], p[1], along + L * t)) {
-        // Only keep the run's ends and the polyline's corners.
-        if (cur.length >= 2 && s !== steps) cur[cur.length - 1] = p;
+        // Only keep the run's ends and the polyline's corners; in-between points slide the end forward.
+        const corner = s === steps;
+        if (cur.length && !lastPinned) cur[cur.length - 1] = p;
         else cur.push(p);
+        lastPinned = corner || cur.length === 1;
       } else if (cur.length) {
         if (cur.length >= 2) runs.push(cur);
         cur = [];
+        lastPinned = false;
       }
     }
     along += L;
@@ -107,7 +111,7 @@ function clipRuns(pts: Pt[], keep: (x: number, z: number, along: number) => bool
 }
 
 /** A polyline moved sideways by d (positive = left of travel), with mitred corners. */
-function offsetLine(pts: Pt[], d: number): Pt[] {
+export function offsetLine(pts: Pt[], d: number): Pt[] {
   const n = pts.length;
   const out: Pt[] = [];
   for (let i = 0; i < n; i++) {
@@ -184,7 +188,7 @@ function poleRuns(map: MapData): Pt[][] {
 const rad = (deg: number): number => (deg * Math.PI) / 180;
 
 /** Corners of a box centred at (x, z), w along heading a (forward = (sin a, cos a)), d across. */
-function boxRing(x: number, z: number, a: number, w: number, d: number): Pt[] {
+export function boxRing(x: number, z: number, a: number, w: number, d: number): Pt[] {
   const ux = Math.sin(a), uz = Math.cos(a);
   const nx = -uz, nz = ux;
   const hw = w / 2, hd = d / 2;
@@ -321,7 +325,7 @@ const col = new THREE.Color();
 const WHITE = new THREE.Color(0xffffff);
 
 /** Box without a bottom, centred at (x, z), w along heading a, d across, from y0 to y1. */
-function box(mb: SolidMeshBuilder, x: number, z: number, a: number, w: number, d: number, y0: number, y1: number, c: THREE.Color, front?: [number, number, number, number]): void {
+export function box(mb: SolidMeshBuilder, x: number, z: number, a: number, w: number, d: number, y0: number, y1: number, c: THREE.Color, front?: [number, number, number, number]): void {
   const r = boxRing(x, z, a, w, d);
   for (let k = 0; k < 4; k++) {
     const p = r[k];
