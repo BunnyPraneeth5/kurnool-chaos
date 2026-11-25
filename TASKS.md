@@ -24,7 +24,7 @@ Order: core game first (map, driving, playing together), extras after. If time r
   - Accept: can walk around Rajvihar, cannot walk through buildings or into water, can cross bridges.
 - [x] **2.5 Car driving + touch controls.** Port demo handling, retune for narrow streets. Enter/exit. Parked cars near spawn. Unstuck button (R key and touch). Touch joystick and buttons from the demo. Capped physics time step.
   - Accept: drive from Rajvihar to the fort without getting stuck on geometry, on laptop and on phone with thumbs. Unstuck puts you on the nearest road.
-- [ ] **2.6 Deploy.** Connect repo to Vercel. Live link. Loading screen, and a clear error screen if the map fails to load.
+- [x] **2.6 Deploy.** Connect repo to Vercel. Live link. Loading screen, and a clear error screen if the map fails to load.
   - Accept: link works on phone and laptop. A broken map URL shows a clear error, not a blank screen.
   - **Bunny check:** Bunny drives around and reports streets that look wrong.
 

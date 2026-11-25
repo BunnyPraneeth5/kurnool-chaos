@@ -2,11 +2,11 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
-## 2026-11-25: Task 2.6 Deploy (waiting for Bunny check)
+## 2026-11-25: Task 2.6 Deploy
+- Bunny check: "everything looks nice", 2.6 ticked. Main feedback: the street layout matches, but buildings and everything inside the city do not feel like real Kurnool yet. Bunny wants a low-poly but accurate Kurnool. Plan options presented (real building outlines, Kurnool-style buildings and street details, landmark models from photos, corrections list); waiting for Bunny's decision on when.
 - Live: https://kurnool-chaos.vercel.app/ (Bunny connected the GitHub repo in the Vercel dashboard; auto-deploys from `main`).
 - Done: loading screen shows downloaded MB, then "Building the city…"; clear error with Retry for a missing map (404, or an HTML page instead of JSON), damaged JSON, interrupted download, or no WebGL. Dev-only `?map=` override to test the error screen locally.
 - Checked live: page and map served with brotli, map as `application/json`, 1.06 MB download; missing file returns 404; http redirects to https. Live game loads on the laptop in the in-app browser, spawns at Raj Vihar, no console errors, OSM credit visible, dev hooks and fps readout hidden in production (`?fps` shows it).
-- Not ticked: Bunny to open the link on his phone and drive around, then report streets that look wrong (start of the corrections list).
 
 ## 2026-11-19: Task 2.5 Car driving + touch controls
 - Phone check: Bunny confirmed driving works on his phone. 2.5 ticked.
