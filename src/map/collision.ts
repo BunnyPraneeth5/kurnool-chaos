@@ -1,6 +1,7 @@
 import type { MapData, Pt } from './types';
 import { roadY } from './roads';
 import { pointInRing } from '../util/rng';
+import { compoundWall } from './buildingStyle';
 
 // Collision world (ARCHITECTURE: Collision): a uniform 32 m hash grid of wall
 // segments. Players and vehicles are circles pushed out of walls.
@@ -95,6 +96,9 @@ export class CollisionWorld {
         const q = r[(i + 1) % r.length];
         addWall(p[0], p[1], q[0], q[1]);
       }
+      // Compound walls around colony houses (task K.2), open at the gate.
+      const wall = compoundWall(b);
+      if (wall) for (const line of wall) for (let i = 1; i < line.length; i++) addWall(line[i - 1][0], line[i - 1][1], line[i][0], line[i][1]);
     }
 
     // Road segments, for carving bank gaps and placing railings.

@@ -32,13 +32,17 @@ export interface Building {
   pts: Pt[];
   h: number;
   kind?: string;
+  style: number; // see STYLE in buildingStyle.ts
+  gate?: number; // colony houses: compound wall with the gate on this side of the box (0..3)
 }
 
-/** A building as stored in the file: p = [x0, z0, dx1, dz1, ...] in whole decimetres, k = kind. */
+/** A building as stored in the file: p = [x0, z0, dx1, dz1, ...] in whole decimetres, k = kind, s = style, w = gate side. */
 export interface PackedBuilding {
   p: number[];
   h: number;
   k?: string;
+  s?: number;
+  w?: number;
 }
 
 export interface Landmark {

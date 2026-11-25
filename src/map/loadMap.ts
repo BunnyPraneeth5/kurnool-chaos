@@ -84,7 +84,8 @@ function unpackBuilding(b: PackedBuilding): Building {
     z += p[i + 1];
     pts.push([x / 10, z / 10]);
   }
-  const out: Building = { pts, h: b.h };
+  const out: Building = { pts, h: b.h, style: b.s ?? 0 };
   if (b.k) out.kind = b.k;
+  if (b.w !== undefined) out.gate = b.w;
   return out;
 }

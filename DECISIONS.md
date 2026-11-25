@@ -30,6 +30,11 @@
 | 2026-11-11 | Commits use the GitHub noreply email, not Bunny's personal email | Public repo, keeps the email private |
 | 2026-11-18 | Play area S15.805 W78.003 N15.870 E78.065 (6.6 x 7.2 km), bigger than the first guess | Bunny's pick, so the NH44 Tungabhadra bridge is inside |
 | 2026-11-18 | Bus stand = main APSRTC Bus Station Kurnool (15.8240, 78.0278). The Rajvihar bus station is part of Rajvihar Centre | Two APSRTC stations in OSM; the main one fits "Kurnool Bus Stand" |
+| 2026-11-25 | K.2: separate OSM details download (`fetch-details.mjs`, `details.json.gz` 85 kB) instead of re-running the main fetch | The main download takes 25 min to hours; details took 10 min |
+| 2026-11-25 | K.2: styles from neighbourhood names, density and road frontage more than land use | Kurnool OSM has only 37 residential, 15 industrial and 3 retail land-use areas and 91 shops; 45 named neighbourhoods cover the city |
+| 2026-11-25 | K.2: all styles in one texture atlas, row picked in the shader | Keeps buildings at one draw call per chunk instead of one per style |
+| 2026-11-25 | K.2: compound walls only where the whole wall box fits (clear of roads, other buildings and walls), gate facing the nearest road; walls are solid | No walls across lanes or through neighbours; a wall you can walk through would look wrong |
+| 2026-11-25 | K.2: heights now follow the style when there is no real height (old city 2-3 floors, colony 1-2, market 2-4 or 3-6 in the commercial centres, outskirts mostly 1) | Old seeded heights made colonies too tall |
 | 2026-11-25 | K.1: Overture buildings release 2026-11-18.0 pinned; snapshot `overture-buildings.json.gz` (4.1 MB) committed next to `raw.json.gz` | Reproducible build; same idea as the OSM snapshot |
 | 2026-11-25 | K.1: Overture downloaded through the `overturemaps` library with the STAC catalog off, not the CLI | The CLI checks the release against stac.overturemaps.org, which kept answering 429 |
 | 2026-11-25 | K.1: an Overture building is skipped when more than 20% of it (2 m raster) is on an OSM outline, including OSM outlines later dropped for blocking roads | OSM stays first; a dropped OSM building must not come back from Overture's copy of OSM |

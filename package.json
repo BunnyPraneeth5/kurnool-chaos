@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "osm:fetch": "node scripts/osm/fetch.mjs",
     "osm:report": "node scripts/osm/report.mjs",
+    "osm:details": "node scripts/osm/fetch-details.mjs",
     "map:build": "node scripts/osm/build.mjs"
   },
   "dependencies": {

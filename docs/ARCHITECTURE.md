@@ -31,6 +31,7 @@ kurnool-chaos/
    - Buildings: footprint polygons. Height from `building:levels` if present, otherwise 1 to 4 floors from a random generator seeded by the OSM id (same output every run), taller near commercial centres. Drop tiny ones (< 12 m2).
    - Road cleanup: drop or shrink any building that overlaps a drivable road (half road width + 1 m), so narrow old-city lanes stay drivable.
    - Overture buildings (task K.1): `scripts/osm/overture.py` downloads Overture Maps buildings (pinned release, `overturemaps` Python tool) into the committed `scripts/osm/overture-buildings.json.gz`. The build adds every Overture building that is not more than 20% on an OSM outline (2 m raster), with the same road clean-up. Real heights or floor counts are used when Overture has them, otherwise seeded floors like OSM.
+   - Styles (task K.2): `scripts/osm/fetch-details.mjs` (`npm run osm:details`) downloads OSM land use, shops, amenities, offices, place names, power poles and trees into the committed `scripts/osm/details.json.gz`. Each building gets a style: industrial or campus from building tags and land use; market (shop fronts) when it faces a main or market road in a built-up or shop area; old city near old-city neighbourhood names (Peta, Pet, Pura, Bagh, Qila...) or the fort, or very dense near the fort; outskirts in villages or very sparse areas; colony in named colonies, residential land use or houses. Heights without real data follow the style. Colony houses whose wall box (1.8 m out) is clear of roads, buildings and other walls get a compound wall with a gate facing the nearest road.
    - Filler: where an area has almost no OSM or Overture buildings, add parks (green patches, a few trees) and simple random buildings along road edges. Seeded, not precise.
    - Water: river polygons. River centreline as fallback if no polygon. Roads tagged `bridge=yes` cross water: water collision is removed under them.
    - Landmarks: id, name_en, name_te, position, footprint, type.
@@ -52,7 +53,7 @@ type MapData = {
     // road = index into roads; pts i0..i1 of that road is the edge's polyline (a at i0, b at i1)
     edges: { a: number; b: number; road: number; len: number; i0: number; i1: number }[]
   }
-  buildings: { p: number[]; h: number; k?: string }[]   // file form; the loader unpacks it to { pts, h, kind }. kind 'filler' = generated
+  buildings: { p: number[]; h: number; k?: string; s?: number; w?: number }[]   // file form; the loader unpacks it to { pts, h, kind, style, gate }. kind 'filler' = generated
   water: { pts: [number, number][] }[]
   parks: { pts: [number, number][] }[]
   rail: { pts: [number, number][] }[]
@@ -62,7 +63,7 @@ type MapData = {
   meta: { osmBase: string; overtureRelease: string; credit: string }
 }
 ```
-Building outlines are packed to keep the file small: `p = [x0, z0, dx1, dz1, ...]` in whole decimetres (first point absolute, then deltas), `k` = kind. `src/map/loadMap.ts` unpacks them into `pts` in metres.
+Building outlines are packed to keep the file small: `p = [x0, z0, dx1, dz1, ...]` in whole decimetres (first point absolute, then deltas), `k` = kind, `s` = style (0 plain, 1 old city, 2 colony, 3 market, 4 campus, 5 outskirts, 6 industrial; see `src/map/buildingStyle.ts`), `w` = compound wall gate side (0..3 of the box around the house aligned to its longest edge). `src/map/loadMap.ts` unpacks them into `pts` in metres.
 Conventions:
 - Units are metres, rounded to 0.1. X = east, Z = south.
 - Credit (`meta.credit` and `#credit` in index.html): "© OpenStreetMap contributors, Overture Maps Foundation". Both sources are ODbL.
@@ -75,7 +76,7 @@ Conventions:
 
 ## Rendering
 - Ground: one big plane. Roads as merged ribbon meshes per 250 m chunk, slightly above the ground, with polygonOffset.
-- Buildings: extruded footprints merged per chunk into one geometry with vertex colors. Window texture shared. Frustum culling per chunk.
+- Buildings: extruded footprints merged per chunk into one geometry with vertex colors. Frustum culling per chunk. One material: a texture atlas with one row per wall pattern (windows, old-city shuttered windows, shop fronts with signboards, campus ribbon windows, colony barred windows, sheet metal, old-city doors and shops); the shader picks the row from the style and the floor (wall v = 64 x style + floors). Shop rows are not tinted by the wall colour. Outskirts and sheds with four corners get gable sheet or tile roofs. Compound walls are in the same mesh and in collision.
 - Landmarks: hand-built low-poly groups (fort tower, bridge with railings, station shed, hospital block). Signboards are CanvasTexture planes with English and Telugu text. Wait for `document.fonts.load` on Noto Sans Telugu before drawing them, otherwise the text shows as boxes.
 - Dusk sky, fog and lights reused from the demo.
 - Quality setting: low / high. Low = pixel ratio 1, shorter fog distance, fewer traffic cars, no window emissive.

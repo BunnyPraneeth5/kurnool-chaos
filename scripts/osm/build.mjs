@@ -6,9 +6,9 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { BBOX, CENTER, project, DRIVABLE, loadRaw, loadOverture, MAP_OUT_PATH, MAP_PREVIEW_PATH } from './common.mjs';
+import { BBOX, CENTER, project, DRIVABLE, loadRaw, loadOverture, loadDetails, MAP_OUT_PATH, MAP_PREVIEW_PATH } from './common.mjs';
 import {
-  wayLines, polygons, allNames, uid, polyLen, ringArea, ringCentroid, pointInRing,
+  wayLines, polygons, centerOf, allNames, uid, polyLen, ringArea, ringCentroid, pointInRing,
   segDist, segSegDist, selfIntersects, simplify, clipRingToRect, makeRng, hash32,
 } from './geo.mjs';
 import { SPECS, MANUAL_PINS, rankCandidates, loadLandmarkNames } from './landmarks.mjs';
@@ -374,7 +374,7 @@ for (const el of main) {
   const levels = parseFloat(t['building:levels']);
   const rng = makeRng(hash32('b', el.type, el.id));
   const floors = Number.isFinite(levels) && levels > 0 && levels < 40 ? levels : floorsFor(rng, c[0], c[1], false);
-  const b = { pts: fr, h: r1(floors * FLOOR_H) };
+  const b = { pts: fr, h: r1(floors * FLOOR_H), seed: hash32('b', el.type, el.id), real: floors === levels };
   if (t.building !== 'yes') b.kind = t.building;
   buildings.push(b);
   bStats.kept++;
@@ -463,6 +463,7 @@ for (const f of overture.buildings) {
   const fr = fitBuilding(ring, c, oStats);
   if (!fr) continue;
   let h;
+  let real = true;
   if (Number.isFinite(f.h) && f.h >= 2.5 && f.h < 120) {
     h = f.h;
     oStats.realHeight++;
@@ -471,8 +472,9 @@ for (const f of overture.buildings) {
     oStats.realFloors++;
   } else {
     h = floorsFor(makeRng(hash32('ov', f.id)), c[0], c[1], false) * FLOOR_H;
+    real = false;
   }
-  const b = { pts: fr, h: r1(h) };
+  const b = { pts: fr, h: r1(h), seed: hash32('ov', f.id), real };
   if (f.class) b.kind = f.class;
   buildings.push(b);
   oStats.kept++;
@@ -714,7 +716,7 @@ for (let j = 0; j < CH; j++) {
           fillRing(ring);
           const fr = finishRing(ring);
           const floors = floorsFor(rng, cx, cz, true);
-          buildings.push({ pts: fr, h: r1(floors * FLOOR_H), kind: 'filler' });
+          buildings.push({ pts: fr, h: r1(floors * FLOOR_H), kind: 'filler', seed: hash32('fill', i, j, placed), real: false });
           fillerRings.push(fr);
           placed++;
           fillerBuildings++;
@@ -723,6 +725,270 @@ for (let j = 0; j < CH; j++) {
     }
   }
 }
+
+/* ================= KURNOOL STYLES (task K.2) ================= */
+// One style per building from OSM land use, building tags, shops and amenities, named
+// neighbourhoods and building density. Ids match STYLE in src/map/buildingStyle.ts.
+const STYLE = { plain: 0, old: 1, colony: 2, market: 3, campus: 4, outskirts: 5, industrial: 6 };
+const STYLE_NAMES = Object.fromEntries(Object.entries(STYLE).map(([k, v]) => [v, k]));
+const details = await loadDetails();
+const detailEls = [...details.elements].sort(byId);
+const centreOf = (el) => {
+  const c = centerOf(el);
+  return c ? P(c) : null;
+};
+
+// Land-use areas (and amenity grounds) that decide a style outright.
+const ZONE_OF_LANDUSE = { industrial: 'industrial', garages: 'industrial', commercial: 'market', retail: 'market', residential: 'colony', education: 'campus', institutional: 'campus', military: 'campus', religious: 'campus' };
+const CAMPUS_AMENITY = /^(school|college|university|hospital|clinic|townhall|police|library|courthouse|kindergarten|public_building)$/;
+const zoneGrid = new Grid(100);
+let zoneCount = 0;
+for (const el of [...detailEls, ...main]) {
+  if (el.type === 'node') continue;
+  const t = el.tags || {};
+  const zone = ZONE_OF_LANDUSE[t.landuse] || (CAMPUS_AMENITY.test(t.amenity || '') ? 'campus' : null);
+  if (!zone) continue;
+  for (const ring of closedRings(el)) {
+    if (ring.length < 3) continue;
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const p of ring) {
+      x0 = Math.min(x0, p[0]); z0 = Math.min(z0, p[1]);
+      x1 = Math.max(x1, p[0]); z1 = Math.max(z1, p[1]);
+    }
+    zoneGrid.add({ ring, zone, area: Math.abs(ringArea(ring)) }, x0, z0, x1, z1);
+    zoneCount++;
+  }
+}
+/** The smallest land-use zone containing a point (smallest wins, so a school inside a residential area is a campus). */
+function zoneAt(x, z) {
+  let best = null;
+  for (const it of zoneGrid.query(x, z, x, z)) {
+    if ((!best || it.area < best.area) && pointInRing(x, z, it.ring)) best = it;
+  }
+  return best?.zone ?? null;
+}
+
+// Shops and other street-front businesses, as points.
+const shopGrid = new Grid(50);
+let shopCount = 0;
+for (const el of detailEls) {
+  const t = el.tags || {};
+  const isShop = t.shop || t.office || t.craft || /^(restaurant|fast_food|cafe|bank|atm|pharmacy|marketplace|fuel|ice_cream|bar|cinema|theatre|doctors|dentist|clinic)$/.test(t.amenity || '') || t.tourism === 'hotel';
+  if (!isShop) continue;
+  const c = centreOf(el);
+  if (!c || !inPA(c[0], c[1])) continue;
+  shopGrid.add(c, c[0], c[1], c[0], c[1]);
+  shopCount++;
+}
+const shopsNear = (x, z, r) => {
+  let n = 0;
+  for (const p of shopGrid.query(x - r, z - r, x + r, z + r)) if (Math.hypot(p[0] - x, p[1] - z) < r) n++;
+  return n;
+};
+
+// Named neighbourhoods: old-city names, colonies, villages.
+const OLD_NAMES = /\b(pet|peta|pura|bagh|qila|beedh|padakhana|marwari|bazaar|bazar|old town|old city|old bus stand)\b/i;
+const COLONY_NAMES = /(nagar|colony|estates?|township|camp|residency|layout|enclave|quarters|villas)/i;
+const places = [];
+for (const el of [...detailEls, ...wide]) {
+  const t = el.tags || {};
+  if (!t.place || !t.name) continue;
+  const c = centreOf(el);
+  if (!c) continue;
+  let kind = null;
+  if (/^(village|hamlet)$/.test(t.place)) kind = 'outskirts';
+  if (COLONY_NAMES.test(t.name)) kind = 'colony';
+  if (OLD_NAMES.test(t.name) && t.place !== 'village') kind = 'old';
+  if (kind && !places.some((p) => p.name === t.name && Math.hypot(p.x - c[0], p.z - c[1]) < 50)) places.push({ name: t.name, kind, x: c[0], z: c[1] });
+}
+// The fort area is the heart of the old city.
+if (lmById.fort) places.push({ name: 'Konda Reddy Fort', kind: 'old', x: lmById.fort.x, z: lmById.fort.z });
+const PLACE_RADIUS = { old: 450, colony: 600, outskirts: 700 };
+function placeKindAt(x, z) {
+  let best = null;
+  let bd = Infinity;
+  for (const p of places) {
+    const d = Math.hypot(p.x - x, p.z - z);
+    if (d < PLACE_RADIUS[p.kind] && d < bd) {
+      bd = d;
+      best = p;
+    }
+  }
+  return best?.kind ?? null;
+}
+
+// Building cover per 50 m cell, smoothed over the 3 x 3 neighbourhood (share of ground under roofs).
+const DC = 50;
+const DW = Math.ceil((PA.maxX - PA.minX) / DC);
+const DH = Math.ceil((PA.maxZ - PA.minZ) / DC);
+const cover = new Float32Array(DW * DH);
+for (const b of buildings) {
+  const c = ringCentroid(b.pts);
+  const i = Math.floor((c[0] - PA.minX) / DC);
+  const j = Math.floor((c[1] - PA.minZ) / DC);
+  if (i >= 0 && j >= 0 && i < DW && j < DH) cover[j * DW + i] += Math.abs(ringArea(b.pts)) / (DC * DC);
+}
+function coverAt(x, z) {
+  const i = Math.floor((x - PA.minX) / DC);
+  const j = Math.floor((z - PA.minZ) / DC);
+  let s = 0;
+  let n = 0;
+  for (let dj = -1; dj <= 1; dj++) {
+    for (let di = -1; di <= 1; di++) {
+      const ii = i + di, jj = j + dj;
+      if (ii < 0 || jj < 0 || ii >= DW || jj >= DH) continue;
+      s += cover[jj * DW + ii];
+      n++;
+    }
+  }
+  return n ? s / n : 0;
+}
+
+// Main roads, for shop fronts.
+const MAIN_ROAD = new Set(['trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link']);
+const MARKET_ROADS = /(park road|bus stand|bazaar|bazar|main road|market|station road|mosque road|sunkesula road|kurnool road|nandyal road)/i;
+const mainSegGrid = new Grid(32);
+roads.forEach((road, ri) => {
+  if (road.id === -1) return;
+  const named = MARKET_ROADS.test(roadNames[ri] || '');
+  if (!MAIN_ROAD.has(road.kind) && !named) return;
+  const hw = road.width / 2;
+  for (let k = 1; k < road.pts.length; k++) {
+    const a = road.pts[k - 1], b = road.pts[k];
+    mainSegGrid.add({ a, b, hw, named, big: road.kind !== 'tertiary' && road.kind !== 'tertiary_link' }, Math.min(a[0], b[0]) - hw, Math.min(a[1], b[1]) - hw, Math.max(a[0], b[0]) + hw, Math.max(a[1], b[1]) + hw);
+  }
+});
+const FRONT = 9; // m from the road edge to the building for a shop front
+/** The main road a building fronts (closest edge within FRONT m of the kerb), or null. */
+function frontRoad(ring) {
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const p of ring) {
+    x0 = Math.min(x0, p[0]); z0 = Math.min(z0, p[1]);
+    x1 = Math.max(x1, p[0]); z1 = Math.max(z1, p[1]);
+  }
+  const m = maxHalfWidth + FRONT;
+  let best = null;
+  for (const s of mainSegGrid.query(x0 - m, z0 - m, x1 + m, z1 + m)) {
+    for (let i = 0, n = ring.length; i < n; i++) {
+      const d = segSegDist(ring[i], ring[(i + 1) % n], s.a, s.b) - s.hw;
+      if (d < FRONT && (!best || d < best.d)) best = { d, s };
+    }
+  }
+  return best?.s ?? null;
+}
+
+const CAMPUS_KINDS = /^(school|college|university|hospital|public|government|civic|office|kindergarten|train_station|transportation|dormitory|military|religious|temple|mosque|church)$/;
+const INDUSTRIAL_KINDS = /^(industrial|warehouse|shed|factory|garage|garages|hangar|manufacture|storage_tank|service)$/;
+const MARKET_KINDS = /^(commercial|retail|shop|supermarket|kiosk|hotel)$/;
+
+function pickStyle(b) {
+  const c = ringCentroid(b.pts);
+  const k = b.kind && b.kind !== 'filler' ? b.kind : '';
+  if (INDUSTRIAL_KINDS.test(k)) return STYLE.industrial;
+  if (CAMPUS_KINDS.test(k)) return STYLE.campus;
+  const zone = zoneAt(c[0], c[1]);
+  if (zone === 'industrial') return STYLE.industrial;
+  if (zone === 'campus') return STYLE.campus;
+  const cov = coverAt(c[0], c[1]);
+  const place = placeKindAt(c[0], c[1]);
+  const front = frontRoad(b.pts);
+  const shops = shopsNear(c[0], c[1], 60);
+  const busy = isCommercial(c[0], c[1]) || zone === 'market' || shops > 0 || place === 'old';
+  // Kurnool's main roads are lined with shops wherever the area is built up.
+  if (MARKET_KINDS.test(k) || (front && (front.named || busy || (front.big && cov > 0.1) || cov > 0.2))) return STYLE.market;
+  if (place === 'old' || (cov > 0.28 && lmById.fort && Math.hypot(c[0] - lmById.fort.x, c[1] - lmById.fort.z) < 2000)) return STYLE.old;
+  if (place === 'outskirts' || (cov < 0.07 && place !== 'colony')) return STYLE.outskirts;
+  if (place === 'colony' || zone === 'colony' || k === 'house' || k === 'residential' || k === 'detached') return STYLE.colony;
+  return STYLE.plain;
+}
+
+/** Floors for a style when OSM or Overture gave no real height. */
+function styleHeight(b, style) {
+  const rng = makeRng(b.seed >>> 0);
+  const c = ringCentroid(b.pts);
+  const area = Math.abs(ringArea(b.pts));
+  switch (style) {
+    case STYLE.old: return (2 + Math.floor(rng() * 2)) * FLOOR_H; // 2..3
+    case STYLE.colony: return (rng() < 0.55 ? 1 : 2) * FLOOR_H + (rng() < 0.3 ? 0.4 : 0);
+    case STYLE.market: return (isCommercial(c[0], c[1]) ? 3 + Math.floor(rng() * 4) : 2 + Math.floor(rng() * 3)) * FLOOR_H;
+    case STYLE.campus: return (area > 600 ? 3 + Math.floor(rng() * 2) : 2 + Math.floor(rng() * 2)) * FLOOR_H;
+    case STYLE.outskirts: return (rng() < 0.8 ? 1 : 2) * FLOOR_H;
+    case STYLE.industrial: return 4.5 + rng() * 3.5;
+    default: return floorsFor(rng, c[0], c[1], b.kind === 'filler') * FLOOR_H;
+  }
+}
+
+const styleCount = {};
+for (const b of buildings) {
+  b.style = pickStyle(b);
+  if (!b.real) b.h = r1(styleHeight(b, b.style));
+  styleCount[STYLE_NAMES[b.style]] = (styleCount[STYLE_NAMES[b.style]] || 0) + 1;
+}
+
+// Compound walls around colony houses where the whole wall fits: clear of roads, other
+// buildings and other compound walls. Same box as compoundWall() in src/map/buildingStyle.ts.
+const WALL_GAP = 1.8;
+const GATE_ROAD_SEARCH = 40;
+function orientedBox(ring, pad) {
+  let best = 0, ux = 1, uz = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (L > best) {
+      best = L;
+      ux = (b[0] - a[0]) / L;
+      uz = (b[1] - a[1]) / L;
+    }
+  }
+  const nx = -uz, nz = ux;
+  let u0 = Infinity, u1 = -Infinity, n0 = Infinity, n1 = -Infinity;
+  for (const [x, z] of ring) {
+    const u = x * ux + z * uz, n = x * nx + z * nz;
+    u0 = Math.min(u0, u); u1 = Math.max(u1, u);
+    n0 = Math.min(n0, n); n1 = Math.max(n1, n);
+  }
+  u0 -= pad; u1 += pad; n0 -= pad; n1 += pad;
+  const at = (u, n) => [u * ux + n * nx, u * uz + n * nz];
+  return [at(u0, n0), at(u1, n0), at(u1, n1), at(u0, n1)];
+}
+const bOcc = new Uint8Array(ovW * ovH);
+for (const b of buildings) scanRing(b.pts, (k) => (bOcc[k] = 1));
+const wallOcc = new Uint8Array(ovW * ovH);
+let walled = 0;
+buildings.forEach((b) => {
+  if (b.style !== STYLE.colony) return;
+  const area = Math.abs(ringArea(b.pts));
+  if (area < 40 || area > 350 || b.pts.length > 8) return;
+  const box = orientedBox(b.pts, WALL_GAP);
+  if (box.some((p) => !inPA(p[0], p[1])) || overlapsRoad(box)) return;
+  let clash = false;
+  scanRing(box, (k) => {
+    if (clash) return;
+    if (wallOcc[k]) clash = true;
+    else if (bOcc[k]) {
+      const i = k % ovW, j = Math.floor(k / ovW);
+      if (!pointInRing(PA.minX + (i + 0.5) * OV_RES, PA.minZ + (j + 0.5) * OV_RES, b.pts)) clash = true;
+    }
+  });
+  if (clash) return;
+  // Gate on the side facing the nearest road.
+  let gate = 0;
+  let gd = Infinity;
+  for (let s = 0; s < 4; s++) {
+    const a = box[s], e = box[(s + 1) % 4];
+    const mx = (a[0] + e[0]) / 2, mz = (a[1] + e[1]) / 2;
+    for (const seg of segGrid.query(mx - GATE_ROAD_SEARCH, mz - GATE_ROAD_SEARCH, mx + GATE_ROAD_SEARCH, mz + GATE_ROAD_SEARCH)) {
+      const d = segDist(mx, mz, seg.a[0], seg.a[1], seg.b[0], seg.b[1]);
+      if (d < gd) {
+        gd = d;
+        gate = s;
+      }
+    }
+  }
+  b.gate = gate;
+  scanRing(box, (k) => (wallOcc[k] = 1));
+  walled++;
+});
 
 /* ================= AIRPORT + LINK ROAD ================= */
 // Pulled in to about 1.5 km east of the play area (MAP-SPEC), linked from the
@@ -865,6 +1131,8 @@ function packBuilding(b) {
   }
   const o = { p, h: b.h };
   if (b.kind) o.k = b.kind;
+  if (b.style) o.s = b.style;
+  if (b.gate !== undefined) o.w = b.gate;
   return o;
 }
 const json = JSON.stringify({ ...map, buildings: buildings.map(packBuilding) });
@@ -887,6 +1155,8 @@ console.log(
 );
 console.log(`  Overture added by source: ${Object.entries(oBySource).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`);
 console.log(`Buildings total: ${buildings.length} = OSM ${bStats.kept} + Overture ${oStats.kept} + filler ${fillerBuildings}`);
+console.log(`Styles (K.2): ${Object.entries(styleCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}; ${walled} colony houses with compound walls`);
+console.log(`  from ${zoneCount} land-use/amenity areas, ${shopCount} shops and businesses, ${places.length} named places (${places.filter((p) => p.kind === 'old').map((p) => p.name).join(', ')} = old city)`);
 console.log(`Parks: ${osmParks} from OSM + ${fillerParks} filler. Water: ${wStats.polygons} polygons + ${wStats.lineStrips} river/canal strips (${wStats.broken} broken dropped). Rail: ${rail.length}`);
 console.log(`Landmarks: ${landmarks.map((l) => l.id).join(', ')}`);
 if (missing.length) console.log(`MISSING landmarks (need a pin from Bunny in scripts/osm/landmarks.mjs MANUAL_PINS): ${missing.join(', ')}`);
