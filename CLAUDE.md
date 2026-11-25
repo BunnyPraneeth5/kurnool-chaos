@@ -36,7 +36,10 @@ Browser multiplayer open-city driving game, just for fun with friends. Map is re
 - Ask Bunny when stuck or when a decision is not covered by the docs. Do not guess on scope.
 
 ## Current focus
-Phase 2, task 2.6 (see TASKS.md)
+Two parallel tracks, each in its own session and branch (see PROGRESS.md 2026-11-25):
+- Kurnool accuracy: Phase K, starting at K.1
+- Multiplayer: Phase 3, starting at 3.1
+Never merge into `main` from a track session; the coordinator session merges.
 
 ## Gotchas
 (add repeated mistakes here as rules)

@@ -2,6 +2,10 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-25: Parallel work set up
+- Bunny chose to run accuracy and multiplayer at the same time. Added Phase K (K.1 to K.4) to TASKS.md; 4.1 now uses Bunny's photos. Two sessions start from this commit, each on its own branch: "Kurnool accuracy" (K.1 onwards) and "Multiplayer" (3.1 onwards). This session coordinates and merges into `main`.
+- Rules for both: commit and push only to your own branch (Vercel makes a preview link per branch), never merge into `main`, only tick your own tasks, add your own PROGRESS entries.
+
 ## 2026-11-25: Task 2.6 Deploy
 - Bunny check: "everything looks nice", 2.6 ticked. Main feedback: the street layout matches, but buildings and everything inside the city do not feel like real Kurnool yet. Bunny wants a low-poly but accurate Kurnool. Plan options presented (real building outlines, Kurnool-style buildings and street details, landmark models from photos, corrections list); waiting for Bunny's decision on when.
 - Live: https://kurnool-chaos.vercel.app/ (Bunny connected the GitHub repo in the Vercel dashboard; auto-deploys from `main`).

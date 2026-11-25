@@ -36,9 +36,21 @@ Order: core game first (map, driving, playing together), extras after. If time r
 - [ ] **3.3 Live sync.** 5 Hz broadcast (heartbeat only while idle), 200 ms interpolation, remote vehicle models, name tags, bounce off friends' cars, recover after phone lock or app switch.
   - Accept: phone and laptop in one room see each other move smoothly at normal driving speed. Locking the phone for 10 s and coming back recovers without a refresh.
 
+## Phase K: Kurnool accuracy (runs in parallel with Phase 3, on its own branch)
+Goal (Bunny, 2026-11-25): the street layout matches, but the city must look and feel like real Kurnool in low poly.
+- [ ] **K.1 Real building outlines.** Download Overture Maps buildings for the map box with the `overturemaps` Python tool (approved by Bunny) into a committed snapshot. In `build.mjs`, keep OSM buildings, add Overture buildings that do not overlap them, use real heights where Overture has them, and only generate filler where neither source has buildings. Same road clean-up rules. Update the in-game credit for any new data licence.
+  - Accept: building counts printed per source, rebuild identical, file size reported (ask Bunny if it goes over 6 MB), street-level triangles and laptop fps reported, Bunny checks 30+ fps on his phone on low.
+- [ ] **K.2 Kurnool-style buildings by area.** Pick a style per building from OSM land use, shops and density: dense 2 to 3 floor old city (Peta, Budhwarpet), colony houses with compound walls, market streets with shop fronts, shutters and colourful signboards on the ground floor (Park Road, Raj Vihar, bus stand road), campuses, outskirts.
+  - Accept: the named areas look clearly different; phone still 30+ fps on low.
+- [ ] **K.3 Street details.** Black-and-yellow kerbs and dividers on main roads, electric poles, temples, mosques and churches where OSM has places of worship, hoardings, auto stands, roadside neem trees. Instanced or merged so phones stay fast.
+  - Accept: visible on main roads and at places of worship; phone still 30+ fps on low.
+- [ ] **K.4 Corrections file.** `scripts/osm/corrections.json` applied by `build.mjs`: remove or add buildings, change water width, landmark pins (Abdullah Khan Estate). Bunny's reported wrong spots go here.
+  - Accept: at least one real correction applied and visible; rebuild identical.
+- Landmark models from Bunny's photos are task 4.1.
+
 ## Phase 4: Kurnool feel
-- [ ] **4.1 Landmarks.** Fort, Tungabhadra bridge, station, bus stand, GGH + KMC, junction markers at Rajvihar and C-Camp, Abdullah Khan Estate sign.
-  - Accept: each landmark visible and in the right place.
+- [ ] **4.1 Landmarks.** Fort, Tungabhadra bridge, station, bus stand, GGH + KMC, junction markers at Rajvihar and C-Camp, Abdullah Khan Estate sign. Low-poly models based on 2 or 3 photos per landmark from Bunny, so they look like the real ones.
+  - Accept: each landmark visible, in the right place, and recognizable to Bunny.
 - [ ] **4.2 Signboards.** English + Telugu boards at the 10 landmarks, using Noto Sans Telugu. Wait for the font to load before drawing.
   - Accept: Telugu renders correctly (no boxes or broken conjuncts) on phone and laptop.
   - **Bunny check:** Bunny verifies Telugu spellings.

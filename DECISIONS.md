@@ -30,6 +30,8 @@
 | 2026-11-11 | Commits use the GitHub noreply email, not Bunny's personal email | Public repo, keeps the email private |
 | 2026-11-18 | Play area S15.805 W78.003 N15.870 E78.065 (6.6 x 7.2 km), bigger than the first guess | Bunny's pick, so the NH44 Tungabhadra bridge is inside |
 | 2026-11-18 | Bus stand = main APSRTC Bus Station Kurnool (15.8240, 78.0278). The Rajvihar bus station is part of Rajvihar Centre | Two APSRTC stations in OSM; the main one fits "Kurnool Bus Stand" |
+| 2026-11-25 | New Phase K (Kurnool accuracy) runs in parallel with Phase 3 (multiplayer), each in its own session and git branch; the coordinator session merges into `main` | Bunny wants both; separate branches keep the sessions from overwriting each other |
+| 2026-11-25 | `overturemaps` Python tool approved for downloading Overture building outlines (dev tool only, not shipped in the game) | Real building positions instead of generated filler |
 | 2026-11-25 | Live at https://kurnool-chaos.vercel.app/ with Vercel defaults (Vite preset, no vercel.json) | Static build needs nothing more; map gets brotli and revalidation by default |
 | 2026-11-19 | Car collision = two 1.0 m circles 1.2 m ahead of and behind the centre (was one 1.6 m circle in the demo) | Fits narrow Kurnool lanes and stops the nose poking into walls |
 | 2026-11-19 | Player exits the car on the right; parked cars sit on the left edge of the road | Indian cars are right-hand drive and park on the left |
