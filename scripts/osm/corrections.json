@@ -1,0 +1,16 @@
+{
+  "_help": [
+    "Hand fixes applied by build.mjs (task K.4). Positions are [lat, lon] from Google Maps (right-click a spot, click the numbers to copy).",
+    "landmarkPins: { \"<landmark id>\": [lat, lon] } places a landmark OSM lacks or has wrong (ids in docs/MAP-SPEC.md).",
+    "removeBuildings: [{ \"at\": [lat, lon], \"radius\": 0, \"note\": \"\" }] removes the building under the point, or every building centred within radius metres.",
+    "addBuildings: [{ \"pts\": [[lat, lon], ...], \"floors\": 2, \"style\": \"market\", \"note\": \"\" }] adds a building. Styles: plain, old, colony, market, campus, outskirts, industrial.",
+    "waterWidths: [{ \"name\": \"Kurnool Cuddapah Canal\", \"width\": 20, \"note\": \"\" }] sets the width in metres of rivers and canals OSM only has as lines, matched by name.",
+    "clearProps: [{ \"at\": [lat, lon], \"radius\": 15, \"note\": \"\" }] keeps trees, poles, hoardings and places of worship out of a circle.",
+    "A correction that matches nothing stops the build with an error, so typos never pass silently."
+  ],
+  "landmarkPins": {},
+  "removeBuildings": [],
+  "addBuildings": [],
+  "waterWidths": [],
+  "clearProps": []
+}

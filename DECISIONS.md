@@ -30,6 +30,7 @@
 | 2026-11-11 | Commits use the GitHub noreply email, not Bunny's personal email | Public repo, keeps the email private |
 | 2026-11-18 | Play area S15.805 W78.003 N15.870 E78.065 (6.6 x 7.2 km), bigger than the first guess | Bunny's pick, so the NH44 Tungabhadra bridge is inside |
 | 2026-11-18 | Bus stand = main APSRTC Bus Station Kurnool (15.8240, 78.0278). The Rajvihar bus station is part of Rajvihar Centre | Two APSRTC stations in OSM; the main one fits "Kurnool Bus Stand" |
+| 2026-11-25 | K.4: corrections file in lat/lon (from Google Maps), applied after buildings and props; a correction that matches nothing stops the build | Bunny can copy points straight from Google Maps; typos never pass silently |
 | 2026-11-25 | K.3: kerbs, dividers and divider lights built in the game from road shapes; poles, trees, hoardings, worship and auto stands placed by the build | Road-relative details cost nothing in the file; free-ground checks need the build's raster |
 | 2026-11-25 | K.3: dividers only on two-way trunk and primary roads, solid, with gaps at junctions and a 12 m U-turn opening every 300 m | Kurnool's main roads have dividers; openings keep U-turns possible. Autopilot drove 8.8 km over 5 routes with 0 times stuck |
 | 2026-11-25 | K.3: poles, tree trunks, hoarding posts, temples, mosques, churches and parked autos are solid; kerbs are not | Driving through a pole or temple looks wrong; kerbs are low enough to mount |

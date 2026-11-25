@@ -39,6 +39,33 @@ export async function loadDetails() {
   return JSON.parse(gunzipSync(await readFile(DETAILS_GZ_PATH)).toString('utf8'));
 }
 
+// Hand corrections (task K.4), see the _help list inside the file.
+export const CORRECTIONS_PATH = join(DIR, 'corrections.json');
+
+/** scripts/osm/corrections.json, checked for shape. Fails loudly if it is missing or malformed. */
+export async function loadCorrections() {
+  if (!existsSync(CORRECTIONS_PATH)) throw new Error('scripts/osm/corrections.json is missing');
+  let c;
+  try {
+    c = JSON.parse(await readFile(CORRECTIONS_PATH, 'utf8'));
+  } catch (err) {
+    throw new Error(`scripts/osm/corrections.json is not valid JSON: ${err.message}`);
+  }
+  const isLatLon = (p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180;
+  const bad = [];
+  for (const k of ['removeBuildings', 'addBuildings', 'waterWidths', 'clearProps']) if (!Array.isArray(c[k])) bad.push(`${k} must be a list`);
+  if (!c.landmarkPins || typeof c.landmarkPins !== 'object') bad.push('landmarkPins must be an object');
+  if (!bad.length) {
+    for (const [id, p] of Object.entries(c.landmarkPins)) if (!isLatLon(p)) bad.push(`landmarkPins.${id}: needs [lat, lon]`);
+    c.removeBuildings.forEach((r, i) => !isLatLon(r.at) && bad.push(`removeBuildings[${i}].at: needs [lat, lon]`));
+    c.clearProps.forEach((r, i) => (!isLatLon(r.at) || !(r.radius > 0)) && bad.push(`clearProps[${i}]: needs at [lat, lon] and radius > 0`));
+    c.addBuildings.forEach((b, i) => (!Array.isArray(b.pts) || b.pts.length < 3 || !b.pts.every(isLatLon) || !(b.floors > 0)) && bad.push(`addBuildings[${i}]: needs 3+ pts [lat, lon] and floors > 0`));
+    c.waterWidths.forEach((w, i) => (typeof w.name !== 'string' || !(w.width > 1 && w.width < 300)) && bad.push(`waterWidths[${i}]: needs name and width 1..300`));
+  }
+  if (bad.length) throw new Error(`scripts/osm/corrections.json:\n  ${bad.join('\n  ')}`);
+  return c;
+}
+
 // Play area from docs/MAP-SPEC.md. Stretched north at task 1.3 so the NH44
 // Tungabhadra bridge (about 15.862, 78.010) is inside, then south to G. Pulla Reddy
 // College (15.775, 78.057) and west to Peddapadu (15.807, 77.981) on Bunny's request.

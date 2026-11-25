@@ -33,6 +33,7 @@ kurnool-chaos/
    - Overture buildings (task K.1): `scripts/osm/overture.py` downloads Overture Maps buildings (pinned release, `overturemaps` Python tool) into the committed `scripts/osm/overture-buildings.json.gz`. The build adds every Overture building that is not more than 20% on an OSM outline (2 m raster), with the same road clean-up. Real heights or floor counts are used when Overture has them, otherwise seeded floors like OSM.
    - Styles (task K.2): `scripts/osm/fetch-details.mjs` (`npm run osm:details`) downloads OSM land use, shops, amenities, offices, place names, power poles and trees into the committed `scripts/osm/details.json.gz`. Each building gets a style: industrial or campus from building tags and land use; market (shop fronts) when it faces a main or market road in a built-up or shop area; old city near old-city neighbourhood names (Peta, Pet, Pura, Bagh, Qila...) or the fort, or very dense near the fort; outskirts in villages or very sparse areas; colony in named colonies, residential land use or houses. Heights without real data follow the style. Colony houses whose wall box (1.8 m out) is clear of roads, buildings and other walls get a compound wall with a gate facing the nearest road.
    - Street details (task K.3): electric poles every 38 m on the left verge of town roads (wired in runs), neem trees on verges every 26 m, hoardings every 240 m on main roads, places of worship (a small building under an OSM temple/mosque/church point is replaced by the model, otherwise it goes on free ground facing the road) and auto stands at the kerb near busy landmarks. Every spot is checked against a 2 m raster of buildings, water, compound walls and earlier props, and kept off every road surface and away from junctions.
+   - Corrections (task K.4): `scripts/osm/corrections.json` holds Bunny's fixes: landmark pins, buildings to remove or add, river and canal widths by name, and circles kept free of props. Each one is listed in the build report; one that matches nothing stops the build.
    - Filler: where an area has almost no OSM or Overture buildings, add parks (green patches, a few trees) and simple random buildings along road edges. Seeded, not precise.
    - Water: river polygons. River centreline as fallback if no polygon. Roads tagged `bridge=yes` cross water: water collision is removed under them.
    - Landmarks: id, name_en, name_te, position, footprint, type.
@@ -79,7 +80,7 @@ Conventions:
 - Heading is radians with forward = (sin h, cos h), same as the demo.
 - Roads with `oneway` run in point order. The airport link road has `id: -1`.
 - Rivers and canals that OSM only has as centrelines become strips of quads in `water`.
-- Landmark names come from the table in MAP-SPEC.md. Landmarks OSM lacks get a pin in `scripts/osm/landmarks.mjs` (`MANUAL_PINS`).
+- Landmark names come from the table in MAP-SPEC.md. Landmarks OSM lacks get a pin in `scripts/osm/corrections.json` (`landmarkPins`).
 - Build: `npm run map:build`. It also writes `scripts/osm/map-preview.html` (gitignored) for a top-down check.
 
 ## Rendering

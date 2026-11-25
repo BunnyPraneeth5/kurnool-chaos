@@ -6,7 +6,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { BBOX, CENTER, project, DRIVABLE, loadRaw, loadOverture, loadDetails, MAP_OUT_PATH, MAP_PREVIEW_PATH } from './common.mjs';
+import { BBOX, CENTER, project, DRIVABLE, loadRaw, loadOverture, loadDetails, loadCorrections, MAP_OUT_PATH, MAP_PREVIEW_PATH } from './common.mjs';
 import {
   wayLines, polygons, centerOf, allNames, uid, polyLen, ringArea, ringCentroid, pointInRing,
   segDist, segSegDist, selfIntersects, simplify, clipRingToRect, makeRng, hash32,
@@ -35,6 +35,9 @@ const byId = (a, b) => (a.type < b.type ? -1 : a.type > b.type ? 1 : a.id - b.id
 
 const raw = await loadRaw();
 const names = await loadLandmarkNames();
+const corrections = await loadCorrections();
+const applied = []; // corrections report
+const normName = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 const main = [...raw.main].sort(byId);
 const wide = [...raw.landmarks].sort(byId);
 
@@ -221,7 +224,8 @@ const landmarks = [];
 const missing = [];
 for (const spec of SPECS) {
   const nm = names[spec.id];
-  const pin = MANUAL_PINS[spec.id];
+  const pin = corrections.landmarkPins[spec.id] ?? MANUAL_PINS[spec.id];
+  if (corrections.landmarkPins[spec.id]) applied.push(`landmark pin ${spec.id}`);
   if (pin) {
     const [x, z] = P(pin);
     landmarks.push({ id: spec.id, nameEn: nm.en, nameTe: nm.te, type: spec.type, x: r1(x), z: r1(z) });
@@ -503,11 +507,14 @@ for (const el of main) {
 }
 // River and canal centrelines become strips of quads (fallback where OSM has no polygon).
 const LINE_WIDTH = { river: 30, canal: 12 };
+const waterFixUsed = new Set();
 for (const el of main) {
   const t = el.tags || {};
   if (el.type !== 'way' || !LINE_WIDTH[t.waterway]) continue;
   const tagged = parseFloat(t.width);
-  const w = Number.isFinite(tagged) && tagged > 1 && tagged < 300 ? tagged : LINE_WIDTH[t.waterway];
+  const fix = corrections.waterWidths.find((c) => normName(t.name).includes(normName(c.name)) && normName(c.name));
+  if (fix) waterFixUsed.add(fix);
+  const w = fix ? fix.width : Number.isFinite(tagged) && tagged > 1 && tagged < 300 ? tagged : LINE_WIDTH[t.waterway];
   const line = simplify(wayLines(el)[0].map(P), 2);
   for (let i = 1; i < line.length; i++) {
     const [ax, az] = line[i - 1];
@@ -526,6 +533,11 @@ for (const el of main) {
     water.push({ pts: finishRing(r) });
     wStats.lineStrips++;
   }
+}
+
+for (const c of corrections.waterWidths) {
+  if (!waterFixUsed.has(c)) throw new Error(`corrections.json waterWidths: no river or canal line named like "${c.name}"`);
+  applied.push(`water width ${c.width} m for "${c.name}"`);
 }
 
 const rail = [];
@@ -1061,8 +1073,13 @@ const cellAt = (x, z) => {
   return i >= 0 && j >= 0 && i < ovW && j < ovH ? j * ovW + i : -1;
 };
 /** True if a disc of radius r is clear of buildings, water, placed props and every road's surface (plus margin). */
+const clearZones = corrections.clearProps.map((c) => {
+  const [x, z] = P(c.at);
+  return { x, z, r: c.radius, used: 0, c };
+});
+const inClearZone = (x, z, r) => clearZones.some((q) => Math.hypot(q.x - x, q.z - z) < q.r + r && ++q.used);
 function spotFree(x, z, r, roadMargin) {
-  if (!inPA(x, z)) return false;
+  if (!inPA(x, z) || inClearZone(x, z, r)) return false;
   for (let dz = -r; dz <= r + 1e-6; dz += Math.max(r, 0.5)) {
     for (let dx = -r; dx <= r + 1e-6; dx += Math.max(r, 0.5)) {
       const k = cellAt(x + dx, z + dz);
@@ -1191,6 +1208,10 @@ for (const el of worshipEls) {
     if (pointInRing(c[0], c[1], b.pts)) host = i;
   }
   let rec;
+  if (inClearZone(c[0], c[1], 5)) {
+    worshipSkipped++;
+    continue;
+  }
   if (host >= 0) {
     const b = buildings[host];
     if (Math.abs(ringArea(b.pts)) > 1200 || removeBuilding.has(host)) {
@@ -1255,6 +1276,36 @@ for (const id of STAND_AT) {
 }
 
 const props = { poles: poleRuns, trees, hoardings, worship, autoStands };
+for (const q of clearZones) applied.push(`props cleared around ${q.c.at} (${q.r} m)${q.c.note ? ': ' + q.c.note : ''}`);
+
+// Hand corrections to buildings (K.4).
+for (const rb of corrections.removeBuildings) {
+  const [x, z] = P(rb.at);
+  const r = rb.radius || 0;
+  const before = buildings.length;
+  const keep = buildings.filter((b) => {
+    if (r > 0) {
+      const c = ringCentroid(b.pts);
+      return Math.hypot(c[0] - x, c[1] - z) > r;
+    }
+    return !pointInRing(x, z, b.pts);
+  });
+  if (keep.length === before) throw new Error(`corrections.json removeBuildings: no building at ${rb.at}${r ? ' within ' + r + ' m' : ''}`);
+  buildings.length = 0;
+  buildings.push(...keep);
+  applied.push(`removed ${before - keep.length} building(s) at ${rb.at}${rb.note ? ': ' + rb.note : ''}`);
+}
+for (const ab of corrections.addBuildings) {
+  let ring = ab.pts.map(P);
+  if (ringArea(ring) < 0) ring = ring.reverse();
+  const c = ringCentroid(ring);
+  const st = { dropped: 0, shrunk: 0, broken: 0 };
+  const fr = fitBuilding(ring, c, st);
+  if (!fr) throw new Error(`corrections.json addBuildings: the building at ${ab.pts[0]} blocks a road or is broken`);
+  if (ab.style !== undefined && !(ab.style in STYLE)) throw new Error(`corrections.json addBuildings: unknown style "${ab.style}"`);
+  buildings.push({ pts: fr, h: r1(ab.floors * FLOOR_H), style: STYLE[ab.style ?? 'plain'], seed: 0, real: true });
+  applied.push(`added a ${ab.floors}-floor ${ab.style ?? 'plain'} building at ${ab.pts[0]}${st.shrunk ? ' (shrunk off a road)' : ''}${ab.note ? ': ' + ab.note : ''}`);
+}
 
 /* ================= ASSEMBLE + VALIDATE ================= */
 const bounds = {
@@ -1390,9 +1441,10 @@ console.log(
   `Street details (K.3): ${poleCount} electric poles in ${poleRuns.length} wired runs, ${trees.length / 2} roadside trees, ${hoardings.length / 3} hoardings, ` +
     `${worship.length} places of worship (${['h', 'm', 'c'].map((r) => `${worship.filter((w) => w.r === r).length} ${{ h: 'temples', m: 'mosques', c: 'churches' }[r]}`).join(', ')}; ${removeBuilding.size} replace a building, ${worshipSkipped} skipped), ${autoStands.length / 4} auto stands`,
 );
+console.log(`Corrections (K.4, scripts/osm/corrections.json): ${applied.length ? applied.join('; ') : 'none'}`);
 console.log(`Parks: ${osmParks} from OSM + ${fillerParks} filler. Water: ${wStats.polygons} polygons + ${wStats.lineStrips} river/canal strips (${wStats.broken} broken dropped). Rail: ${rail.length}`);
 console.log(`Landmarks: ${landmarks.map((l) => l.id).join(', ')}`);
-if (missing.length) console.log(`MISSING landmarks (need a pin from Bunny in scripts/osm/landmarks.mjs MANUAL_PINS): ${missing.join(', ')}`);
+if (missing.length) console.log(`MISSING landmarks (need a pin from Bunny in scripts/osm/corrections.json landmarkPins): ${missing.join(', ')}`);
 console.log(`Airport link from "${roadNames[linkRoad] || 'unnamed ' + roads[linkRoad].kind}" at x=${lx} z=${lz}; runway at x=${runway.x} z=${runway.z}`);
 console.log(`Spawn: x=${spawn.x} z=${spawn.z} heading=${spawn.heading} (${Math.round(sd)} m from Rajvihar)`);
 

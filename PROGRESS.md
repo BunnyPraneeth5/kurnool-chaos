@@ -2,6 +2,10 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-25: Task K.4 Corrections file, half done (accuracy track)
+- Done: `scripts/osm/corrections.json` (with a help list inside) applied by `build.mjs`: landmark pins, remove buildings (under a point or within a radius), add buildings (outline, floors, style), river and canal widths by name, and circles kept free of props. The build report lists every correction; one that matches nothing (for example a misspelt canal name) stops the build with an error. Tested all five kinds with a temporary file, then restored it: with no corrections the map is identical to K.3 (sha256 614b792dca17a2af).
+- Waiting for Bunny: the Abdullah Khan Estate pin (lat, lon from Google Maps) and any wrong spots he has seen (buildings that should not be there, missing buildings, canal or river widths). K.4 needs at least one real correction before it can be ticked.
+
 ## 2026-11-25: Task K.3 Street details (accuracy track)
 - Done: `src/map/props.ts` draws black-and-yellow kerbs on trunk, primary and secondary roads, green dividers with double-arm street lights on two-way trunk and primary roads (gaps at junctions, U-turn openings every 300 m), concrete electric poles with wires, neem trees, hoardings with generic ads (SAREES, GOLD JEWELLERY, MOBILES, CEMENT...), temples (platform, hall, stepped tower, flag post), mosques (green dome, two minarets) and churches (tower, spire, cross), and auto stands (four green and yellow autos and an AUTO STAND board). `build.mjs` places 15,950 poles in 3,955 wired runs, 11,199 roadside trees, 168 hoardings, 38 places of worship (27 temples, 7 mosques, 4 churches; 31 replace the small building under the OSM point, 12 skipped for lack of room) and 6 auto stands (bus stand, station, Raj Vihar, C-Camp, GGH/KMC, fort area).
 - Solid: poles, tree trunks, hoarding posts, worship models, autos and dividers are in collision; kerbs are not.
