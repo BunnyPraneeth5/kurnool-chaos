@@ -32,6 +32,7 @@ kurnool-chaos/
    - Road cleanup: drop or shrink any building that overlaps a drivable road (half road width + 1 m), so narrow old-city lanes stay drivable.
    - Overture buildings (task K.1): `scripts/osm/overture.py` downloads Overture Maps buildings (pinned release, `overturemaps` Python tool) into the committed `scripts/osm/overture-buildings.json.gz`. The build adds every Overture building that is not more than 20% on an OSM outline (2 m raster), with the same road clean-up. Real heights or floor counts are used when Overture has them, otherwise seeded floors like OSM.
    - Styles (task K.2): `scripts/osm/fetch-details.mjs` (`npm run osm:details`) downloads OSM land use, shops, amenities, offices, place names, power poles and trees into the committed `scripts/osm/details.json.gz`. Each building gets a style: industrial or campus from building tags and land use; market (shop fronts) when it faces a main or market road in a built-up or shop area; old city near old-city neighbourhood names (Peta, Pet, Pura, Bagh, Qila...) or the fort, or very dense near the fort; outskirts in villages or very sparse areas; colony in named colonies, residential land use or houses. Heights without real data follow the style. Colony houses whose wall box (1.8 m out) is clear of roads, buildings and other walls get a compound wall with a gate facing the nearest road.
+   - Street details (task K.3): electric poles every 38 m on the left verge of town roads (wired in runs), neem trees on verges every 26 m, hoardings every 240 m on main roads, places of worship (a small building under an OSM temple/mosque/church point is replaced by the model, otherwise it goes on free ground facing the road) and auto stands at the kerb near busy landmarks. Every spot is checked against a 2 m raster of buildings, water, compound walls and earlier props, and kept off every road surface and away from junctions.
    - Filler: where an area has almost no OSM or Overture buildings, add parks (green patches, a few trees) and simple random buildings along road edges. Seeded, not precise.
    - Water: river polygons. River centreline as fallback if no polygon. Roads tagged `bridge=yes` cross water: water collision is removed under them.
    - Landmarks: id, name_en, name_te, position, footprint, type.
@@ -58,6 +59,13 @@ type MapData = {
   parks: { pts: [number, number][] }[]
   rail: { pts: [number, number][] }[]
   landmarks: { id: string; nameEn: string; nameTe: string; type: string; x: number; z: number; pts?: [number, number][] }[]
+  props: {                                  // street details (K.3), flat arrays in whole decimetres
+    poles: number[][]                       // wired runs [x0, z0, dx1, dz1, ...]
+    trees: number[]                         // [x, z, ...]
+    hoardings: number[]                     // [x, z, headingDeg, ...], heading = the way the board faces
+    worship: { x: number; z: number; a: number; w: number; d: number; r: 'h' | 'm' | 'c'; name?: string }[] // metres, a in radians
+    autoStands: number[]                    // [x, z, headingDeg, count, ...]
+  }
   airport: { runway: { x: number; z: number; len: number; w: number; heading: number }; terminal: { pts: [number, number][] } }
   spawn: { x: number; z: number; heading: number }
   meta: { osmBase: string; overtureRelease: string; credit: string }
@@ -77,6 +85,7 @@ Conventions:
 ## Rendering
 - Ground: one big plane. Roads as merged ribbon meshes per 250 m chunk, slightly above the ground, with polygonOffset.
 - Buildings: extruded footprints merged per chunk into one geometry with vertex colors. Frustum culling per chunk. One material: a texture atlas with one row per wall pattern (windows, old-city shuttered windows, shop fronts with signboards, campus ribbon windows, colony barred windows, sheet metal, old-city doors and shops); the shader picks the row from the style and the floor (wall v = 64 x style + floors). Shop rows are not tinted by the wall colour. Outskirts and sheds with four corners get gable sheet or tile roofs. Compound walls are in the same mesh and in collision.
+- Street details (`src/map/props.ts`): black-and-yellow kerbs on trunk, primary and secondary roads and a green divider with street lights on two-way trunk and primary roads (gaps at junctions, U-turn openings every 300 m) come from the road shapes; poles, wires, trees, hoardings, temples, mosques, churches and auto stands come from `map.props`. Per 500 m chunk: one merged props mesh (hoarding atlas), one kerb mesh (stripe texture), one instanced neem mesh, one set of wire lines. Poles, tree trunks, hoarding posts, places of worship, autos and dividers are solid; kerbs are not.
 - Landmarks: hand-built low-poly groups (fort tower, bridge with railings, station shed, hospital block). Signboards are CanvasTexture planes with English and Telugu text. Wait for `document.fonts.load` on Noto Sans Telugu before drawing them, otherwise the text shows as boxes.
 - Dusk sky, fog and lights reused from the demo.
 - Quality setting: low / high. Low = pixel ratio 1, shorter fog distance, fewer traffic cars, no window emissive.

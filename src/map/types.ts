@@ -55,6 +55,26 @@ export interface Landmark {
   pts?: Pt[];
 }
 
+/** A temple (h), mosque (m) or church (c): box centre, heading of the box's w side (forward = (sin a, cos a)), size. */
+export interface Worship {
+  x: number;
+  z: number;
+  a: number;
+  w: number;
+  d: number;
+  r: 'h' | 'm' | 'c';
+  name?: string;
+}
+
+/** Street details (task K.3). Flat arrays are in whole decimetres. */
+export interface Props {
+  poles: number[][]; // wired runs: [x0, z0, dx1, dz1, ...]
+  trees: number[]; // [x, z, ...]
+  hoardings: number[]; // [x, z, headingDeg, ...], heading = the way the board faces
+  worship: Worship[];
+  autoStands: number[]; // [x, z, headingDeg, count, ...], autos parked along the heading
+}
+
 export interface MapData {
   version: 2;
   center: { lat: number; lon: number };
@@ -67,6 +87,7 @@ export interface MapData {
   parks: { pts: Pt[] }[];
   rail: { pts: Pt[] }[];
   landmarks: Landmark[];
+  props: Props;
   airport: {
     runway: { x: number; z: number; len: number; w: number; heading: number };
     terminal: { pts: Pt[] };

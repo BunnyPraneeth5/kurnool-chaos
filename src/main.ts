@@ -5,6 +5,7 @@ import { buildWater } from './map/water';
 import { buildRoads } from './map/roads';
 import { buildBuildings } from './map/buildings';
 import { buildParks } from './map/parks';
+import { buildProps } from './map/props';
 import { createSky } from './world/sky';
 import { detectQuality } from './world/quality';
 import { Game } from './game';
@@ -65,7 +66,9 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   scene.add(buildWater(map));
   scene.add(buildRoads(map));
   scene.add(buildParks(map, quality));
-  scene.add(buildBuildings(map, quality, quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1));
+  const anisotropy = quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1;
+  scene.add(buildBuildings(map, quality, anisotropy));
+  scene.add(buildProps(map, quality, anisotropy));
 
   const game = new Game(map, scene, camera, gl);
   hideStatus();

@@ -195,7 +195,8 @@ vec4 atlasSample(sampler2D tex, vec2 uv) {
   else if (s == ${PLAIN_STYLE.toFixed(1)}) row = ${ROW.plain.toFixed(1)};
   atlasUntint = row == ${ROW.shops.toFixed(1)} ? 1.0 : 0.0;
   vec2 cont = vec2(uv.x, vf / ${ROWS.toFixed(1)});
-  vec2 auv = vec2(uv.x, (row + fract(vf)) / ${ROWS.toFixed(1)});
+  // Stay a texel inside the row so filtering never picks up the next pattern.
+  vec2 auv = vec2(uv.x, (row + clamp(fract(vf), 1.5 / 64.0, 1.0 - 1.5 / 64.0)) / ${ROWS.toFixed(1)});
   return textureGrad(tex, auv, dFdx(cont), dFdy(cont));
 }
 `;

@@ -1047,6 +1047,215 @@ const [sx, sz] = nodes[spawnNode];
 const [tx, tz] = spawnEdge.a === spawnNode ? sp[spawnEdge.i0 + 1] : sp[spawnEdge.i1 - 1];
 const spawn = { x: sx, z: sz, heading: Math.round(Math.atan2(tx - sx, tz - sz) * 1000) / 1000 };
 
+/* ================= STREET DETAILS (task K.3) ================= */
+// Electric poles with wires, roadside neem trees, hoardings, places of worship and auto
+// stands, placed where the ground is free: no building, water or other road. Kerbs,
+// dividers and divider lights come from the road shapes in the game (src/map/props.ts).
+const dm = (v) => Math.round(v * 10);
+const waterOcc = new Uint8Array(ovW * ovH);
+for (const w of water) scanRing(w.pts, (k) => (waterOcc[k] = 1));
+const propOcc = new Uint8Array(ovW * ovH); // props already placed
+const cellAt = (x, z) => {
+  const i = Math.floor((x - PA.minX) / OV_RES);
+  const j = Math.floor((z - PA.minZ) / OV_RES);
+  return i >= 0 && j >= 0 && i < ovW && j < ovH ? j * ovW + i : -1;
+};
+/** True if a disc of radius r is clear of buildings, water, placed props and every road's surface (plus margin). */
+function spotFree(x, z, r, roadMargin) {
+  if (!inPA(x, z)) return false;
+  for (let dz = -r; dz <= r + 1e-6; dz += Math.max(r, 0.5)) {
+    for (let dx = -r; dx <= r + 1e-6; dx += Math.max(r, 0.5)) {
+      const k = cellAt(x + dx, z + dz);
+      if (k < 0 || bOcc[k] || waterOcc[k] || propOcc[k] || wallOcc[k]) return false;
+    }
+  }
+  const m = maxHalfWidth + roadMargin + r;
+  for (const s of segGrid.query(x - m, z - m, x + m, z + m)) {
+    if (segDist(x, z, s.a[0], s.a[1], s.b[0], s.b[1]) < s.hw + roadMargin + r) return false;
+  }
+  return true;
+}
+const markProp = (x, z) => {
+  const k = cellAt(x, z);
+  if (k >= 0) propOcc[k] = 1;
+};
+// Junctions (3 or more road pieces): props keep clear of them.
+const nodeDeg = new Map();
+for (const e of edges) for (const n of [e.a, e.b]) nodeDeg.set(n, (nodeDeg.get(n) || 0) + 1);
+const junctionGrid = new Grid(50);
+for (const [n, d] of nodeDeg) if (d >= 3) junctionGrid.add(nodes[n], nodes[n][0], nodes[n][1], nodes[n][0], nodes[n][1]);
+const nearJunction = (x, z, r) => [...junctionGrid.query(x - r, z - r, x + r, z + r)].some((p) => Math.hypot(p[0] - x, p[1] - z) < r);
+/** Walks a polyline, calling fn(x, z, ux, uz) every `step` metres, starting `start` metres in. */
+function walkRoad(pts, step, start, fn) {
+  let next = start;
+  let done = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (L < 1e-6) continue;
+    const ux = (b[0] - a[0]) / L, uz = (b[1] - a[1]) / L;
+    while (next <= done + L) {
+      const t = next - done;
+      fn(a[0] + ux * t, a[1] + uz * t, ux, uz);
+      next += step;
+    }
+    done += L;
+  }
+}
+
+// Electric poles on the left verge of town roads, every 38 m, wired in runs.
+const POLE_ROADS = new Set(['secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified', 'road', 'living_street']);
+const poleRuns = [];
+let poleCount = 0;
+roads.forEach((road) => {
+  if (road.id === -1 || road.bridge || !POLE_ROADS.has(road.kind)) return;
+  const off = road.width / 2 + 0.6;
+  let run = [];
+  const flush = () => {
+    if (run.length >= 4) {
+      // Stored as [x0, z0, dx1, dz1, ...] in decimetres (poles are close together).
+      poleRuns.push(run.map((v, i) => (i < 2 ? v : v - run[i - 2])));
+      poleCount += run.length / 2;
+    }
+    run = [];
+  };
+  walkRoad(road.pts, 38, 10, (x, z, ux, uz) => {
+    const px = x + uz * off, pz = z - ux * off; // left of travel direction
+    if (nearJunction(px, pz, 9) || !spotFree(px, pz, 0.3, 0.25)) return flush();
+    markProp(px, pz);
+    run.push(dm(px), dm(pz));
+  });
+  flush();
+});
+
+// Neem trees on the verges of town and colony roads, alternating sides, every 26 m.
+const TREE_ROADS = new Set(['tertiary', 'tertiary_link', 'residential', 'unclassified', 'road', 'secondary', 'secondary_link', 'primary', 'trunk']);
+const trees = [];
+roads.forEach((road, ri) => {
+  if (road.id === -1 || road.bridge || !TREE_ROADS.has(road.kind)) return;
+  const rng = makeRng(hash32('trees', ri));
+  let side = rng() < 0.5 ? 1 : -1;
+  walkRoad(road.pts, 26, 6 + rng() * 14, (x, z, ux, uz) => {
+    side = -side;
+    if (rng() < 0.35) return;
+    const off = road.width / 2 + 2.2 + rng() * 1.2;
+    const tx = x + uz * off * side, tz = z - ux * off * side;
+    if (nearJunction(tx, tz, 12) || !spotFree(tx, tz, 1.2, 0.8)) return;
+    markProp(tx, tz);
+    trees.push(dm(tx), dm(tz));
+  });
+});
+
+// Hoardings facing main roads, every 240 m or so.
+const HOARDING_ROADS = new Set(['trunk', 'primary', 'secondary']);
+const hoardings = [];
+roads.forEach((road, ri) => {
+  if (road.id === -1 || road.bridge || !HOARDING_ROADS.has(road.kind)) return;
+  const rng = makeRng(hash32('hoarding', ri));
+  walkRoad(road.pts, 240, 60 + rng() * 120, (x, z, ux, uz) => {
+    const side = rng() < 0.5 ? 1 : -1;
+    const off = road.width / 2 + 3.5;
+    const hx = x + uz * off * side, hz = z - ux * off * side;
+    // Board 6 m wide along the road: check both ends and the middle.
+    const ends = [-2.6, 0, 2.6].map((t) => [hx + ux * t, hz + uz * t]);
+    if (nearJunction(hx, hz, 15) || !ends.every(([px, pz]) => spotFree(px, pz, 0.6, 1.5))) return;
+    for (const [px, pz] of ends) markProp(px, pz);
+    // Board faces the road: its front normal points from the board to the road.
+    const a = Math.round((Math.atan2(-uz * side, ux * side) * 180) / Math.PI);
+    hoardings.push(dm(hx), dm(hz), a);
+  });
+});
+
+// Places of worship: OSM points and outlines. A small building under the point becomes
+// the temple, mosque or church; otherwise a small one is placed on free ground, facing the road.
+const RELIGION = { hindu: 'h', muslim: 'm', christian: 'c' };
+const worship = [];
+const removeBuilding = new Set();
+let worshipSkipped = 0;
+const worshipEls = [...detailEls, ...main].filter((el) => el.tags?.amenity === 'place_of_worship' || /^(temple|mosque|church|chapel|shrine)$/.test(el.tags?.building || ''));
+const seenWorship = [];
+for (const el of worshipEls) {
+  const t = el.tags;
+  const c = centreOf(el);
+  if (!c || !inPA(c[0], c[1])) continue;
+  if (seenWorship.some((p) => Math.hypot(p[0] - c[0], p[1] - c[1]) < 25)) continue;
+  seenWorship.push(c);
+  const kindByBuilding = { mosque: 'm', church: 'c', chapel: 'c', temple: 'h', shrine: 'h' };
+  const r = RELIGION[t.religion] || kindByBuilding[t.building] || (/masjid|mosque|dargah|idgah/i.test(t.name || '') ? 'm' : /church|chapel/i.test(t.name || '') ? 'c' : 'h');
+  // The building under the point, if any.
+  let host = -1;
+  for (let i = 0; i < buildings.length && host < 0; i++) {
+    const b = buildings[i];
+    const p0 = b.pts[0];
+    if (Math.abs(p0[0] - c[0]) > 80 || Math.abs(p0[1] - c[1]) > 80) continue;
+    if (pointInRing(c[0], c[1], b.pts)) host = i;
+  }
+  let rec;
+  if (host >= 0) {
+    const b = buildings[host];
+    if (Math.abs(ringArea(b.pts)) > 1200 || removeBuilding.has(host)) {
+      worshipSkipped++;
+      continue;
+    }
+    const box = orientedBox(b.pts, 0);
+    const w = Math.hypot(box[1][0] - box[0][0], box[1][1] - box[0][1]);
+    const d = Math.hypot(box[3][0] - box[0][0], box[3][1] - box[0][1]);
+    const cx = (box[0][0] + box[2][0]) / 2, cz = (box[0][1] + box[2][1]) / 2;
+    const a = Math.atan2(box[1][0] - box[0][0], box[1][1] - box[0][1]);
+    rec = { x: r1(cx), z: r1(cz), a: Math.round(a * 1000) / 1000, w: r1(Math.max(4, w)), d: r1(Math.max(4, d)), r };
+    removeBuilding.add(host);
+  } else {
+    const size = r === 'm' ? 12 : 9;
+    if (!spotFree(c[0], c[1], size / 2, 1)) {
+      worshipSkipped++;
+      continue;
+    }
+    // Face the nearest road.
+    let best = null;
+    for (const s of segGrid.query(c[0] - 60, c[1] - 60, c[0] + 60, c[1] + 60)) {
+      const d = segDist(c[0], c[1], s.a[0], s.a[1], s.b[0], s.b[1]);
+      if (!best || d < best.d) best = { d, s };
+    }
+    const a = best ? Math.atan2(best.s.b[0] - best.s.a[0], best.s.b[1] - best.s.a[1]) : 0;
+    rec = { x: r1(c[0]), z: r1(c[1]), a: Math.round(a * 1000) / 1000, w: size, d: size, r };
+  }
+  if (t.name) rec.name = t.name;
+  worship.push(rec);
+  for (let dx = -rec.w / 2; dx <= rec.w / 2; dx += 2) for (let dz = -rec.d / 2; dz <= rec.d / 2; dz += 2) markProp(rec.x + dx, rec.z + dz);
+}
+const keptBuildings = buildings.filter((_, i) => !removeBuilding.has(i));
+buildings.length = 0;
+buildings.push(...keptBuildings);
+
+// Auto stands: a row of parked autos at the kerb of a main road near busy landmarks.
+const autoStands = [];
+const STAND_AT = ['busstand', 'station', 'rajvihar', 'ccamp', 'ggh', 'kmc', 'fort'];
+for (const id of STAND_AT) {
+  const lm = lmById[id];
+  if (!lm) continue;
+  let best = null;
+  roads.forEach((road) => {
+    if (road.id === -1 || road.bridge || road.width < 7) return;
+    for (let i = 1; i < road.pts.length; i++) {
+      const a = road.pts[i - 1], b = road.pts[i];
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L < 30) continue;
+      const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+      const d = Math.hypot(mx - lm.x, mz - lm.z);
+      if (d > 200 || Math.hypot(mx - spawn.x, mz - spawn.z) < 70 || nearJunction(mx, mz, 18)) continue;
+      const score = d - road.width * 4;
+      if (!best || score < best.score) best = { score, a, b, L, hw: road.width / 2 };
+    }
+  });
+  if (!best) continue;
+  const ux = (best.b[0] - best.a[0]) / best.L, uz = (best.b[1] - best.a[1]) / best.L;
+  const off = best.hw - 1.3;
+  const x = (best.a[0] + best.b[0]) / 2 + uz * off, z = (best.a[1] + best.b[1]) / 2 - ux * off;
+  autoStands.push(dm(x), dm(z), Math.round((Math.atan2(ux, uz) * 180) / Math.PI), 4);
+}
+
+const props = { poles: poleRuns, trees, hoardings, worship, autoStands };
+
 /* ================= ASSEMBLE + VALIDATE ================= */
 const bounds = {
   minX: PA.minX,
@@ -1066,6 +1275,7 @@ const map = {
   parks,
   rail,
   landmarks,
+  props,
   airport: { runway, terminal },
   spawn,
   meta: { osmBase: raw.osmBase, overtureRelease: overture.release, credit: '© OpenStreetMap contributors, Overture Maps Foundation' },
@@ -1111,6 +1321,25 @@ function validate(m) {
     if (!l.nameEn || !l.nameTe) err(`landmark ${l.id}: missing name`);
     if (l.pts) poly(l.pts, `landmark ${l.id} outline`);
   });
+  const flatPts = (arr, stride, what) => {
+    if (!Array.isArray(arr) || arr.length % stride) return err(`${what}: bad flat array`);
+    for (let i = 0; i < arr.length; i += stride) pt([arr[i] / 10, arr[i + 1] / 10], `${what} ${i / stride}`);
+  };
+  if (!m.props) err('props missing');
+  else {
+    m.props.poles.forEach((run, i) => {
+      const abs = run.slice();
+      for (let k = 2; k < abs.length; k++) abs[k] += abs[k - 2];
+      flatPts(abs, 2, `pole run ${i}`);
+    });
+    flatPts(m.props.trees, 2, 'tree');
+    flatPts(m.props.hoardings, 3, 'hoarding');
+    flatPts(m.props.autoStands, 4, 'auto stand');
+    m.props.worship.forEach((w, i) => {
+      pt([w.x, w.z], `worship ${i}`);
+      if (!(w.w > 0 && w.d > 0 && Number.isFinite(w.a) && 'hmc'.includes(w.r))) err(`worship ${i}: bad shape`);
+    });
+  }
   pt([m.airport.runway.x, m.airport.runway.z], 'runway');
   poly(m.airport.terminal.pts, 'terminal');
   pt([m.spawn.x, m.spawn.z], 'spawn');
@@ -1157,6 +1386,10 @@ console.log(`  Overture added by source: ${Object.entries(oBySource).sort((a, b)
 console.log(`Buildings total: ${buildings.length} = OSM ${bStats.kept} + Overture ${oStats.kept} + filler ${fillerBuildings}`);
 console.log(`Styles (K.2): ${Object.entries(styleCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}; ${walled} colony houses with compound walls`);
 console.log(`  from ${zoneCount} land-use/amenity areas, ${shopCount} shops and businesses, ${places.length} named places (${places.filter((p) => p.kind === 'old').map((p) => p.name).join(', ')} = old city)`);
+console.log(
+  `Street details (K.3): ${poleCount} electric poles in ${poleRuns.length} wired runs, ${trees.length / 2} roadside trees, ${hoardings.length / 3} hoardings, ` +
+    `${worship.length} places of worship (${['h', 'm', 'c'].map((r) => `${worship.filter((w) => w.r === r).length} ${{ h: 'temples', m: 'mosques', c: 'churches' }[r]}`).join(', ')}; ${removeBuilding.size} replace a building, ${worshipSkipped} skipped), ${autoStands.length / 4} auto stands`,
+);
 console.log(`Parks: ${osmParks} from OSM + ${fillerParks} filler. Water: ${wStats.polygons} polygons + ${wStats.lineStrips} river/canal strips (${wStats.broken} broken dropped). Rail: ${rail.length}`);
 console.log(`Landmarks: ${landmarks.map((l) => l.id).join(', ')}`);
 if (missing.length) console.log(`MISSING landmarks (need a pin from Bunny in scripts/osm/landmarks.mjs MANUAL_PINS): ${missing.join(', ')}`);

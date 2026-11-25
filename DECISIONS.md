@@ -30,6 +30,11 @@
 | 2026-11-11 | Commits use the GitHub noreply email, not Bunny's personal email | Public repo, keeps the email private |
 | 2026-11-18 | Play area S15.805 W78.003 N15.870 E78.065 (6.6 x 7.2 km), bigger than the first guess | Bunny's pick, so the NH44 Tungabhadra bridge is inside |
 | 2026-11-18 | Bus stand = main APSRTC Bus Station Kurnool (15.8240, 78.0278). The Rajvihar bus station is part of Rajvihar Centre | Two APSRTC stations in OSM; the main one fits "Kurnool Bus Stand" |
+| 2026-11-25 | K.3: kerbs, dividers and divider lights built in the game from road shapes; poles, trees, hoardings, worship and auto stands placed by the build | Road-relative details cost nothing in the file; free-ground checks need the build's raster |
+| 2026-11-25 | K.3: dividers only on two-way trunk and primary roads, solid, with gaps at junctions and a 12 m U-turn opening every 300 m | Kurnool's main roads have dividers; openings keep U-turns possible. Autopilot drove 8.8 km over 5 routes with 0 times stuck |
+| 2026-11-25 | K.3: poles, tree trunks, hoarding posts, temples, mosques, churches and parked autos are solid; kerbs are not | Driving through a pole or temple looks wrong; kerbs are low enough to mount |
+| 2026-11-25 | K.3: same tree models on low and high quality | Trees are solid, so every player must see the same trees |
+| 2026-11-25 | K.3: a small OSM building under a worship point is replaced by the temple, mosque or church model (31 of 38); big ones (over 1200 m2) are left alone | Keeps the real position and size; avoids a model inside a building |
 | 2026-11-25 | K.2: separate OSM details download (`fetch-details.mjs`, `details.json.gz` 85 kB) instead of re-running the main fetch | The main download takes 25 min to hours; details took 10 min |
 | 2026-11-25 | K.2: styles from neighbourhood names, density and road frontage more than land use | Kurnool OSM has only 37 residential, 15 industrial and 3 retail land-use areas and 91 shops; 45 named neighbourhoods cover the city |
 | 2026-11-25 | K.2: all styles in one texture atlas, row picked in the shader | Keeps buildings at one draw call per chunk instead of one per style |

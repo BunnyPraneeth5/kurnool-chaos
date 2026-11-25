@@ -60,6 +60,7 @@ export async function loadMap(url: string, onProgress?: (bytes: number) => void)
   if (!Array.isArray(m.buildings)) problems.push('no buildings list');
   if (!Array.isArray(m.water)) problems.push('no water list');
   if (!m.spawn) problems.push('no spawn point');
+  if (!m.props || !Array.isArray(m.props.poles) || !Array.isArray(m.props.trees) || !Array.isArray(m.props.worship)) problems.push('no street details');
   if (problems.length) {
     throw new MapLoadError(`The map file is not usable: ${problems.join(', ')}. Rebuild it with npm run map:build.`);
   }
