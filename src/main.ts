@@ -10,6 +10,10 @@ import { detectQuality } from './world/quality';
 import { Game } from './game';
 import { showLoading, showError, hideStatus } from './ui/status';
 import { createFpsMeter } from './ui/fps';
+import { readNetConfig, NetConfigError, type NetConfig } from './net/config';
+import { parseRoomCode, loadNick, newPlayerId } from './net/ids';
+import { RoomError } from './net/roomTypes';
+import type { Room } from './net/room';
 
 // Boot: renderer, sky, map meshes, then the game loop (see game.ts).
 
@@ -17,6 +21,24 @@ const canvas = document.getElementById('gl');
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Canvas #gl not found in index.html');
 
 async function boot(gl: HTMLCanvasElement): Promise<void> {
+  // Room link (?room=ABC123): check it and the Supabase settings before loading anything.
+  const roomParam = new URLSearchParams(location.search).get('room');
+  let roomCode: string | null = null;
+  let netCfg: NetConfig | null = null;
+  if (roomParam !== null) {
+    roomCode = parseRoomCode(roomParam);
+    if (!roomCode) {
+      showError('That room link looks wrong', `"${roomParam.slice(0, 20)}" is not a room code. Codes are 6 letters and digits, like K7MPQ2.`);
+      return;
+    }
+    try {
+      netCfg = readNetConfig();
+    } catch (err) {
+      showError('Multiplayer is not set up', err instanceof NetConfigError ? err.message : String(err));
+      return;
+    }
+  }
+
   showLoading('Loading Kurnool…');
 
   let renderer: THREE.WebGLRenderer;
@@ -66,6 +88,20 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   scene.add(buildRoads(map));
   scene.add(buildParks(map, quality));
   scene.add(buildBuildings(map, quality, quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1));
+
+  let room: Room | null = null;
+  if (roomCode && netCfg) {
+    showLoading(`Joining room ${roomCode}…`);
+    try {
+      const { Room } = await import('./net/room');
+      room = await Room.join(netCfg, roomCode, loadNick() || 'Player', newPlayerId());
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showError(err instanceof RoomError && err.kind === 'full' ? 'Room full' : 'Could not connect to the room', msg);
+      return;
+    }
+    room.onPlayers = (players) => console.info('[room] players:', players.map((p) => p.nick).join(', '));
+  }
 
   const game = new Game(map, scene, camera, gl);
   hideStatus();
