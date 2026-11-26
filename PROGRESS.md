@@ -11,7 +11,8 @@ Newest entry on top. Each session ends with an entry: what got done, what is hal
 - Synced with `main` after both tracks were merged (real terrain from Phase K). Added `src/modes/lobby.ts`: finds the summit (1380, 4925 in current map metres, 152.8 m above Raj Vihar), builds the plaza, kerb and English + Telugu signboard, parks the 8 shared cars in a ring on it, and spreads room players on the plaza. Rounds still start in the city; results send everyone back up.
 - Checked in the browser: both tabs spawn on the summit at y 152.8, cars parked at y 152.2 to 152.9; a Chor–Police round starts in the city (chor 289 m from Raj Vihar at ground height 4.6), the catch ends it, and after the results the player is back on the plaza at y 152.8. Drove the shortest road route summit -> Raj Vihar (10.5 km) with the real car physics: the hill section (everything above 25 m) has no stuck points; the test driver circled targets on one flat city stretch with no walls involved (driving there by hand is fine). Uphill: 3.2 km from 21 m to the plaza in 3.4 min, never stuck.
 - Bunny confirmed the Telugu spelling జగన్నాథ గట్టు.
-- Not checked: how the plaza and signboard look (pane hidden), phone fps on the summit (Bunny).
+- Bunny check: summit lobby on phone (plaza, sign, fps, drive down): "works well". G.1 ticked.
+- Next: coordinator merges `claude/multiplayer-0fc95f` into `main`. Phase G open item: G.5 King of the circle, only if Bunny wants it.
 
 ## 2026-11-26: Tasks G.2 to G.4 (lobby and round flow, Chor–Police, Landmark hunt)
 - Done: `src/modes/` (types, round flow with the host as referee, `hunt.ts`, `chorPolice.ts`, `ui.ts` lobby card / countdown / round bar with arrow / results, `visuals.ts` target light pillar and police light bar), room event `g`, `Game.locked`, `driveCar()`, `toFoot()`, ready/role/score badges in the player list. One commit for all three tasks, because the round flow, the UI and both modes are woven together.
