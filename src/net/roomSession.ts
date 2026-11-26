@@ -9,6 +9,7 @@ import type { Room } from './room';
 import { cssColour, playerColour, type PlayerInfo } from './roomTypes';
 import { buildLobby, findLobby, lobbySpot, parkLobbyCars } from '../modes/lobby';
 import { NetSync } from './sync';
+import { LOBBY_CARS } from '../vehicles/parked';
 import { RoundController } from '../modes/round';
 import { GameUi } from '../modes/ui';
 import { Beacon, flashLightBars, setPoliceLook } from '../modes/visuals';
@@ -42,11 +43,11 @@ export function startRoomSession(
   // around it, and everyone spread over the plaza. Rounds start down in the city.
   const lobby = findLobby(map);
   scene.add(buildLobby(lobby));
-  parkLobbyCars(lobby, game.vehicles, game.world);
+  parkLobbyCars(lobby, game.vehicles.slice(0, LOBBY_CARS), game.world);
   const sp = lobbySpot(lobby, r.self.slot);
   game.placeAt(sp.x, sp.z, sp.heading);
 
-  const remotes = new RemotePlayers(scene, camera, r.myId, game.vehicles, () => game.car);
+  const remotes = new RemotePlayers(scene, camera, r.myId, game.shared, () => game.car);
   const sync = new NetSync(r, game);
   const byId = (id: string): PlayerInfo | undefined => r.players.find((p) => p.id === id);
   const colourOf = (p: PlayerInfo): string => cssColour(playerColour(p.slot));

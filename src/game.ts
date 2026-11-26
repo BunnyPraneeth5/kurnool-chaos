@@ -6,22 +6,28 @@ import { Keyboard, type MoveInput } from './player/input';
 import { OnFootPlayer, PLAYER_RADIUS } from './player/onFoot';
 import { ChaseCamera } from './player/chaseCamera';
 import { FreeCamera } from './player/freeCamera';
-import { Vehicle, type Bumper } from './vehicles/vehicle';
-import { spawnParkedCars } from './vehicles/parked';
+import { Vehicle } from './vehicles/vehicle';
+import { spawnParkedVehicles } from './vehicles/parked';
+import { setRider } from './vehicles/models';
+import { hullDistance, type Bumper } from './vehicles/hull';
+import type { VehicleType } from './vehicles/params';
 import { TouchControls } from './ui/touch';
 import { Hud } from './ui/hud';
 
 // Local game state: walking or driving, getting in and out, unstuck, map view.
 
-const ENTER_RANGE = 4.5; // m from a car to get in
+const ENTER_RANGE = 3.2; // m from a vehicle's side to get in
 const MAX_EXIT_SPEED = 4; // m/s
-const PLAYER_CAR_GAP = 2.1; // on foot, you cannot walk into a car
+const PLAYER_GAP = 0.7; // m; on foot, you cannot walk into a vehicle
 
 export class Game {
   readonly world: CollisionWorld;
   readonly roads: RoadIndex;
   readonly player: OnFootPlayer;
+  /** Every vehicle you can drive: the shared parked ones first, then any taken from traffic. */
   readonly vehicles: Vehicle[];
+  /** The parked vehicles that exist on every screen, by the same number. */
+  readonly shared: readonly Vehicle[];
   car: Vehicle | null = null;
   /** Friends' cars (set by the room code each frame): solid, cannot be pushed. */
   extraCars: readonly Bumper[] = [];
@@ -35,6 +41,7 @@ export class Game {
   private readonly free: FreeCamera;
   private readonly hint = document.getElementById('hint');
   private nearCar: Vehicle | null = null;
+  private readonly shirt: number;
 
   constructor(
     readonly map: MapData,
@@ -47,7 +54,9 @@ export class Game {
     this.roads = new RoadIndex(map);
     this.player = new OnFootPlayer(map.spawn.x, map.spawn.z, map.spawn.heading, shirt);
     scene.add(this.player.figure);
-    this.vehicles = spawnParkedCars(map.spawn.x, map.spawn.z, this.roads, this.world);
+    this.shirt = shirt ?? 0xffc247;
+    this.vehicles = spawnParkedVehicles(map.spawn.x, map.spawn.z, this.roads, this.world);
+    this.shared = this.vehicles.slice();
     for (const v of this.vehicles) scene.add(v.mesh);
     this.chase = new ChaseCamera(camera);
     this.chase.snap(this.player, this.world);
@@ -98,11 +107,9 @@ export class Game {
   driveCar(index: number, x: number, z: number, heading: number): void {
     const c = this.vehicles[index];
     if (!c) return;
-    if (this.car && this.car !== c) this.car.park();
+    if (this.car && this.car !== c) this.leave(this.car);
     c.mesh.visible = true;
-    c.kind = 'player';
-    this.car = c;
-    this.player.figure.visible = false;
+    this.sit(c);
     this.nearCar = null;
     this.teleport(x, z, heading);
     this.refreshLabels();
@@ -111,7 +118,7 @@ export class Game {
   /** Put the player on foot at a spot; a car they were in stays parked where it is. */
   toFoot(x: number, z: number, heading: number): void {
     if (this.car) {
-      this.car.park();
+      this.leave(this.car);
       this.car = null;
       this.player.figure.visible = true;
     }
@@ -146,9 +153,10 @@ export class Game {
         this.hud.toast('Slow down first');
         return;
       }
-      c.park();
+      this.leave(c);
       // Driver's door is on the right (Indian cars are right-hand drive).
-      const r = this.world.collide(c.x - Math.cos(c.a) * 2.5, c.z + Math.sin(c.a) * 2.5, 0.5);
+      const side = c.t.w / 2 + 1.5;
+      const r = this.world.collide(c.x - Math.cos(c.a) * side, c.z + Math.sin(c.a) * side, 0.5, c.y + 0.3);
       this.player.x = r.x;
       this.player.z = r.z;
       this.player.a = c.a;
@@ -159,13 +167,25 @@ export class Game {
       this.findNearCar();
       const c = this.nearCar;
       if (!c) return;
-      c.kind = 'player';
       c.va = c.a;
-      this.car = c;
-      this.player.figure.visible = false;
-      this.nearCar = null;
+      this.sit(c);
     }
     this.refreshLabels();
+  }
+
+  /** Get into a vehicle (on a bike you can be seen riding it). */
+  private sit(c: Vehicle): void {
+    c.kind = 'player';
+    this.car = c;
+    this.player.figure.visible = false;
+    this.nearCar = null;
+    setRider(c.mesh, this.shirt);
+  }
+
+  /** Leave a vehicle parked where it is. */
+  private leave(c: Vehicle): void {
+    setRider(c.mesh, null);
+    c.park();
   }
 
   /** Put the player (or their car) back on the nearest road, facing along it. */
@@ -201,9 +221,12 @@ export class Game {
   }
 
   /** Where this player is, for the network (ARCHITECTURE: broadcast event `s`). */
-  netState(): { x: number; z: number; y: number; h: number; v: number; mode: 'car' | 'foot'; car: number } {
+  netState(): { x: number; z: number; y: number; h: number; v: number; mode: 'foot' | VehicleType; car: number } {
     const c = this.car;
-    if (c) return { x: c.x, z: c.z, y: c.y, h: c.a, v: c.speed, mode: 'car', car: this.vehicles.indexOf(c) };
+    if (c) {
+      const i = this.shared.indexOf(c);
+      return { x: c.x, z: c.z, y: c.y, h: c.a, v: c.speed, mode: c.type, car: i >= 0 ? i : -2 };
+    }
     const p = this.player;
     return { x: p.x, z: p.z, y: p.y, h: p.a, v: p.speed, mode: 'foot', car: -1 };
   }
@@ -217,13 +240,15 @@ export class Game {
   private keepOffCars(): void {
     const p = this.player;
     for (const c of this.solidCars()) {
-      const dx = p.x - c.x;
-      const dz = p.z - c.z;
+      const near = hullDistance(c, p.x, p.z);
+      if (near.d >= PLAYER_GAP) continue;
+      const dx = p.x - near.cx;
+      const dz = p.z - near.cz;
       const d = Math.hypot(dx, dz);
-      if (d < PLAYER_CAR_GAP && d > 1e-3) {
-        p.x = c.x + (dx / d) * PLAYER_CAR_GAP;
-        p.z = c.z + (dz / d) * PLAYER_CAR_GAP;
-      }
+      if (d < 1e-3) continue;
+      const out = d + PLAYER_GAP - near.d;
+      p.x = near.cx + (dx / d) * out;
+      p.z = near.cz + (dz / d) * out;
     }
   }
 
@@ -232,7 +257,7 @@ export class Game {
     let bd = ENTER_RANGE;
     for (const c of this.vehicles) {
       if (!c.mesh.visible) continue; // a friend is driving it
-      const d = Math.hypot(c.x - this.player.x, c.z - this.player.z);
+      const d = hullDistance(c, this.player.x, this.player.z).d;
       if (d < bd) {
         bd = d;
         best = c;

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { OnFootPlayer } from '../player/onFoot';
-import { buildCarMesh } from '../vehicles/carModel';
-import { CAR_COLOURS, VEHICLES } from '../vehicles/params';
+import { buildVehicleMesh, setRider } from '../vehicles/models';
+import { VEHICLES, vehicleColour, type VehicleType } from '../vehicles/params';
+import type { Bumper } from '../vehicles/hull';
 import type { Vehicle } from '../vehicles/vehicle';
 import { setPoliceLook } from '../modes/visuals';
 import { SnapshotBuffer, STALE_MS, interpDelayMs, type NetState, type Pose } from './interp';
@@ -14,16 +15,23 @@ import { cssColour, playerColour, type PlayerInfo } from './roomTypes';
 
 const TAG_RANGE = 300; // m
 const TAG_HEIGHT_FOOT = 2.5;
-const TAG_HEIGHT_CAR = 2.3;
+const TAG_ABOVE_ROOF = 0.65;
 const BUBBLE_MS = 4500;
+
+/** The colour parked vehicle `index` was built with (see spawnParkedVehicles). */
+function sharedColour(parked: readonly Vehicle[], index: number): number {
+  const type = parked[index].type;
+  return vehicleColour(type, type === 'car' ? index : parked.slice(0, index).filter((p) => p.type === type).length);
+}
 
 interface View {
   info: PlayerInfo;
   buf: SnapshotBuffer;
   figure: OnFootPlayer;
   car: THREE.Object3D | null;
-  /** -1 on foot, k = driving our parked car k, -2 = another car */
+  /** -1 on foot, k = driving our parked vehicle k, -2 = another vehicle */
   carIndex: number;
+  carType: VehicleType | null;
   tag: HTMLDivElement;
   nick: HTMLSpanElement;
   bubble: HTMLSpanElement;
@@ -37,15 +45,15 @@ export class RemotePlayers {
   private readonly views = new Map<string, View>();
   /** Snapshots that arrived before the sender's presence did. */
   private readonly early = new Map<string, SnapshotBuffer>();
-  /** Where friends' cars are drawn this frame; you bounce off these. */
-  readonly carColliders: { x: number; z: number }[] = [];
+  /** Where friends' vehicles are drawn this frame; you bounce off these. */
+  readonly carColliders: Bumper[] = [];
   private readonly v3 = new THREE.Vector3();
 
   constructor(
     private readonly scene: THREE.Scene,
     private readonly camera: THREE.Camera,
     private readonly myId: string,
-    private readonly parked: Vehicle[],
+    private readonly parked: readonly Vehicle[],
     private readonly myCar: () => Vehicle | null,
   ) {}
 
@@ -136,14 +144,14 @@ export class RemotePlayers {
         this.hide(v);
         continue;
       }
-      // -1 on foot, k = our parked car k, -2 = some other car (drawn in their colour).
-      this.setCar(v, pose.mode === 'car' ? (pose.car >= 0 ? pose.car : -2) : -1, pose);
-      if (pose.mode === 'car' && v.car) {
+      // -1 on foot, k = our parked vehicle k, -2 = some other vehicle.
+      this.setCar(v, pose.mode === 'foot' ? -1 : pose.car >= 0 ? pose.car : -2, pose);
+      if (pose.mode !== 'foot' && v.car) {
         v.figure.figure.visible = false;
         v.car.visible = true;
         v.car.position.set(pose.x, pose.y, pose.z);
         v.car.rotation.y = pose.h;
-        this.carColliders.push({ x: pose.x, z: pose.z });
+        this.carColliders.push({ x: pose.x, z: pose.z, a: pose.h, type: pose.mode });
       } else {
         if (v.car) v.car.visible = false;
         const f = v.figure;
@@ -180,16 +188,17 @@ export class RemotePlayers {
     document.body.append(tag);
     const buf = this.early.get(p.id) ?? new SnapshotBuffer();
     this.early.delete(p.id);
-    return { info: p, buf, figure, car: null, carIndex: -1, tag, nick, bubble, bubbleUntil: 0, blocked: false, police: false, last: null };
+    return { info: p, buf, figure, car: null, carIndex: -1, carType: null, tag, nick, bubble, bubbleUntil: 0, blocked: false, police: false, last: null };
   }
 
   /** Switch which parked car (if any) this friend is driving. */
   private setCar(v: View, index: number, pose: Pose | null): void {
-    if (index === v.carIndex) return;
+    const type = index === -1 || !pose || pose.mode === 'foot' ? null : pose.mode;
+    if (index === v.carIndex && type === v.carType) return;
     // Leaving car k: our copy of it now stands where they left it.
     const old = this.parked[v.carIndex];
     if (old) {
-      if (old !== this.myCar() && v.last && v.last.mode === 'car') {
+      if (old !== this.myCar() && v.last && v.last.mode !== 'foot') {
         old.x = v.last.x;
         old.z = v.last.z;
         old.a = old.va = v.last.h;
@@ -202,13 +211,16 @@ export class RemotePlayers {
       v.car = null;
     }
     v.carIndex = index;
-    if (index === -1 || !pose) return;
-    const colour = index >= 0 ? CAR_COLOURS[index % CAR_COLOURS.length] : playerColour(v.info.slot);
-    v.car = buildCarMesh(VEHICLES.car, colour);
+    v.carType = type;
+    if (!type) return;
+    // A shared vehicle keeps its own colour; any other car is drawn in the friend's colour.
+    const shared = this.parked[index];
+    const colour = shared ? sharedColour(this.parked, index) : playerColour(v.info.slot);
+    v.car = buildVehicleMesh(type, colour);
+    setRider(v.car, playerColour(v.info.slot));
     setPoliceLook(v.car, v.police);
     this.scene.add(v.car);
-    const mine = this.parked[index];
-    if (mine && mine !== this.myCar()) mine.mesh.visible = false;
+    if (shared && shared !== this.myCar()) shared.mesh.visible = false;
   }
 
   private hide(v: View): void {
@@ -225,7 +237,7 @@ export class RemotePlayers {
   }
 
   private placeTag(v: View, pose: Pose, w: number, h: number): void {
-    const p = this.v3.set(pose.x, pose.y + (pose.mode === 'car' ? TAG_HEIGHT_CAR : TAG_HEIGHT_FOOT), pose.z);
+    const p = this.v3.set(pose.x, pose.y + (pose.mode === 'foot' ? TAG_HEIGHT_FOOT : VEHICLES[pose.mode].roof + TAG_ABOVE_ROOF), pose.z);
     const dist = p.distanceTo(this.camera.position);
     p.project(this.camera);
     if (p.z > 1 || dist > TAG_RANGE || Math.abs(p.x) > 1.2 || Math.abs(p.y) > 1.2) {

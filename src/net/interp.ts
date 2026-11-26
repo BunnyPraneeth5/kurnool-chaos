@@ -1,3 +1,5 @@
+import { VEHICLE_TYPES, type VehicleType } from '../vehicles/params';
+
 // Send rate and interpolation of remote players (ARCHITECTURE: Multiplayer).
 //
 // Message budget: on the Supabase free plan one broadcast costs 1 message plus 1 per
@@ -29,7 +31,7 @@ export function interpDelayMs(players: number): number {
   return 1000 / hz + JITTER_MS;
 }
 
-export type Mode = 'foot' | 'car';
+export type Mode = 'foot' | VehicleType;
 
 /** Broadcast event `s`. t is the sender's own clock in ms; only differences matter. */
 export interface NetState {
@@ -41,7 +43,10 @@ export interface NetState {
   h: number;
   v: number;
   mode: Mode;
-  /** index of the parked car being driven (same spots on every screen), -1 on foot */
+  /**
+   * index of the parked vehicle being driven (same spots on every screen), -2 for any
+   * other vehicle (one taken from your own traffic), -1 on foot
+   */
   car: number;
 }
 
@@ -148,8 +153,9 @@ export function parseState(p: unknown): NetState | null {
   const num = (k: string): number | null => (typeof o[k] === 'number' && Number.isFinite(o[k]) ? (o[k] as number) : null);
   const t = num('t'), x = num('x'), z = num('z'), y = num('y'), h = num('h'), v = num('v');
   if (typeof o.id !== 'string' || t === null || x === null || z === null || y === null || h === null || v === null) return null;
-  if (o.mode !== 'foot' && o.mode !== 'car') return null;
+  const mode = o.mode === 'foot' ? 'foot' : VEHICLE_TYPES.find((t) => t === o.mode);
+  if (!mode) return null;
   if (Math.abs(x) > 1e5 || Math.abs(z) > 1e5 || Math.abs(y) > 1e3 || Math.abs(v) > 200) return null;
-  const car = typeof o.car === 'number' && Number.isInteger(o.car) && o.car >= 0 && o.car < 64 ? o.car : -1;
-  return { id: o.id.slice(0, 32), t, x, z, y, h, v, mode: o.mode, car: o.mode === 'car' ? car : -1 };
+  const car = typeof o.car === 'number' && Number.isInteger(o.car) && o.car >= 0 && o.car < 64 ? o.car : -2;
+  return { id: o.id.slice(0, 32), t, x, z, y, h, v, mode, car: mode === 'foot' ? -1 : car };
 }
