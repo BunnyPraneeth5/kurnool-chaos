@@ -95,6 +95,7 @@ export interface Props {
   worship: Worship[];
   autoStands: number[]; // [x, z, headingDeg, count, ...], autos parked along the heading
   crossings: { x: number; z: number; a: number; hw: number }[]; // OSM level crossings: point, road heading, road half width
+  platforms: { pts: Pt[]; roof: boolean }[]; // railway platforms (roof = with a shelter)
 }
 
 export interface MapData {

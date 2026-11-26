@@ -30,6 +30,7 @@
 | 2026-11-11 | Commits use the GitHub noreply email, not Bunny's personal email | Public repo, keeps the email private |
 | 2026-11-18 | Play area S15.805 W78.003 N15.870 E78.065 (6.6 x 7.2 km), bigger than the first guess | Bunny's pick, so the NH44 Tungabhadra bridge is inside |
 | 2026-11-18 | Bus stand = main APSRTC Bus Station Kurnool (15.8240, 78.0278). The Rajvihar bus station is part of Rajvihar Centre | Two APSRTC stations in OSM; the main one fits "Kurnool Bus Stand" |
+| 2026-11-26 | Platforms: OSM platforms plus satellite outlines that are long (25 m+), narrow (15 m or less), 3x longer than wide, parallel to and within 22 m of a track, within 1.2 km of the station | Kurnool City station has only 2 OSM platforms; Google outlines its platform roofs as buildings, which drew houses on the platforms |
 | 2026-11-26 | Terrain from Copernicus DEM GLO-30 via Earth Engine, roofs and trees removed with a 45 m opening; separate `terrain.bin` (0.77 MB) instead of inside kurnool.json | Bunny wants the real highs and lows; a DSM has buildings in it; keeps kurnool.json under 6 MB |
 | 2026-11-26 | Heights relative to Raj Vihar (281.7 m above sea level) | Spawn at 0; small numbers in the file |
 | 2026-11-26 | Rivers from satellite water outlines (Dynamic World) where they touch an OSM river or lake; river lines become a sandy bed | Real river shapes and dry stretches; flooded fields are left out |

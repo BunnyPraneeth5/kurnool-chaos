@@ -38,6 +38,7 @@ kurnool-chaos/
    - Terrain (task K.5): Copernicus DEM GLO-30 from Earth Engine (roofs and trees removed by a 45 m morphological opening), sampled onto a 20 m grid over the map plus 300 m, heights relative to Raj Vihar, written to `public/map/terrain.bin` (Int16 decimetres, row by row). Ground under water is lowered to the lowest point within 60 m; underpasses are dug into it (full depth across the road, easing out over 12 m).
    - Water outlines (task K.5): traced from the Dynamic World water map at 50% (`scripts/osm/contour.mjs`), kept only where they touch an OSM river or lake; islands are holes. River lines are a sandy bed (no water unless the satellite sees it); canal lines stay water strips.
    - Flyovers and underpasses (task K.5): an OSM bridge that crosses another road or the railway is raised 6.5 m (`road.lift`), with ramps down the connecting road ways at 6%; OSM tunnels (roads under the railway) are dug 5.5 m into the terrain the same way. Level crossings only where OSM has railway=level_crossing. Rail runs carry their own heights (`rail[].y`, the undug ground every 20 m).
+   - Railway station (task K.5): buildings within 3 m of a track are dropped. Platforms come from OSM railway=platform ways and from long narrow satellite outlines lying beside and along the tracks within 1.2 km of Kurnool City station (Google sees platform roofs as buildings); they go into `props.platforms` and are drawn as raised slabs with a sheet roof on columns.
    - Filler: where an area has almost no OSM or Overture buildings, add parks (green patches, a few trees) and simple random buildings along road edges. Seeded, not precise.
    - Water: river polygons. River centreline as fallback if no polygon. Roads tagged `bridge=yes` cross water: water collision is removed under them.
    - Landmarks: id, name_en, name_te, position, footprint, type.
@@ -72,6 +73,7 @@ type MapData = {
     worship: { x: number; z: number; a: number; w: number; d: number; r: 'h' | 'm' | 'c'; name?: string }[] // metres, a in radians
     autoStands: number[]                    // [x, z, headingDeg, count, ...]
     crossings: { x: number; z: number; a: number; hw: number }[] // OSM level crossings
+    platforms: { pts: [number, number][]; roof: boolean }[]       // railway platforms, roof = shelter
   }
   terrain: { file: 'terrain.bin'; x0: number; z0: number; cell: number; w: number; h: number; ref: number } // ref = metres above sea level of height 0
   airport: { runway: { x: number; z: number; len: number; w: number; heading: number }; terminal: { pts: [number, number][] } }

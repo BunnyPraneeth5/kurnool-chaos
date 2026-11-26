@@ -9,7 +9,8 @@ Newest entry on top. Each session ends with an entry: what got done, what is hal
 - Flyovers and underpasses: 11 OSM bridges that cross a road or the railway are raised 6.5 m with ramps (47 ramp ways), deck slabs, parapets and piers; 10 OSM underpasses are dug 5.5 m under the railway, which stays level on its bridges. Collision is height-aware: cars drive under flyovers and stay on them. Level crossings only from OSM (3).
 - OSM details re-downloaded: now include 2 platforms, the station building and 3 level crossings (the station is barely mapped in OSM).
 - Checks: typecheck and build pass; map and terrain rebuild identical. Autopilot (real car physics, left lane): Raj Vihar - fort - station - bus stand - GGH - C-Camp, and fort - Tungabhadra bridge (through the NH44 flyover underpass that blocked before): 0 stuck. Low quality street level: avg 81k, max 111k triangles, 45-74 draw calls (was 62k / 101k). No console errors. Credit fits on phones (portrait and landscape).
-- Not done yet: station platforms (satellite platform roofs still drawn as houses), buildings touching the tracks. Next in this session.
+- Station (second commit): 11 buildings on the tracks dropped; 7 platforms with maroon sheet shelters on columns (2 from OSM, 5 from satellite outlines of platform roofs beside the tracks); no more houses on the platforms. Autopilot 6 routes still 0 stuck; triangles unchanged.
+- Waiting for Bunny: phone check of the preview (30+ fps on low), his list of any remaining wrong spots, the Abdullah Khan Estate pin, and the KC Canal width in the city if he knows it.
 
 ## 2026-11-25: Task K.5 part 2, satellite heights and water widths (accuracy track)
 - Bunny registered Google Earth Engine (free noncommercial Community tier, valid to May 2028) and signed in on the laptop (the first two sign-ins failed because two sign-in listeners were waiting on the same port; the third worked). `earthengine-api` installed as a uv tool.

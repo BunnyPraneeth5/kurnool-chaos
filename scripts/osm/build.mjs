@@ -37,6 +37,7 @@ const byId = (a, b) => (a.type < b.type ? -1 : a.type > b.type ? 1 : a.id - b.id
 const raw = await loadRaw();
 const names = await loadLandmarkNames();
 const corrections = await loadCorrections();
+const details = await loadDetails();
 const eeGrids = await loadEarthEngine();
 /** Fractional pixel position of local metres on an Earth Engine lat/lon grid (pixel i covers i..i+1). */
 const gridPx = (g, x, z) => {
@@ -56,6 +57,7 @@ const applied = []; // corrections report
 const normName = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 const main = [...raw.main].sort(byId);
 const wide = [...raw.landmarks].sort(byId);
+const detailEls = [...details.elements].sort(byId);
 
 // Play area in metres.
 const [paMinX, paMinZ] = project(BBOX.north, BBOX.west);
@@ -863,6 +865,87 @@ for (const el of railWays) {
   flush();
 }
 
+/* ---------- Railway station and tracks (task K.5) ---------- */
+// No building on the tracks: drop any within 3 m of a track centreline. Platforms: OSM's
+// railway=platform ways, plus long narrow satellite outlines lying beside and along the tracks
+// near Kurnool City station (Google sees the platform roofs as buildings); those become
+// platforms with shelters instead of houses.
+const railSegGrid = new Grid(32);
+for (const run of rail) for (let i = 1; i < run.pts.length; i++) {
+  const a = run.pts[i - 1], b = run.pts[i];
+  railSegGrid.add({ a, b }, Math.min(a[0], b[0]) - 3, Math.min(a[1], b[1]) - 3, Math.max(a[0], b[0]) + 3, Math.max(a[1], b[1]) + 3);
+}
+function nearestRail(x, z, r) {
+  let best = null;
+  for (const sg of railSegGrid.query(x - r, z - r, x + r, z + r)) {
+    const d = segDist(x, z, sg.a[0], sg.a[1], sg.b[0], sg.b[1]);
+    if (d < r && (!best || d < best.d)) best = { d, sg };
+  }
+  return best;
+}
+function onTracks(ring) {
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const p of ring) {
+    x0 = Math.min(x0, p[0]); z0 = Math.min(z0, p[1]);
+    x1 = Math.max(x1, p[0]); z1 = Math.max(z1, p[1]);
+  }
+  for (const sg of railSegGrid.query(x0 - 3, z0 - 3, x1 + 3, z1 + 3)) {
+    if (pointInRing(sg.a[0], sg.a[1], ring) || pointInRing(sg.b[0], sg.b[1], ring)) return true;
+    for (let i = 0, n = ring.length; i < n; i++) if (segSegDist(ring[i], ring[(i + 1) % n], sg.a, sg.b) < 3) return true;
+  }
+  return false;
+}
+const platforms = [];
+const stStats = { onTracks: 0, osmPlatforms: 0, roofs: 0, underPlatform: 0 };
+for (const el of detailEls) {
+  const t = el.tags || {};
+  if (el.type !== 'way' || !(t.railway === 'platform' || (t.public_transport === 'platform' && t.train === 'yes'))) continue;
+  const line = wayLines(el)[0].map(P);
+  if (line.length < 2) continue;
+  const closed = samePt(line[0], line[line.length - 1]) && line.length > 3;
+  const w = Number.isFinite(parseFloat(t.width)) ? parseFloat(t.width) : 6;
+  const ring = closed ? finishRing(line.slice(0, -1)) : finishRing(orientedBox(line, w / 2));
+  if (ring.length < 3 || !ring.every((p) => inPA(p[0], p[1]))) continue;
+  platforms.push({ pts: ring, roof: false });
+  stStats.osmPlatforms++;
+}
+const station = lmById.station;
+{
+  const keep = [];
+  for (const b of buildings) {
+    if (onTracks(b.pts)) {
+      stStats.onTracks++;
+      continue;
+    }
+    const c = ringCentroid(b.pts);
+    const host = platforms.find((p) => pointInRing(c[0], c[1], p.pts));
+    if (host) {
+      host.roof = true; // a satellite outline on an OSM platform is its shelter
+      stStats.underPlatform++;
+      continue;
+    }
+    if (station && Math.hypot(c[0] - station.x, c[1] - station.z) < 1200 && b.kind !== 'train_station') {
+      const box = orientedBox(b.pts, 0);
+      const L = Math.hypot(box[1][0] - box[0][0], box[1][1] - box[0][1]);
+      const W = Math.hypot(box[3][0] - box[0][0], box[3][1] - box[0][1]);
+      const near = nearestRail(c[0], c[1], 22);
+      if (near && L >= 25 && W <= 15 && L / W >= 3) {
+        const ux = (box[1][0] - box[0][0]) / L, uz = (box[1][1] - box[0][1]) / L;
+        const rl = Math.hypot(near.sg.b[0] - near.sg.a[0], near.sg.b[1] - near.sg.a[1]) || 1;
+        const along = Math.abs((ux * (near.sg.b[0] - near.sg.a[0]) + uz * (near.sg.b[1] - near.sg.a[1])) / rl);
+        if (along > 0.95) {
+          platforms.push({ pts: finishRing(box), roof: true });
+          stStats.roofs++;
+          continue;
+        }
+      }
+    }
+    keep.push(b);
+  }
+  buildings.length = 0;
+  buildings.push(...keep);
+}
+
 const parks = [];
 let osmParks = 0;
 for (const el of main) {
@@ -1106,8 +1189,6 @@ const hFloors = [0, 0, 0, 0, 0, 0]; // 1, 2, 3, 4, 5, 6+ floors
 // neighbourhoods and building density. Ids match STYLE in src/map/buildingStyle.ts.
 const STYLE = { plain: 0, old: 1, colony: 2, market: 3, campus: 4, outskirts: 5, industrial: 6 };
 const STYLE_NAMES = Object.fromEntries(Object.entries(STYLE).map(([k, v]) => [v, k]));
-const details = await loadDetails();
-const detailEls = [...details.elements].sort(byId);
 const centreOf = (el) => {
   const c = centerOf(el);
   return c ? P(c) : null;
@@ -1652,7 +1733,7 @@ for (const el of detailEls) {
   void L;
 }
 
-const props = { poles: poleRuns, trees, hoardings, worship, autoStands, crossings };
+const props = { poles: poleRuns, trees, hoardings, worship, autoStands, crossings, platforms };
 for (const q of clearZones) applied.push(`props cleared around ${q.c.at} (${q.r} m)${q.c.note ? ': ' + q.c.note : ''}`);
 
 // Hand corrections to buildings (K.4).
@@ -1937,6 +2018,7 @@ console.log(
 console.log(`Heights (K.5): ${hStats.satellite} from Google Open Buildings 2.5D, ${hStats.osmLevels} from OSM levels, ${hStats.notSeen} not seen by the satellite (style height). Floors 1/2/3/4/5/6+: ${hFloors.join('/')}`);
 console.log(`Water widths (K.5, Dynamic World): ${eeWidths.map((e) => `${e.name} ${e.len} m: ${e.wet}/${e.stations} wet, ${e.width ?? '-'} m${e.offset != null ? ' (centre ' + e.offset + ' m off OSM)' : ''} [${e.used}]`).join('; ')}`);
 console.log(`Terrain (K.5, Copernicus DEM): public/map/terrain.bin ${terW} x ${terH} at ${TER_CELL} m, ${(terBin.length / 1e6).toFixed(2)} MB, sha256 ${terSha}. Raj Vihar = ${terrainRef} m above sea level; ground from ${terMin} to ${terMax} m relative to it; ${terFlat} points under water lowered to the water level, ${terDug} dug for underpasses`);
+console.log(`Station (K.5): ${stStats.osmPlatforms} OSM platforms (${stStats.underPlatform} satellite outlines on them became their shelters), ${stStats.roofs} platform roofs from satellite outlines beside the tracks, ${stStats.onTracks} buildings on the tracks dropped`);
 console.log(`Grade separation (K.5): ${gStats.flyovers} flyover ways raised ${FLYOVER_H} m, ${gStats.underpasses} underpass ways dug ${UNDERPASS_D} m, ${gStats.ramps} ramp ways; ${crossings.length} level crossings (OSM)`);
 console.log(`Corrections (K.4, scripts/osm/corrections.json): ${applied.length ? applied.join('; ') : 'none'}`);
 console.log(

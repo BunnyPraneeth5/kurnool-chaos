@@ -226,6 +226,7 @@ export function propWalls(map: MapData): Pt[][] {
     for (const t of [-2.2, 2.2]) out.push(closed(boxRing(x / 10 + sx * t, z / 10 + sz * t, a, 0.35, 0.35)));
   }
   for (const w of map.props.worship) out.push(closed(boxRing(w.x, w.z, w.a, w.w, w.d)));
+  for (const pl of map.props.platforms) out.push(closed(pl.pts));
   for (const [x, z, a] of autoSpots(map)) out.push(closed(boxRing(x, z, a, 2.7, 1.4)));
   for (const d of dividerRuns(map)) {
     const l = offsetLine(d.pts, DIVIDER_W / 2);
@@ -624,6 +625,66 @@ export function buildProps(map: MapData, quality: QualitySettings, anisotropy: n
     else if (w.r === 'c') church(mb, w);
     else temple(mb, w);
     mb.lift(g0, lowestGround(boxRing(w.x, w.z, w.a, w.w, w.d)));
+  }
+
+  /* Railway platforms: a raised concrete slab with a yellow edge, and a sheet roof on columns. */
+  const slabC = new THREE.Color(0xb9b2a6);
+  const slabTop = new THREE.Color(0xcfc9be);
+  const edgeC = new THREE.Color(0xe8c22a);
+  const roofC = new THREE.Color(0x7a3b2e);
+  const colC = new THREE.Color(0x8a8f93);
+  for (const pl of map.props.platforms) {
+    const ring = pl.pts;
+    let cx = 0, cz = 0;
+    for (const [x, z] of ring) {
+      cx += x;
+      cz += z;
+    }
+    cx /= ring.length;
+    cz /= ring.length;
+    const mb = propMb(cx, cz);
+    const g = groundY(cx, cz);
+    const top = g + 0.85;
+    // Sides.
+    for (let k = 0; k < ring.length; k++) {
+      const a = ring[k], b = ring[(k + 1) % ring.length];
+      const dx = b[0] - a[0], dz = b[1] - a[1];
+      const L = Math.hypot(dx, dz) || 1;
+      const nx = dz / L, nz = -dx / L;
+      const q = [mb.vertex(a[0], g - 0.5, a[1], nx, 0, nz, WHITE_U, WHITE_V, slabC), mb.vertex(b[0], g - 0.5, b[1], nx, 0, nz, WHITE_U, WHITE_V, slabC), mb.vertex(b[0], top, b[1], nx, 0, nz, WHITE_U, WHITE_V, edgeC), mb.vertex(a[0], top, a[1], nx, 0, nz, WHITE_U, WHITE_V, edgeC)];
+      mb.tri(q[0], q[1], q[2]);
+      mb.tri(q[0], q[2], q[3]);
+    }
+    // Top.
+    const tris = THREE.ShapeUtils.triangulateShape(ring.map(([x, z]) => new THREE.Vector2(x, z)), []);
+    const ti = ring.map(([x, z]) => mb.vertex(x, top, z, 0, 1, 0, WHITE_U, WHITE_V, slabTop));
+    for (const [a, b, c] of tris) mb.tri(ti[a], ti[b], ti[c]);
+    if (!pl.roof) continue;
+    // Shelter along the platform's long axis: columns every 9 m and a roof slightly narrower than the slab.
+    let best = 0, ux = 1, uz = 0;
+    for (let k = 0; k < ring.length; k++) {
+      const a = ring[k], b = ring[(k + 1) % ring.length];
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L > best) {
+        best = L;
+        ux = (b[0] - a[0]) / L;
+        uz = (b[1] - a[1]) / L;
+      }
+    }
+    let u0 = Infinity, u1 = -Infinity, n0 = Infinity, n1 = -Infinity;
+    for (const [x, z] of ring) {
+      const u = (x - cx) * ux + (z - cz) * uz, n = (x - cx) * -uz + (z - cz) * ux;
+      u0 = Math.min(u0, u); u1 = Math.max(u1, u);
+      n0 = Math.min(n0, n); n1 = Math.max(n1, n);
+    }
+    const len = u1 - u0 - 2, wid = Math.max(2, n1 - n0 - 1.5);
+    const mu = (u0 + u1) / 2, mn = (n0 + n1) / 2;
+    const ox = cx + ux * mu - uz * mn, oz = cz + uz * mu + ux * mn;
+    const head = Math.atan2(ux, uz);
+    const g0 = mb.count;
+    for (let s = -len / 2; s <= len / 2 + 0.01; s += 9) box(mb, ox + ux * s, oz + uz * s, head, 0.3, 0.3, 0.85, 4.6, colC);
+    box(mb, ox, oz, head, len + 1, wid, 4.6, 4.85, roofC);
+    mb.lift(g0, g);
   }
 
   /* Auto stands: parked autos and a sign. */
