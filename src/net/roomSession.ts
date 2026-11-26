@@ -7,7 +7,7 @@ import { cleanNick, saveNick } from './ids';
 import { RemotePlayers } from './remotePlayers';
 import type { Room } from './room';
 import { cssColour, playerColour, type PlayerInfo } from './roomTypes';
-import { spawnPoint } from './spawn';
+import { buildLobby, findLobby, lobbySpot, parkLobbyCars } from '../modes/lobby';
 import { NetSync } from './sync';
 import { RoundController } from '../modes/round';
 import { GameUi } from '../modes/ui';
@@ -38,7 +38,12 @@ export function startRoomSession(
   camera: THREE.Camera,
   exits: { onLeave: () => void; onKicked: () => void },
 ): RoomSession {
-  const sp = spawnPoint(map, game.roads, r.self.slot);
+  // Rooms gather on Jagannatha Gattu (G.1): plaza and sign, the shared cars parked
+  // around it, and everyone spread over the plaza. Rounds start down in the city.
+  const lobby = findLobby(map);
+  scene.add(buildLobby(lobby));
+  parkLobbyCars(lobby, game.vehicles, game.world);
+  const sp = lobbySpot(lobby, r.self.slot);
   game.placeAt(sp.x, sp.z, sp.heading);
 
   const remotes = new RemotePlayers(scene, camera, r.myId, game.vehicles, () => game.car);
@@ -85,7 +90,7 @@ export function startRoomSession(
     toast: (m) => game.toast(m),
   });
 
-  // Game rounds (Phase G). The lobby spot is Raj Vihar Circle until the hill (G.1) exists.
+  // Game rounds (Phase G). Between rounds everyone is back on the Jagannatha Gattu plaza.
   // A player who drops out briefly (phone lock, reconnect) still counts as present for
   // a while, so a round does not end the moment the only police reconnects.
   const PRESENT_GRACE_MS = 15000;
@@ -113,7 +118,7 @@ export function startRoomSession(
     slotOf: (id) => byId(id)?.slot ?? 0,
     nickOf: (id) => byId(id)?.nick ?? nicks.get(id) ?? 'Someone',
   };
-  const rounds = new RoundController(r, game, ctx, { chor: chorPoliceMode, hunt: huntMode }, (id) => spawnPoint(map, game.roads, ctx.slotOf(id)));
+  const rounds = new RoundController(r, game, ctx, { chor: chorPoliceMode, hunt: huntMode }, (id) => lobbySpot(lobby, ctx.slotOf(id)));
   const gameUi = new GameUi(rounds, r, camera);
   const beacon = new Beacon(scene);
   let lastPhase = rounds.state.phase;
@@ -186,7 +191,7 @@ export function startRoomSession(
     chat.notice(`${p.nick} was removed by the host`);
   };
   r.onKicked = exits.onKicked;
-  chat.notice(r.players.length <= 1 ? `Room ${r.code} is ready: tap Share to invite friends. You are the host.` : `You joined room ${r.code}`);
+  chat.notice(r.players.length <= 1 ? `Room ${r.code} is ready on Jagannatha Gattu: tap Share to invite friends. You are the host.` : `You joined room ${r.code} on Jagannatha Gattu`);
 
   if (import.meta.env.DEV) Object.assign(window, { __remotes: remotes, __sync: sync, __chat: chat, __hud: hud, __rounds: rounds, __gameUi: gameUi });
 
