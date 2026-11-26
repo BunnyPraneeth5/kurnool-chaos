@@ -2,6 +2,11 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-26: Phase 3 merged into main (coordinator)
+- Merged `claude/multiplayer-0fc95f` (head 55fafc3, tasks 3.1 to 3.4 plus the Phase G plan) into `main` with no conflicts. Checked before merging: only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` reach the browser (allowlist in `vite.config.ts`), no keys committed. After merging: typecheck and build pass; on localhost with the real Supabase project, two tabs joined the same room from the link and both saw each other in the room panel (host badge shown).
+- `CLAUDE.md` updated to match: no `VITE_` prefix for the two Supabase values, broadcast rate lives in ARCHITECTURE.
+- The accuracy branch is still open; when it merges, `DECISIONS.md`, `PROGRESS.md` and `src/style.css` need both sides kept.
+
 ## 2026-11-26: Phase G planned
 - Bunny wants a lobby where the host picks a game mode, like a hangout before each round, on Jagannatha Gattu hill. Planned Phase G in TASKS.md (G.1 hill, G.2 lobby and round flow, G.3 Chor–Police, G.4 Landmark hunt, G.5 King of the circle).
 - Found: Jagannatha Gattu (IIITDM campus, 15.7532 N 78.0349 E) is 1.9 km past the south map edge and 8.4 km from Raj Vihar; the game world has no hills.

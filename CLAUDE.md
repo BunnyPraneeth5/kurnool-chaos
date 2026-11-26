@@ -13,7 +13,7 @@ Browser multiplayer open-city driving game, just for fun with friends. Map is re
 - `vehicles/` one physics model, per-type params (car, auto, bike, bus, lorry)
 - `player/` on-foot movement, enter/exit vehicles, camera
 - `ai/` local traffic on the road graph (keep left), local cops and heat
-- `net/` Supabase room join, presence, 10 Hz state broadcast, interpolation of remote players
+- `net/` Supabase room join, presence, state broadcast (rate in ARCHITECTURE), interpolation of remote players
 - `race/` race setup, checkpoints, countdown, results
 - `ui/` HUD, minimap, touch controls, menus, signboards (English + Telugu)
 
@@ -28,7 +28,7 @@ Browser multiplayer open-city driving game, just for fun with friends. Map is re
 - Stay in scope of the current task. Do not touch unrelated files.
 - No new dependencies without asking Bunny first.
 - No silent mocks or fallbacks. If data or a service is missing, show a clear error.
-- Never commit secrets. Only `VITE_` public keys go in `.env.local`, which is gitignored.
+- Never commit secrets. Only the public `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` go in `.env.local` (gitignored); `vite.config.ts` passes exactly those two into the game.
 - Keep the "© OpenStreetMap contributors" credit visible in-game.
 - Before saying a task is done: `npm run build` passes, `npm run typecheck` passes, and you ran the game and checked the task's acceptance criteria.
 - Small commits, one per task. Branch per bigger feature.
