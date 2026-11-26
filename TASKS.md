@@ -35,7 +35,7 @@ Order: core game first (map, driving, playing together), extras after. If time r
   - Accept: 2 browser tabs join the same room, both see the player list, and they spawn apart.
 - [x] **3.3 Live sync.** 5 Hz broadcast (heartbeat only while idle), 200 ms interpolation, remote vehicle models, name tags, bounce off friends' cars, recover after phone lock or app switch.
   - Accept: phone and laptop in one room see each other move smoothly at normal driving speed. Locking the phone for 10 s and coming back recovers without a refresh.
-- [ ] **3.4 Room controls (Bunny, 2026-11-25).** Leave button in rooms and Exit in solo, join/leave/host notices, player menu (Go to, Block on your screen, Rename yourself), host controls (Kick; host = first to join, passes on when they leave), quick emotes and short text chat with speech bubbles. No report button (useless without logins).
+- [x] **3.4 Room controls (Bunny, 2026-11-25).** Leave button in rooms and Exit in solo, join/leave/host notices, player menu (Go to, Block on your screen, Rename yourself), host controls (Kick; host = first to join, passes on when they leave), quick emotes and short text chat with speech bubbles. No report button (useless without logins).
   - Accept: works with 2 tabs and on phone + laptop; a kicked player sees a clear screen and cannot rejoin the same room for 10 min.
 
 ## Phase K: Kurnool accuracy (runs in parallel with Phase 3, on its own branch)
