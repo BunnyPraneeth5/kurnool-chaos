@@ -15,6 +15,9 @@ export class Keyboard {
 
   constructor() {
     window.addEventListener('keydown', (e) => {
+      // Typing a nickname or a chat message must not drive the car.
+      const t = e.target;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || (t instanceof HTMLElement && t.isContentEditable)) return;
       if (!e.repeat) this.pressed.add(e.code);
       this.down.add(e.code);
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();

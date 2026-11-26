@@ -29,12 +29,14 @@ Order: core game first (map, driving, playing together), extras after. If time r
   - **Bunny check:** Bunny drives around and reports streets that look wrong.
 
 ## Phase 3: Friends
-- [ ] **3.1 Supabase project.** Create project, add env vars locally and on Vercel. Check the current free-plan Realtime limits (messages per month and per second) and log them in DECISIONS.md.
+- [x] **3.1 Supabase project.** Create project, add env vars locally and on Vercel. Check the current free-plan Realtime limits (messages per month and per second) and log them in DECISIONS.md.
   - Accept: the app joins a Realtime channel with the publishable key. Missing env vars or a failed connection show a clear error.
-- [ ] **3.2 Rooms.** Create room, share link, nickname prompt, presence list, soft 8-player cap, spread-out spawn.
+- [x] **3.2 Rooms.** Create room, share link, nickname prompt, presence list, soft 8-player cap, spread-out spawn.
   - Accept: 2 browser tabs join the same room, both see the player list, and they spawn apart.
-- [ ] **3.3 Live sync.** 5 Hz broadcast (heartbeat only while idle), 200 ms interpolation, remote vehicle models, name tags, bounce off friends' cars, recover after phone lock or app switch.
+- [x] **3.3 Live sync.** 5 Hz broadcast (heartbeat only while idle), 200 ms interpolation, remote vehicle models, name tags, bounce off friends' cars, recover after phone lock or app switch.
   - Accept: phone and laptop in one room see each other move smoothly at normal driving speed. Locking the phone for 10 s and coming back recovers without a refresh.
+- [x] **3.4 Room controls (Bunny, 2026-11-25).** Leave button in rooms and Exit in solo, join/leave/host notices, player menu (Go to, Block on your screen, Rename yourself), host controls (Kick; host = first to join, passes on when they leave), quick emotes and short text chat with speech bubbles. No report button (useless without logins).
+  - Accept: works with 2 tabs and on phone + laptop; a kicked player sees a clear screen and cannot rejoin the same room for 10 min.
 
 ## Phase K: Kurnool accuracy (runs in parallel with Phase 3, on its own branch)
 Goal (Bunny, 2026-11-25): the street layout matches, but the city must look and feel like real Kurnool in low poly.
@@ -47,6 +49,19 @@ Goal (Bunny, 2026-11-25): the street layout matches, but the city must look and 
 - [ ] **K.4 Corrections file.** `scripts/osm/corrections.json` applied by `build.mjs`: remove or add buildings, change water width, landmark pins (Abdullah Khan Estate). Bunny's reported wrong spots go here.
   - Accept: at least one real correction applied and visible; rebuild identical.
 - Landmark models from Bunny's photos are task 4.1.
+
+## Phase G: Lobby and game modes (Bunny, 2026-11-26; on the multiplayer branch)
+Goal: rooms gather in a lobby, the host picks a game mode, everyone plays a timed round, sees results, and goes back to the lobby. Our own look: the "gather in a lobby" idea only, nothing copied from other games. Order: G.2 to G.4 now (lobby spot is Raj Vihar Circle for now), G.1 after Phase K is merged. Races (Phase 6) reuse G.2 later.
+- [ ] **G.1 Jagannatha Gattu lobby hill.** Low-poly hill (about 35 m high) just past the south map edge, flat summit plaza, ghat road up, link road to the city, English + Telugu signboard. Room spawns and the lobby spot move there. Built in game code, not the map pipeline. Waits for Phase K.
+  - Accept: drive up and down without getting stuck; phone 30+ fps on low.
+  - **Bunny check:** Telugu spelling of the signboard, hill position.
+- [ ] **G.2 Lobby and round flow.** Lobby board (HUD panel) with mode, settings and Ready ticks; host picks mode and round length (3/5/10 min) and starts (2+ players); host's game is the referee. Countdown 3-2-1-Go with cars held, round timer, role banner, results card, everyone back to the lobby spot after 10 s. Late joiners wait for the next round; if the host leaves mid-round the next host carries on. Free roam the whole city between rounds.
+  - Accept: 2 tabs run a full round (start, countdown, timer, results, back to lobby); a third tab joining mid-round waits and joins the next one; host leaving mid-round does not break it.
+- [ ] **G.3 Chor–Police.** 1 police (2 with 5+ players) chases the chors; a bump catches a chor, who turns police. Chors score by survival time; police by catches. Police car gets a light bar and "POLICE" text.
+  - Accept: 2 tabs + bot: catches count once, roles switch, round ends when all are caught or time runs out, scores shown.
+- [ ] **G.4 Landmark hunt.** 3 to 5 landmarks one after another; first to reach each scores; arrow and distance to the current target on screen.
+  - Accept: 2 tabs: targets advance for everyone, the first arrival gets the point, results rank by points.
+- [ ] **G.5 King of the circle.** Score by time inside a zone that moves every minute. (After G.4, if Bunny still wants it.)
 
 ## Phase 4: Kurnool feel
 - [ ] **4.1 Landmarks.** Fort, Tungabhadra bridge, station, bus stand, GGH + KMC, junction markers at Rajvihar and C-Camp, Abdullah Khan Estate sign. Low-poly models based on 2 or 3 photos per landmark from Bunny, so they look like the real ones.

@@ -10,13 +10,48 @@ import { detectQuality } from './world/quality';
 import { Game } from './game';
 import { showLoading, showError, hideStatus } from './ui/status';
 import { createFpsMeter } from './ui/fps';
+import { readNetConfig, NetConfigError, type NetConfig } from './net/config';
+import { parseRoomCode, newPlayerId, roomLink, kickedMinutesLeft } from './net/ids';
+import { RoomError, playerColour } from './net/roomTypes';
+import type { Room } from './net/room';
+import { startRoomSession } from './net/roomSession';
+import { runLobby } from './ui/lobby';
+import { addSoloExit } from './ui/roomHud';
 
 // Boot: renderer, sky, map meshes, then the game loop (see game.ts).
 
 const canvas = document.getElementById('gl');
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Canvas #gl not found in index.html');
 
+function goToStart(): void {
+  location.href = location.pathname;
+}
+
+/** Supabase settings, or a clear error screen (no silent single-player fallback). */
+function netConfigOrError(): NetConfig | null {
+  try {
+    return readNetConfig();
+  } catch (err) {
+    showError('Multiplayer is not set up', err instanceof NetConfigError ? err.message : String(err), [
+      { label: 'Retry', run: () => location.reload() },
+      { label: 'Back to start', run: goToStart },
+    ]);
+    return null;
+  }
+}
+
 async function boot(gl: HTMLCanvasElement): Promise<void> {
+  // Room link (?room=ABC123): check it and the Supabase settings before anything else.
+  const roomParam = new URLSearchParams(location.search).get('room');
+  const linkCode = roomParam === null ? null : parseRoomCode(roomParam);
+  if (roomParam !== null && !linkCode) {
+    showError('That room link looks wrong', `"${roomParam.slice(0, 20)}" is not a room code. Codes are 6 letters and digits, like K7MPQ2.`, [
+      { label: 'Back to start', run: goToStart },
+    ]);
+    return;
+  }
+  if (linkCode && !netConfigOrError()) return;
+
   showLoading('Loading Kurnool…');
 
   let renderer: THREE.WebGLRenderer;
@@ -48,9 +83,44 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   const devMap = import.meta.env.DEV ? new URLSearchParams(location.search).get('map') : null;
   const mapUrl = devMap ?? `${import.meta.env.BASE_URL}map/kurnool.json`;
 
+  // Download the map while the player types a nickname.
+  let lobbyOpen = true;
+  let lastBytes = 0;
+  const mapP = loadMap(mapUrl, (bytes) => {
+    lastBytes = bytes;
+    if (!lobbyOpen) showLoading(`Loading Kurnool… ${(bytes / 1e6).toFixed(1)} MB`);
+  }).then(
+    (m) => ({ ok: true as const, m }),
+    (e: unknown) => ({ ok: false as const, e }),
+  );
+
+  const choice = await runLobby(linkCode);
+  lobbyOpen = false;
+  let joinP: Promise<Room> | null = null;
+  let roomCode = '';
+  if (choice.kind === 'room') {
+    const cfg = netConfigOrError();
+    if (!cfg) return;
+    roomCode = choice.code;
+    history.replaceState(null, '', roomLink(roomCode));
+    const wait = kickedMinutesLeft(roomCode);
+    if (wait > 0) {
+      showError('You were removed from this room', `The host removed you from room ${roomCode}. You can join again in ${wait} min.`, [
+        { label: 'Back to start', run: goToStart },
+      ]);
+      return;
+    }
+    const myId = newPlayerId();
+    joinP = import('./net/room').then(({ Room }) => Room.join(cfg, roomCode, choice.nick, myId));
+    joinP.catch(() => {}); // handled below, after the city is built
+  }
+  showLoading(`Loading Kurnool… ${(lastBytes / 1e6).toFixed(1)} MB`);
+
+  const loaded = await mapP;
   let map;
   try {
-    map = await loadMap(mapUrl, (bytes) => showLoading(`Loading Kurnool… ${(bytes / 1e6).toFixed(1)} MB`));
+    if (!loaded.ok) throw loaded.e;
+    map = loaded.m;
   } catch (err) {
     const detail = err instanceof MapLoadError ? err.message : `Unexpected error: ${String(err)}`;
     showError('Could not load the map', detail);
@@ -67,10 +137,40 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   scene.add(buildParks(map, quality));
   scene.add(buildBuildings(map, quality, quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1));
 
-  const game = new Game(map, scene, camera, gl);
+  let room: Room | null = null;
+  let beforeUpdate: (dt: number) => void = () => {};
+  let afterUpdate: () => void = () => {};
+  if (joinP) {
+    showLoading(`Joining room ${roomCode}…`);
+    try {
+      room = await joinP;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const full = err instanceof RoomError && err.kind === 'full';
+      showError(full ? 'Room full' : 'Could not connect to the room', msg, [
+        { label: 'Try again', run: () => location.reload() },
+        { label: 'Back to start', run: goToStart },
+      ]);
+      return;
+    }
+  }
+
+  const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined);
+  if (room) {
+    const code = room.code;
+    const session = startRoomSession(room, game, map, scene, camera, {
+      onLeave: goToStart,
+      onKicked: () =>
+        showError('You were removed from the room', `The host removed you from room ${code}.`, [{ label: 'Back to start', run: goToStart }]),
+    });
+    beforeUpdate = session.before;
+    afterUpdate = session.after;
+  } else {
+    addSoloExit(goToStart);
+  }
   hideStatus();
 
-  if (import.meta.env.DEV) Object.assign(window, { __three: { renderer, scene, camera }, __game: game });
+  if (import.meta.env.DEV) Object.assign(window, { __three: { renderer, scene, camera }, __game: game, __room: room });
 
   const fps = createFpsMeter(quality.level);
   const timer = new THREE.Timer();
@@ -78,7 +178,9 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     timer.update(ts);
     // Capped so a stalled frame never teleports anything; vehicles also sub-step.
     const dt = Math.min(timer.getDelta(), 1 / 30);
+    beforeUpdate(dt);
     game.update(dt);
+    afterUpdate();
     sky.update(camera);
     renderer.render(scene, camera);
     fps.frame(ts);

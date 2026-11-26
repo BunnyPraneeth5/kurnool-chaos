@@ -2,6 +2,27 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-26: Phase G planned
+- Bunny wants a lobby where the host picks a game mode, like a hangout before each round, on Jagannatha Gattu hill. Planned Phase G in TASKS.md (G.1 hill, G.2 lobby and round flow, G.3 Chor–Police, G.4 Landmark hunt, G.5 King of the circle).
+- Found: Jagannatha Gattu (IIITDM campus, 15.7532 N 78.0349 E) is 1.9 km past the south map edge and 8.4 km from Raj Vihar; the game world has no hills.
+- Agreed order: merge Phase 3 into `main` first, then G.2 to G.4 with Raj Vihar Circle as the lobby spot, then G.1 after Phase K is merged.
+
+## 2026-11-25: Task 3.4 Room controls (Bunny's request after 3.3)
+- Done: `src/net/roomSession.ts` (room wiring moved out of main.ts), `src/ui/chat.ts`, player menu in `src/ui/roomHud.ts`, host/kick/chat/rename/leave in `src/net/room.ts`, block and speech bubbles in `remotePlayers.ts`, `Game.teleport()`, keyboard ignores typing in text boxes.
+- Checked with 2 tabs and a test bot: host badge; chat both ways (HTML shown as text), emote bubbles appear on arrival, second message within 0.8 s refused; rename shows in list, tag and a notice; Go to lands 7 m behind the friend; Block hides model, tag, collisions and chat, Unblock brings them back; guests get no Kick; host Kick (asks "Kick?") shows the kicked tab "You were removed" and the rejoin is refused for 10 min; a bot that ignores the kick stays hidden, also after the host passes on; host Leave returns to the start screen and the next player gets "You are now the host"; T opens chat, typing W does not drive, Esc closes; solo Exit returns to the start screen.
+- Bunny check (2026-11-26): room controls on phone + laptop on the branch preview (kurnool-chaos-d49ntah67, commit 24bfe06): "works well". 3.4 ticked.
+- Next: coordinator merges `claude/multiplayer-0fc95f` into `main`.
+
+## 2026-11-25: Phase 3 Multiplayer (tasks 3.1 to 3.3, branch `claude/multiplayer-0fc95f`)
+- 3.1: Supabase project `kurnool-chaos` created on Bunny's account (free plan, Mumbai, ref lpafbvfxmbapagjozlvt). `.env.local` written (gitignored). `@supabase/supabase-js` 2.119 added, loaded only when playing in a room. Free-plan Realtime limits logged in DECISIONS (2M messages/month, 100/s; a broadcast counts 1 + 1 per receiver). Checked: the app joins a room channel with the publishable key; missing key shows "Multiplayer is not set up"; an unreachable server shows "Could not connect to the room" with Try again.
+- 3.2: start screen (nickname + Create room / Join with code / Play alone), room links skip to the nickname, room panel with code, Share button and player list, soft 8-player cap ("Room full" checked with 2 tabs + 6 bots + a 9th tab), lowest free slot sets colour and spawn on a ring around Raj Vihar (8 points, 14.7 m apart at least). Checked with 2 tabs: both see the list and spawn 31 m apart. Nicknames shown with textContent (tested with `Bunny<b>`).
+- 3.3: adaptive send rate (5 Hz up to 4 players, 80/N² above, 2 s heartbeat when idle, nothing when alone), interpolation one interval + 100 ms behind, remote car and on-foot models with name tags, friends' cars are solid (my car got shoved 7.5 m and never came closer than 3.0 m), friend driving parked car k hides my copy and leaves it where they park, recovery after phone lock.
+- Checked with a Node test bot driving known circles: at 12 m/s drawn angular speed 0.600 ± 0.002 rad/s (true 0.6), under 5 cm off the path; at 25 m/s (90 km/h) drawn speed 25.19 m/s ± 0.08. Faked a 10 s phone lock: "Reconnecting…" then back online in 0.6 s, friend visible again; same with the socket killed while hidden. Idle heartbeat about every 2.5 s. Solo play unchanged and never downloads Supabase.
+- Vercel: Bunny added `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (Production and Preview, type Sensitive) at 10:39 UTC. Renamed from `VITE_...` because Vercel refused the public prefix on a key. Branch previews built before then have no Supabase settings.
+- Bunny check: phone + laptop played together in one room on the branch preview (kurnool-chaos-cg1ds5h24, commit dcbac1e): "works well". 3.1, 3.2 and 3.3 ticked. Also checked on that preview with a test bot: join, player list, name tags, updates both ways.
+- Next: coordinator merges `claude/multiplayer-0fc95f` into `main`. Then friends can use the main site (preview links need a Vercel login).
+- Known v1 limits: parked cars moved before you joined are at their original spots for you; `CLAUDE.md` modules list still says 10 Hz (ARCHITECTURE has the real rate).
+
 ## 2026-11-25: Parallel work set up
 - Bunny chose to run accuracy and multiplayer at the same time. Added Phase K (K.1 to K.4) to TASKS.md; 4.1 now uses Bunny's photos. Two sessions start from this commit, each on its own branch: "Kurnool accuracy" (K.1 onwards) and "Multiplayer" (3.1 onwards). This session coordinates and merges into `main`.
 - Rules for both: commit and push only to your own branch (Vercel makes a preview link per branch), never merge into `main`, only tick your own tasks, add your own PROGRESS entries.

@@ -13,6 +13,7 @@
     "map:build": "node scripts/osm/build.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
     "three": "^0.187.0"
   },
   "devDependencies": {

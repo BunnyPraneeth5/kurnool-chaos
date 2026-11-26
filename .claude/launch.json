@@ -6,6 +6,19 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--host"],
       "port": 5173
+    },
+    {
+      "name": "dev-mp",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--host", "--port", "5174", "--strictPort"],
+      "port": 5174
+    },
+    {
+      "name": "dev-mp-badenv",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5176", "--strictPort"],
+      "port": 5176,
+      "env": { "SUPABASE_URL": "https://nosuchproject0000.supabase.co", "SUPABASE_PUBLISHABLE_KEY": "" }
     }
   ]
 }
