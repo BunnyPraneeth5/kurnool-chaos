@@ -16,7 +16,7 @@ const PLAZA_R = 24;
 const SPAWN_R = 9;
 const CAR_R = 18;
 export const LOBBY_NAME_EN = 'Jagannatha Gattu';
-export const LOBBY_NAME_TE = 'జగన్నాథ గట్టు'; // spelling: Bunny to confirm
+export const LOBBY_NAME_TE = 'జగన్నాథ గట్టు'; // spelling confirmed by Bunny, 2026-11-27
 
 export interface Lobby {
   x: number;
