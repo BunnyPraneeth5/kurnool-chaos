@@ -1,5 +1,6 @@
 // Shape of public/map/kurnool.json. Keep in sync with docs/ARCHITECTURE.md and scripts/osm/build.mjs.
 // Units are metres. X = east, Z = south. Polygons are open rings.
+import type { TerrainMeta } from './terrain';
 
 export type Pt = [number, number];
 
@@ -17,6 +18,7 @@ export interface Road {
   oneway: boolean;
   bridge: boolean;
   pts: Pt[];
+  lift?: number[]; // flyovers and their ramps: metres above the ground at each point
 }
 
 export interface GraphEdge {
@@ -32,6 +34,17 @@ export interface Building {
   pts: Pt[];
   h: number;
   kind?: string;
+  style: number; // see STYLE in buildingStyle.ts
+  gate?: number; // colony houses: compound wall with the gate on this side of the box (0..3)
+}
+
+/** A building as stored in the file: p = [x0, z0, dx1, dz1, ...] in whole decimetres, k = kind, s = style, w = gate side. */
+export interface PackedBuilding {
+  p: number[];
+  h: number;
+  k?: string;
+  s?: number;
+  w?: number;
 }
 
 export interface Landmark {
@@ -44,22 +57,66 @@ export interface Landmark {
   pts?: Pt[];
 }
 
+/** A railway track run. Bridges over water are drawn high on piers; other bridges stay at ground level. */
+export interface RailRun {
+  pts: Pt[];
+  bridge?: boolean;
+  overWater?: boolean;
+  electric?: boolean;
+  service?: string;
+  y?: number[]; // track bed height at each point (the undug ground; it bridges underpasses)
+}
+
+/** A river or canal centreline (OSM has no outline for it). Canal water is also in `water` (not aqueducts or culverts); rivers are a sandy bed with satellite water outlines on top. */
+export interface Waterway {
+  pts: Pt[];
+  w: number;
+  kind: 'river' | 'canal';
+  name?: string;
+  part?: 'aqueduct' | 'culvert';
+}
+
+/** A temple (h), mosque (m) or church (c): box centre, heading of the box's w side (forward = (sin a, cos a)), size. */
+export interface Worship {
+  x: number;
+  z: number;
+  a: number;
+  w: number;
+  d: number;
+  r: 'h' | 'm' | 'c';
+  name?: string;
+}
+
+/** Street details (task K.3). Flat arrays are in whole decimetres. */
+export interface Props {
+  poles: number[][]; // wired runs: [x0, z0, dx1, dz1, ...]
+  trees: number[]; // [x, z, ...]
+  hoardings: number[]; // [x, z, headingDeg, ...], heading = the way the board faces
+  worship: Worship[];
+  autoStands: number[]; // [x, z, headingDeg, count, ...], autos parked along the heading
+  crossings: { x: number; z: number; a: number; hw: number }[]; // OSM level crossings: point, road heading, road half width
+  platforms: { pts: Pt[]; roof: boolean }[]; // railway platforms (roof = with a shelter)
+}
+
 export interface MapData {
-  version: 1;
+  version: 2;
   center: { lat: number; lon: number };
   bounds: Rect;
   playArea: Rect;
   roads: Road[];
   graph: { nodes: Pt[]; edges: GraphEdge[] };
   buildings: Building[];
-  water: { pts: Pt[] }[];
+  water: { pts: Pt[]; holes?: Pt[][] }[]; // holes = islands
   parks: { pts: Pt[] }[];
-  rail: { pts: Pt[] }[];
+  rail: RailRun[];
+  waterways: Waterway[];
   landmarks: Landmark[];
+  props: Props;
+  terrain: TerrainMeta; // ground heights grid in a separate file (public/map/terrain.bin)
   airport: {
     runway: { x: number; z: number; len: number; w: number; heading: number };
     terminal: { pts: Pt[] };
   };
   spawn: { x: number; z: number; heading: number };
-  meta: { osmBase: string; credit: string };
+  meta: { osmBase: string; overtureRelease?: string; credit: string };
 }

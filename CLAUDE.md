@@ -36,10 +36,8 @@ Browser multiplayer open-city driving game, just for fun with friends. Map is re
 - Ask Bunny when stuck or when a decision is not covered by the docs. Do not guess on scope.
 
 ## Current focus
-Two parallel tracks, each in its own session and branch (see PROGRESS.md 2026-11-25):
-- Kurnool accuracy: Phase K, starting at K.1
-- Multiplayer: Phase 3, starting at 3.1
-Never merge into `main` from a track session; the coordinator session merges.
+Phase 3 and Phase K are merged into `main` (2026-11-27). Open: phone check for K.1-K.3 and K.5, K.4 (needs a real correction), G.1 lobby on the real Jagannatha Gattu, G.5. Track sessions work on their own branches; the coordinator session merges into `main`.
 
 ## Gotchas
 (add repeated mistakes here as rules)
+- A leftover gitignored `scripts/osm/raw.json` from an older map box made `npm run map:build` produce an older map. `loadRaw()` now ignores it when its box differs, with a warning. After a rebuild, check the map and terrain files match what is committed before pushing.

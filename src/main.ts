@@ -1,10 +1,14 @@
 import * as THREE from 'three';
-import { loadMap, MapLoadError } from './map/loadMap';
+import { loadMap, loadTerrain, MapLoadError } from './map/loadMap';
+import { setTerrain } from './map/terrain';
 import { buildGround } from './map/ground';
 import { buildWater } from './map/water';
 import { buildRoads } from './map/roads';
 import { buildBuildings } from './map/buildings';
 import { buildParks } from './map/parks';
+import { buildProps } from './map/props';
+import { buildRail } from './map/rail';
+import { buildWaterways } from './map/waterways';
 import { createSky } from './world/sky';
 import { detectQuality } from './world/quality';
 import { Game } from './game';
@@ -127,15 +131,27 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     return;
   }
 
+  try {
+    setTerrain(await loadTerrain(mapUrl, map.terrain));
+  } catch (err) {
+    const detail = err instanceof MapLoadError ? err.message : `Unexpected error: ${String(err)}`;
+    showError('Could not load the map', detail);
+    return;
+  }
+
   // Let the message paint before the heavy, blocking mesh build.
   showLoading('Building the city…');
   await new Promise((r) => setTimeout(r, 30));
 
   scene.add(buildGround(map));
   scene.add(buildWater(map));
+  scene.add(buildWaterways(map));
+  scene.add(buildRail(map));
   scene.add(buildRoads(map));
   scene.add(buildParks(map, quality));
-  scene.add(buildBuildings(map, quality, quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1));
+  const anisotropy = quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1;
+  scene.add(buildBuildings(map, quality, anisotropy));
+  scene.add(buildProps(map, quality, anisotropy));
 
   let room: Room | null = null;
   let beforeUpdate: (dt: number) => void = () => {};

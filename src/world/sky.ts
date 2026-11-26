@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { groundY } from '../map/terrain';
 
 // Dusk look ported from reference/port-meridian-demo.html: gradient sky dome,
 // low sun disc, warm fog, hemisphere + directional light.
@@ -75,7 +76,8 @@ export function createSky(scene: THREE.Scene, renderer: THREE.WebGLRenderer, fog
   return {
     update(camera) {
       group.position.copy(camera.position);
-      const h = Math.max(0, camera.position.y);
+      // Height above the ground under the camera (hills included), not above sea level.
+      const h = Math.max(0, camera.position.y - groundY(camera.position.x, camera.position.z));
       fog.near = FOG_NEAR + h * 1.5;
       fog.far = FOG_FAR + h * 3;
       // Near plane grows with height so road layers stay crisp from high up.

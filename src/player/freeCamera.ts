@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { groundY } from '../map/terrain';
 
 // Map-style fly-over camera for looking at the city. Since task 2.4 it is the
 // "map view", toggled with the C key; the chase camera is used while playing.
@@ -85,12 +86,13 @@ export class FreeCamera {
     this.dist = THREE.MathUtils.clamp(this.dist, MIN_DIST, MAX_DIST);
     this.pitch = THREE.MathUtils.clamp(this.pitch, MIN_PITCH, MAX_PITCH);
     const cp = Math.cos(this.pitch);
+    const gy = groundY(this.tx, this.tz); // look at the ground, hills included
     this.camera.position.set(
       this.tx + Math.sin(this.yaw) * cp * this.dist,
-      Math.sin(this.pitch) * this.dist,
+      gy + Math.sin(this.pitch) * this.dist,
       this.tz + Math.cos(this.yaw) * cp * this.dist,
     );
-    this.camera.lookAt(this.tx, 0, this.tz);
+    this.camera.lookAt(this.tx, gy, this.tz);
   }
 
   /** Metres of ground per screen pixel at the look-at point. */

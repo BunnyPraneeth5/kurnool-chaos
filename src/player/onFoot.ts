@@ -70,13 +70,15 @@ export class OnFootPlayer {
     this.a -= inp.steer * TURN * dt;
     this.x += Math.sin(this.a) * sp * dt;
     this.z += Math.cos(this.a) * sp * dt;
-    const r = world.collide(this.x, this.z, PLAYER_RADIUS);
+    const r = world.collide(this.x, this.z, PLAYER_RADIUS, this.y + 0.3);
     this.x = r.x;
     this.z = r.z;
     this.speed = sp;
-    // Step up onto bridge decks smoothly.
-    const ground = world.heightAt(this.x, this.z);
-    this.y += (ground - this.y) * Math.min(1, dt * 12);
+    // Follow the ground (hills, bridge decks) smoothly.
+    const ground = world.heightAt(this.x, this.z, this.y);
+    // Big jumps (unstuck, teleports, map changes) snap straight to the ground; small steps blend.
+    if (Math.abs(ground - this.y) > 3) this.y = ground;
+    else this.y += (ground - this.y) * Math.min(1, dt * 12);
     this.animate(dt, sp);
     this.sync();
   }

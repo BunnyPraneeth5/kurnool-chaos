@@ -77,7 +77,7 @@ export const SPECS = [
 
 /**
  * Hand-placed pins for landmarks OSM does not have, as [lat, lon].
- * Fill these in from Bunny. A pin overrides the OSM search.
+ * New pins go in scripts/osm/corrections.json (landmarkPins), which wins over this list.
  */
 export const MANUAL_PINS = {
   akestate: null,

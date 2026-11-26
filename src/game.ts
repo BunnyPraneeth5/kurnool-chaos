@@ -193,6 +193,7 @@ export class Game {
     c.a = c.va = heading;
     c.speed = 0;
     c.pushOut(this.world);
+    c.settle(this.world); // straight onto the ground there (hills and valleys)
     c.sync();
     this.player.x = c.x;
     this.player.z = c.z;

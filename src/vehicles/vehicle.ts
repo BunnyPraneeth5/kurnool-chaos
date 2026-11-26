@@ -11,6 +11,7 @@ const SUBSTEP = 1 / 120;
 const BUMP = 3.0; // centre distance at which two vehicles touch
 const HARD_HIT = 9; // m/s; faster wall hits lose half their speed
 const RIDE_Y = 0.12; // wheels sit on the road layers
+const PITCH_REACH = 1.3; // m from the centre to where the front and back wheels touch
 
 export type VehicleKind = 'parked' | 'player';
 
@@ -37,6 +38,7 @@ export class Vehicle {
   x: number;
   z: number;
   y = RIDE_Y;
+  pitch = 0; // radians, nose up positive
   /** nose heading */
   a: number;
   /** travel direction (lags behind the nose when drifting) */
@@ -53,7 +55,18 @@ export class Vehicle {
     this.z = z;
     this.a = heading;
     this.va = heading;
+    this.mesh.rotation.order = 'YXZ'; // heading, then nose up/down on slopes, then body roll
     this.sync();
+  }
+
+  /** Sit on the ground (or bridge deck) and tilt with the slope. */
+  settle(world: CollisionWorld, blend = 1): void {
+    // The surface nearest the car's height: stays under a flyover or on it.
+    const ground = world.heightAt(this.x, this.z, this.y) + RIDE_Y;
+    this.y += (ground - this.y) * blend;
+    const fx = Math.sin(this.a) * PITCH_REACH, fz = Math.cos(this.a) * PITCH_REACH;
+    const target = Math.atan2(world.heightAt(this.x + fx, this.z + fz, this.y) - world.heightAt(this.x - fx, this.z - fz, this.y), PITCH_REACH * 2);
+    this.pitch += (target - this.pitch) * blend;
   }
 
   /**
@@ -67,8 +80,7 @@ export class Vehicle {
       this.acc -= SUBSTEP;
       crash = Math.max(crash, this.step(SUBSTEP, inp, world, others));
     }
-    const ground = world.heightAt(this.x, this.z) + RIDE_Y;
-    this.y += (ground - this.y) * Math.min(1, dt * 10);
+    this.settle(world, Math.min(1, dt * 10));
     this.sync();
     return crash;
   }
@@ -132,11 +144,11 @@ export class Vehicle {
     const t = this.t;
     const fx = Math.sin(this.a) * t.axle;
     const fz = Math.cos(this.a) * t.axle;
-    let r = world.collide(this.x + fx, this.z + fz, t.radius);
+    let r = world.collide(this.x + fx, this.z + fz, t.radius, this.y);
     let hit = r.hit;
     this.x = r.x - fx;
     this.z = r.z - fz;
-    r = world.collide(this.x - fx, this.z - fz, t.radius);
+    r = world.collide(this.x - fx, this.z - fz, t.radius, this.y);
     hit = hit || r.hit;
     this.x = r.x + fx;
     this.z = r.z + fz;
@@ -155,6 +167,7 @@ export class Vehicle {
   sync(): void {
     this.mesh.position.set(this.x, this.y, this.z);
     this.mesh.rotation.y = this.a;
+    this.mesh.rotation.x = -this.pitch; // the car's nose points along +z, so nose up is a negative x turn
     this.mesh.rotation.z = this.roll;
   }
 }

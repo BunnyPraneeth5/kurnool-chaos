@@ -64,7 +64,8 @@ export class ChaseCamera {
     const dist = (inCar ? CAR_DIST + sp * 0.11 : FOOT_DIST) * (portrait ? 1.12 : 1);
     const h = inCar ? CAR_HEIGHT : FOOT_HEIGHT;
     const r = world.collide(t.x - Math.sin(this.camA) * dist, t.z - Math.cos(this.camA) * dist, 1.2);
-    this.target.set(r.x, t.y + h, r.z);
+    // Never inside a hill behind the player.
+    this.target.set(r.x, Math.max(t.y + h, world.heightAt(r.x, r.z) + 1.5), r.z);
   }
 
   private apply(t: Followable): void {

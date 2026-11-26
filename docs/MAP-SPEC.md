@@ -2,9 +2,10 @@
 
 ## Area
 - Centre around the old city, between the Tungabhadra on the north and the railway station on the south.
-- Bounding box: south 15.770, west 77.975, north 15.870, east 78.065. About 9.6 x 11.1 km. Stretched north at task 1.3 so the NH44 Tungabhadra bridge is inside, then (Bunny, after task 2.3) south to include G. Pulla Reddy College (15.775, 78.057) and west to include Peddapadu village (15.807, 77.981).
+- Bounding box: south 15.748, west 77.975, north 15.870, east 78.065. About 9.6 x 13.5 km. Extended south on 2026-11-26 (Bunny) to include Jagannath Gattu hill and IIITDM Kurnool (summit about 15.764, 78.033, 434 m above sea level, 153 m above Raj Vihar). Stretched north at task 1.3 so the NH44 Tungabhadra bridge is inside, then (Bunny, after task 2.3) south to include G. Pulla Reddy College (15.775, 78.057) and west to include Peddapadu village (15.807, 77.981).
 - Play area is bigger than the first 4 x 4 km target, to fit the river bridge. Chunk culling and the quality setting have to keep phones at 30+ fps.
 - Real scale, 1 unit = 1 metre. Do not shrink the city itself, only the airport distance.
+- Real ground heights (Copernicus DEM): the city slopes down north to the Tungabhadra (about 20 m below Raj Vihar) and rises to rocky hills in the south-east (about 35 m above inside the box, 100 m+ east of it).
 - At task 1.3, also check whether the Handri river and the KC Canal fall inside the area. Water blocks driving everywhere except on bridges.
 
 ## Landmarks
@@ -44,7 +45,7 @@ Find each one in the OSM data (by name tag) or with Nominatim. If not found, ask
 - Junctions: fill with a simple polygon so ribbons don't show gaps.
 
 ## Buildings
-- Use OSM footprints. Remove or shrink any that overlap a drivable road (half road width + 1 m), so narrow lanes stay drivable.
+- Use OSM footprints first, then Overture Maps footprints (Google Open Buildings, Microsoft ML Buildings) where OSM has none (task K.1). Remove or shrink any that overlap a drivable road (half road width + 1 m), so narrow lanes stay drivable.
 - Where an area has almost no buildings, fill it with a mix of parks (green patches, a few trees) and simple random buildings along the roads. No need to be precise.
 - Random choices (heights, colours, filler) are seeded by OSM id or position, so every build gives the same city.
 - Heights: 1 to 4 floors at 3.2 m per floor. Commercial areas around Rajvihar, Park Road and the bus stand get 3 to 6 floors.
@@ -52,4 +53,4 @@ Find each one in the OSM data (by name tag) or with Nominatim. If not found, ask
 
 ## Look
 - Dusk lighting, fog and sky from the reference demo.
-- On-screen credit: "© OpenStreetMap contributors" (bottom corner, always visible).
+- On-screen credit: "© OpenStreetMap contributors, Overture Maps Foundation, Google Open Buildings, Dynamic World, Copernicus DEM" (bottom corner, always visible).

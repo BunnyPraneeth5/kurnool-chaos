@@ -1,0 +1,56 @@
+{
+  "heights": {
+    "west": 77.975,
+    "north": 15.87,
+    "dLon": 3.733592582221939e-05,
+    "dLat": 3.614782480337856e-05,
+    "width": 2411,
+    "height": 3376,
+    "file": "ee-heights.bin.gz",
+    "unit": "half metres",
+    "dtype": "uint8",
+    "source": "GOOGLE/Research/open-buildings-temporal/v1, 2023, building_height",
+    "licence": "CC BY 4.0, Google Open Buildings 2.5D Temporal"
+  },
+  "water": {
+    "west": 77.975,
+    "north": 15.87,
+    "dLon": 4.666990727777424e-05,
+    "dLat": 4.518478100422321e-05,
+    "width": 1929,
+    "height": 2701,
+    "file": "ee-water.bin.gz",
+    "unit": "percent",
+    "dtype": "uint8",
+    "source": "GOOGLE/DYNAMICWORLD/V1, water probability, 90th percentile 2023-06 to 2024-06",
+    "licence": "CC BY 4.0, Dynamic World"
+  },
+  "licence": "CC BY 4.0, Dynamic World; CC BY 4.0, Google Open Buildings 2.5D Temporal; Copernicus DEM GLO-30, (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA",
+  "trees": {
+    "west": 77.975,
+    "north": 15.87,
+    "dLon": 9.333981455554848e-05,
+    "dLat": 9.036956200844641e-05,
+    "width": 965,
+    "height": 1351,
+    "file": "ee-trees.bin.gz",
+    "unit": "percent",
+    "dtype": "uint8",
+    "source": "GOOGLE/DYNAMICWORLD/V1, tree probability, median 2023-06 to 2024-06",
+    "licence": "CC BY 4.0, Dynamic World"
+  },
+  "terrain": {
+    "west": 77.965,
+    "north": 15.88,
+    "dLon": 9.333981455554848e-05,
+    "dLat": 9.036956200844641e-05,
+    "width": 1500,
+    "height": 1572,
+    "base": 200,
+    "file": "ee-terrain.bin.gz",
+    "unit": "decimetres above base",
+    "dtype": "uint16",
+    "source": "COPERNICUS/DEM/GLO30, 45 m opening + 30 m smoothing",
+    "licence": "Copernicus DEM GLO-30, (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA"
+  }
+}

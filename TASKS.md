@@ -48,6 +48,8 @@ Goal (Bunny, 2026-11-25): the street layout matches, but the city must look and 
   - Accept: visible on main roads and at places of worship; phone still 30+ fps on low.
 - [ ] **K.4 Corrections file.** `scripts/osm/corrections.json` applied by `build.mjs`: remove or add buildings, change water width, landmark pins (Abdullah Khan Estate). Bunny's reported wrong spots go here.
   - Accept: at least one real correction applied and visible; rebuild identical.
+- [ ] **K.5 Railway, KC Canal and rivers.** (Bunny, 2026-11-25) Draw the OSM railway (main line, sidings, bridges, overhead line on the electrified line, level crossings); KC Canal with walls, its aqueduct over the Handri; river banks. Widths of the KC Canal and the Handri from satellite water maps (Google Earth Engine, Bunny registering).
+  - Accept: tracks visible and in the right place, the Tungabhadra rail bridge on piers, canal and aqueduct visible; driving routes still pass; phone still 30+ fps on low.
 - Landmark models from Bunny's photos are task 4.1.
 
 ## Phase G: Lobby and game modes (Bunny, 2026-11-26; on the multiplayer branch)
