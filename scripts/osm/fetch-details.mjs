@@ -1,6 +1,7 @@
 // Tasks K.2/K.3: download the OSM details that pick building styles and street props:
 // land use, shops, amenities (places of worship, schools...), offices, place names,
-// power poles, street lamps, trees, bus stops, signals and adverts, inside the play area.
+// power poles, street lamps, trees, bus stops, signals and adverts, plus railway platforms,
+// station areas, level crossings and bridge outlines (K.5), inside the play area.
 // Saves the committed snapshot scripts/osm/details.json.gz (build.mjs reads it), so the
 // big main download (fetch.mjs) does not have to be repeated.
 //
@@ -29,6 +30,11 @@ const QUERY = `[out:json][timeout:300][maxsize:268435456];
   node["natural"="tree"](${b});
   nwr["advertising"](${b});
   way["barrier"~"^(wall|fence)$"](${b});
+  nwr["railway"~"^(platform|station|halt|level_crossing|crossing|platform_edge|buffer_stop)$"](${b});
+  nwr["public_transport"="platform"](${b});
+  way["building"~"^(train_station|transportation)$"](${b});
+  way["man_made"="bridge"](${b});
+  relation["man_made"="bridge"](${b});
 );
 out geom;`;
 

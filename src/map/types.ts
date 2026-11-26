@@ -64,7 +64,7 @@ export interface RailRun {
   service?: string;
 }
 
-/** A river or canal centreline (OSM has no outline for it); its water is also in `water` unless it is an aqueduct or culvert. */
+/** A river or canal centreline (OSM has no outline for it). Canal water is also in `water` (not aqueducts or culverts); rivers are a sandy bed with satellite water outlines on top. */
 export interface Waterway {
   pts: Pt[];
   w: number;
@@ -101,7 +101,7 @@ export interface MapData {
   roads: Road[];
   graph: { nodes: Pt[]; edges: GraphEdge[] };
   buildings: Building[];
-  water: { pts: Pt[] }[];
+  water: { pts: Pt[]; holes?: Pt[][] }[]; // holes = islands
   parks: { pts: Pt[] }[];
   rail: RailRun[];
   waterways: Waterway[];

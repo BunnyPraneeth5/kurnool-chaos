@@ -123,16 +123,16 @@ export class CollisionWorld {
     const onRoad = (x: number, z: number): boolean => roadSegs.at(x, z).some((s) => segDist(x, z, s) < s.hw + ROAD_GAP);
 
     // Water banks, minus gaps where roads cross.
-    const waterGrid = new ItemGrid<Pt[]>(64);
+    const waterGrid = new ItemGrid<{ pts: Pt[]; holes: Pt[][] }>(64);
     for (const w of map.water) {
-      const r = w.pts;
       let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
-      for (const [x, z] of r) {
+      for (const [x, z] of w.pts) {
         x0 = Math.min(x0, x); z0 = Math.min(z0, z);
         x1 = Math.max(x1, x); z1 = Math.max(z1, z);
       }
-      waterGrid.add(r, x0, z0, x1, z1);
-      for (let i = 0; i < r.length; i++) {
+      waterGrid.add({ pts: w.pts, holes: w.holes ?? [] }, x0, z0, x1, z1);
+      // Banks: the outline and the shores of islands.
+      for (const r of [w.pts, ...(w.holes ?? [])]) for (let i = 0; i < r.length; i++) {
         const p = r[i];
         const q = r[(i + 1) % r.length];
         const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
@@ -147,7 +147,8 @@ export class CollisionWorld {
         }
       }
     }
-    const inWater = (x: number, z: number): boolean => waterGrid.at(x, z).some((r) => pointInRing(x, z, r));
+    const inWater = (x: number, z: number): boolean =>
+      waterGrid.at(x, z).some((w) => pointInRing(x, z, w.pts) && !w.holes.some((h) => pointInRing(x, z, h)));
 
     // Railings: along whole bridges, and along any other road where it is over water.
     for (const road of map.roads) {

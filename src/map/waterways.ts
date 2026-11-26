@@ -166,15 +166,14 @@ export function buildWaterways(map: MapData): THREE.Group {
         for (const run of clipRuns(edge, (x, z) => !near(x, z))) wall(solid, run, WALL_H, concrete);
       }
     } else {
-      // Sand banks: flat bands just outside the water, tucked a metre under its edge.
-      for (const side of [1, -1]) {
-        const inner = offsetLine(ww.pts, side * (ww.w / 2 - 1));
-        const outer = offsetLine(ww.pts, side * (ww.w / 2 + SAND_W));
-        for (let i = 1; i < ww.pts.length; i++) {
-          const q = [inner[i - 1], inner[i], outer[i], outer[i - 1]].map((p) => sand.vertex(p[0], SAND_Y, p[1], sandC));
-          sand.tri(q[0], q[1], q[2]);
-          sand.tri(q[0], q[2], q[3]);
-        }
+      // Sandy river bed and banks across the whole width; the satellite water outlines
+      // (in water.ts) lie on top where the river actually has water.
+      const left = offsetLine(ww.pts, ww.w / 2 + SAND_W);
+      const right = offsetLine(ww.pts, -(ww.w / 2 + SAND_W));
+      for (let i = 1; i < ww.pts.length; i++) {
+        const q = [left[i - 1], left[i], right[i], right[i - 1]].map((p) => sand.vertex(p[0], SAND_Y, p[1], sandC));
+        sand.tri(q[0], q[1], q[2]);
+        sand.tri(q[0], q[2], q[3]);
       }
     }
   }

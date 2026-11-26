@@ -11,6 +11,7 @@ import {
   wayLines, polygons, centerOf, allNames, uid, polyLen, ringArea, ringCentroid, pointInRing,
   segDist, segSegDist, selfIntersects, simplify, clipRingToRect, makeRng, hash32,
 } from './geo.mjs';
+import { contours } from './contour.mjs';
 import { SPECS, MANUAL_PINS, rankCandidates, loadLandmarkNames } from './landmarks.mjs';
 
 /* ---------- settings ---------- */
@@ -503,7 +504,8 @@ for (const f of overture.buildings) {
 
 /* ================= WATER, RAIL, PARKS ================= */
 const clipPA = (r) => clipRingToRect(r, PA.minX, PA.minZ, PA.maxX, PA.maxZ);
-const wStats = { polygons: 0, lineStrips: 0, broken: 0 };
+const wStats = { polygons: 0, lineStrips: 0, broken: 0, satellite: 0, satelliteHoles: 0, satelliteSkipped: 0 };
+const riverbed = []; // river line strips: sandy bed in the game, no buildings, water only where the satellite sees it
 const water = [];
 for (const el of main) {
   const t = el.tags || {};
@@ -624,8 +626,11 @@ for (const el of main) {
       ];
       const r = clipPA(quad);
       if (r.length < 3 || Math.abs(ringArea(r)) < 5) continue;
-      water.push({ pts: finishRing(r) });
-      wStats.lineStrips++;
+      if (t.waterway === 'river') riverbed.push(finishRing(r));
+      else {
+        water.push({ pts: finishRing(r) });
+        wStats.lineStrips++;
+      }
     }
   }
 }
@@ -640,9 +645,62 @@ const cellAt = (x, z) => {
   const j = Math.floor((z - PA.minZ) / OV_RES);
   return i >= 0 && j >= 0 && i < ovW && j < ovH ? j * ovW + i : -1;
 };
-// No building stands in water: drop any that is more than 30% on water.
+// Real water outlines from the satellite water map (Dynamic World, 50% edge), kept only where
+// they belong to a river or lake OSM knows (so flooded fields and canal blobs are left out).
+{
+  const g = eeGrids.water;
+  const known = new Uint8Array(ovW * ovH); // OSM water polygons and river beds
+  for (const w of water) scanRing(w.pts, (k) => (known[k] = 1));
+  for (const r of riverbed) scanRing(r, (k) => (known[k] = 1));
+  const toMetres = (p) => project(g.north - p[1] * g.dLat, g.west + p[0] * g.dLon);
+  const rings = contours(g.data, g.width, g.height, 50).map((c) => {
+    const m = c.ring.map(toMetres);
+    const simple = simplify([...m, m[0]], 3.5).slice(0, -1);
+    return { outer: c.outer, ring: simple };
+  });
+  const outers = [];
+  for (const c of rings) {
+    if (!c.outer || c.ring.length < 3) continue;
+    const r = clipPA(c.ring);
+    if (r.length < 3 || Math.abs(ringArea(r)) < 600) continue;
+    const fr = finishRing(r);
+    if (fr.length < 3 || selfIntersects(fr)) {
+      wStats.broken++;
+      continue;
+    }
+    let n = 0, hit = 0;
+    scanRing(fr, (k) => {
+      n++;
+      hit += known[k];
+    });
+    if (!n || hit / n < 0.1) {
+      wStats.satelliteSkipped++;
+      continue;
+    }
+    outers.push({ pts: fr, holes: [] });
+  }
+  for (const c of rings) {
+    if (c.outer || c.ring.length < 3 || Math.abs(ringArea(c.ring)) < 200) continue;
+    const hole = finishRing(c.ring);
+    if (hole.length < 3 || selfIntersects(hole)) continue;
+    const owner = outers.find((o) => pointInRing(hole[0][0], hole[0][1], o.pts) && hole.every((p) => inPA(p[0], p[1])));
+    if (!owner) continue;
+    owner.holes.push(hole);
+    wStats.satelliteHoles++;
+  }
+  for (const o of outers) {
+    const w = { pts: o.pts };
+    if (o.holes.length) w.holes = o.holes;
+    water.push(w);
+    wStats.satellite++;
+  }
+}
+
+// No building stands in water or in a river bed: drop any that is more than 30% on them.
 const waterOcc = new Uint8Array(ovW * ovH);
 for (const w of water) scanRing(w.pts, (k) => (waterOcc[k] = 1));
+for (const w of water) for (const h of w.holes || []) scanRing(h, (k) => (waterOcc[k] = 0));
+for (const r of riverbed) scanRing(r, (k) => (waterOcc[k] = 1));
 let inWater = 0;
 {
   const keep = buildings.filter((b) => {
@@ -791,6 +849,7 @@ function rectRing(cx, cz, ux, uz, w, d) {
 // Everything already on the ground blocks filler.
 for (const b of buildings) fillRing(b.pts);
 for (const w of water) fillRing(w.pts);
+for (const r of riverbed) fillRing(r);
 for (const p of parks) fillRing(p.pts);
 for (const lm of landmarks) if (lm.pts) fillRing(lm.pts);
 for (const road of roads) {
@@ -1563,7 +1622,10 @@ function validate(m) {
     poly(b.pts, `building ${i}`);
     if (!Number.isFinite(b.h) || b.h <= 0) err(`building ${i}: bad height`);
   });
-  m.water.forEach((w, i) => poly(w.pts, `water ${i}`));
+  m.water.forEach((w, i) => {
+    poly(w.pts, `water ${i}`);
+    (w.holes || []).forEach((h, k) => poly(h, `water ${i} hole ${k}`));
+  });
   m.parks.forEach((p, i) => poly(p.pts, `park ${i}`));
   m.rail.forEach((r, i) => r.pts.forEach((p, k) => pt(p, `rail ${i} point ${k}`)));
   m.waterways.forEach((w, i) => {
@@ -1651,7 +1713,7 @@ console.log(
   `Rail (K.5): ${rail.length} runs, ${rail.filter((r) => r.bridge).length} bridges (${rail.filter((r) => r.overWater).length} over water, drawn high), ${rail.filter((r) => r.electric).length} electrified${railSkipped.length ? '; skipped ' + railSkipped.join(', ') : ''}. ` +
     `Waterways: ${waterways.length} canal/river lines (${waterways.filter((w) => w.part === 'aqueduct').length} aqueduct, ${waterways.filter((w) => w.part === 'culvert').length} culvert). ${inWater} buildings dropped for standing in water`,
 );
-console.log(`Parks: ${osmParks} from OSM + ${fillerParks} filler. Water: ${wStats.polygons} polygons + ${wStats.lineStrips} river/canal strips (${wStats.broken} broken dropped). Rail: ${rail.length}`);
+console.log(`Parks: ${osmParks} from OSM + ${fillerParks} filler. Water: ${wStats.polygons} OSM polygons + ${wStats.lineStrips} canal strips + ${wStats.satellite} satellite outlines (${wStats.satelliteHoles} islands; ${wStats.satelliteSkipped} not on any OSM river or lake, left out) + ${riverbed.length} river-bed strips (${wStats.broken} broken dropped). Rail: ${rail.length}`);
 console.log(`Landmarks: ${landmarks.map((l) => l.id).join(', ')}`);
 if (missing.length) console.log(`MISSING landmarks (need a pin from Bunny in scripts/osm/corrections.json landmarkPins): ${missing.join(', ')}`);
 console.log(`Airport link from "${roadNames[linkRoad] || 'unnamed ' + roads[linkRoad].kind}" at x=${lx} z=${lz}; runway at x=${runway.x} z=${runway.z}`);

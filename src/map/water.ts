@@ -10,8 +10,10 @@ export function buildWater(map: MapData): THREE.Mesh {
   const y = LAYER_Y.water;
   for (const w of map.water) {
     const contour = w.pts.map(([x, z]) => new THREE.Vector2(x, z));
-    const tris = THREE.ShapeUtils.triangulateShape(contour, []);
-    const base = w.pts.map(([x, z]) => mb.vertex(x, y, z, deep));
+    const holes = (w.holes ?? []).map((h) => h.map(([x, z]) => new THREE.Vector2(x, z)));
+    const tris = THREE.ShapeUtils.triangulateShape(contour, holes);
+    // triangulateShape numbers the outline first, then each hole's points in order.
+    const base = [w.pts, ...(w.holes ?? [])].flat().map(([x, z]) => mb.vertex(x, y, z, deep));
     for (const [a, b, c] of tris) mb.tri(base[a], base[b], base[c]);
   }
   const mat = new THREE.MeshPhongMaterial({
