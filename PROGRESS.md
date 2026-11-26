@@ -2,6 +2,11 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-26: Phase G planned
+- Bunny wants a lobby where the host picks a game mode, like a hangout before each round, on Jagannatha Gattu hill. Planned Phase G in TASKS.md (G.1 hill, G.2 lobby and round flow, G.3 Chor–Police, G.4 Landmark hunt, G.5 King of the circle).
+- Found: Jagannatha Gattu (IIITDM campus, 15.7532 N 78.0349 E) is 1.9 km past the south map edge and 8.4 km from Raj Vihar; the game world has no hills.
+- Agreed order: merge Phase 3 into `main` first, then G.2 to G.4 with Raj Vihar Circle as the lobby spot, then G.1 after Phase K is merged.
+
 ## 2026-11-25: Task 3.4 Room controls (Bunny's request after 3.3)
 - Done: `src/net/roomSession.ts` (room wiring moved out of main.ts), `src/ui/chat.ts`, player menu in `src/ui/roomHud.ts`, host/kick/chat/rename/leave in `src/net/room.ts`, block and speech bubbles in `remotePlayers.ts`, `Game.teleport()`, keyboard ignores typing in text boxes.
 - Checked with 2 tabs and a test bot: host badge; chat both ways (HTML shown as text), emote bubbles appear on arrival, second message within 0.8 s refused; rename shows in list, tag and a notice; Go to lands 7 m behind the friend; Block hides model, tag, collisions and chat, Unblock brings them back; guests get no Kick; host Kick (asks "Kick?") shows the kicked tab "You were removed" and the rejoin is refused for 10 min; a bot that ignores the kick stays hidden, also after the host passes on; host Leave returns to the start screen and the next player gets "You are now the host"; T opens chat, typing W does not drive, Esc closes; solo Exit returns to the start screen.
