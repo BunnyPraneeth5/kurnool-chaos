@@ -38,9 +38,9 @@ import ee
 import numpy as np
 
 # Same box and metres-per-degree as scripts/osm/common.mjs.
-BBOX = {"south": 15.770, "west": 77.975, "north": 15.870, "east": 78.065}
+BBOX = {"south": 15.748, "west": 77.975, "north": 15.870, "east": 78.065}
 # Terrain also covers the airport, which the game places about 1.5 to 3 km east of the box.
-TERRAIN_BBOX = {"south": 15.760, "west": 77.965, "north": 15.880, "east": 78.105}
+TERRAIN_BBOX = {"south": 15.738, "west": 77.965, "north": 15.880, "east": 78.105}
 TERRAIN_BASE = 200  # metres; terrain is stored as decimetres above this
 LAT0 = (BBOX["south"] + BBOX["north"]) / 2
 PHI = math.radians(LAT0)

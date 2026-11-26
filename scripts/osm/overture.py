@@ -23,7 +23,7 @@ from shapely import wkb
 
 RELEASE = "2026-11-18.0"
 # Same box as scripts/osm/common.mjs BBOX (west, south, east, north).
-BBOX = (77.975, 15.770, 78.065, 15.870)
+BBOX = (77.975, 15.748, 78.065, 15.870)
 OUT = Path(__file__).with_name("overture-buildings.json.gz")
 
 

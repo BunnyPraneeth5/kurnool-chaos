@@ -58,6 +58,7 @@ type MapData = {
   graph: {
     nodes: [number, number][]
     // road = index into roads; pts i0..i1 of that road is the edge's polyline (a at i0, b at i1)
+    // In the file edges are one flat list [a, b, road, len in decimetres, i0, i1, ...]; the loader unpacks them.
     edges: { a: number; b: number; road: number; len: number; i0: number; i1: number }[]
   }
   buildings: { p: number[]; h: number; k?: string; s?: number; w?: number }[]   // file form; the loader unpacks it to { pts, h, kind, style, gate }. kind 'filler' = generated

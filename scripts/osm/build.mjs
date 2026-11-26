@@ -1987,7 +1987,10 @@ function packBuilding(b) {
   if (b.gate !== undefined) o.w = b.gate;
   return o;
 }
-const json = JSON.stringify({ ...map, buildings: buildings.map(packBuilding) });
+// Graph edges go into the file as one flat list [a, b, road, len in decimetres, i0, i1, ...]
+// (src/map/loadMap.ts unpacks them).
+const packedEdges = edges.flatMap((e) => [e.a, e.b, e.road, Math.round(e.len * 10), e.i0, e.i1]);
+const json = JSON.stringify({ ...map, graph: { nodes, edges: packedEdges }, buildings: buildings.map(packBuilding) });
 await mkdir(dirname(MAP_OUT_PATH), { recursive: true });
 await writeFile(MAP_OUT_PATH, json);
 await writeFile(TERRAIN_OUT_PATH, terBin);

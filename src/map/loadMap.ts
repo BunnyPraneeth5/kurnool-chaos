@@ -57,7 +57,7 @@ export async function loadMap(url: string, onProgress?: (bytes: number) => void)
   if (m.version !== 2) problems.push(`unsupported version ${String(m.version)}`);
   if (!m.bounds || !m.playArea) problems.push('missing bounds');
   if (!Array.isArray(m.roads) || m.roads.length === 0) problems.push('no roads');
-  if (!m.graph || !Array.isArray(m.graph.nodes)) problems.push('no road graph');
+  if (!m.graph || !Array.isArray(m.graph.nodes) || !Array.isArray(m.graph.edges) || (m.graph.edges as unknown[]).length % 6) problems.push('no road graph');
   if (!Array.isArray(m.buildings)) problems.push('no buildings list');
   if (!Array.isArray(m.water)) problems.push('no water list');
   if (!m.spawn) problems.push('no spawn point');
@@ -73,7 +73,11 @@ export async function loadMap(url: string, onProgress?: (bytes: number) => void)
   } catch {
     throw new MapLoadError('The map file is damaged (bad building outlines). Rebuild it with npm run map:build.');
   }
-  return { ...(m as Omit<MapData, 'buildings'>), buildings };
+  // Graph edges are stored flat: [a, b, road, len in decimetres, i0, i1, ...].
+  const flat = m.graph!.edges as unknown as number[];
+  const edges: MapData['graph']['edges'] = [];
+  for (let i = 0; i < flat.length; i += 6) edges.push({ a: flat[i], b: flat[i + 1], road: flat[i + 2], len: flat[i + 3] / 10, i0: flat[i + 4], i1: flat[i + 5] });
+  return { ...(m as Omit<MapData, 'buildings'>), graph: { nodes: m.graph!.nodes, edges }, buildings };
 }
 
 /** Building outlines are stored as decimetre deltas (see docs/ARCHITECTURE.md) to keep the file small. */

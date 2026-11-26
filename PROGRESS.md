@@ -2,6 +2,12 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-26: Map extended south to Jagannath Gattu (accuracy track)
+- Bunny asked to include Jagannath Gattu. Box south edge 15.770 -> 15.748 (9.6 x 13.5 km). Re-downloaded OSM (main, wide, details), Overture (80,207 outlines) and the Earth Engine layers for the bigger box.
+- Build: 73,801 buildings (14,970 OSM, 53,750 Overture, 5,165 filler), 5,038 roads, 49 places of worship, 18 flyover ways and 10 underpasses, 4 OSM level crossings. Terrain reaches 153 m above Raj Vihar on the hill (434 m above sea level). kurnool.json 5.95 MB (1.76 MB gzipped; graph edges now packed), terrain.bin 0.94 MB. Rebuild identical. The airport link now starts from NH40 in the south-east (the real airport is on NH40).
+- Checks: typecheck and build pass; autopilot 7 routes including C-Camp to the top of Jagannath Gattu (8.2 km, climbs to 153 m): 0 stuck. Low quality street level: avg 85k, max 108k triangles. No console errors.
+- Still waiting for Bunny: phone check, Abdullah Khan Estate pin, wrong spots, KC Canal city width, photos for landmarks (4.1) and typical streets.
+
 ## 2026-11-26: Task K.5 part 3, terrain, flyovers, underpasses, satellite rivers (accuracy track)
 - Bunny reported inaccuracies (KC Canal, rivers, railway, station platforms shown as houses, bridges, flyovers, underpasses) and asked for real ground highs and lows, using Google Earth Engine data where it beats OSM.
 - Terrain: Copernicus DEM GLO-30 from Earth Engine (roofs and trees removed), 20 m grid in `public/map/terrain.bin` (0.77 MB). Raj Vihar is 281.7 m above sea level; the city slopes north to the Tungabhadra (-20 m) and rises to the south-east hills (+35 m in the box). The ground, roads, water, parks, buildings, props, railway and canal walls all sit on it; cars and the player follow it and cars tilt on slopes; chase and map cameras stay above hills; fog and near plane use height above the ground.

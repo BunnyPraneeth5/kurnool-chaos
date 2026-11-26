@@ -88,9 +88,10 @@ export async function loadEarthEngine() {
 }
 
 // Play area from docs/MAP-SPEC.md. Stretched north at task 1.3 so the NH44
-// Tungabhadra bridge (about 15.862, 78.010) is inside, then south to G. Pulla Reddy
+// Tungabhadra bridge (about 15.862, 78.010) is inside, then (2026-11-26) south to include
+// Jagannath Gattu hill and IIITDM Kurnool (summit about 15.764, 78.033); earlier south to G. Pulla Reddy
 // College (15.775, 78.057) and west to Peddapadu (15.807, 77.981) on Bunny's request.
-export const BBOX = { south: 15.770, west: 77.975, north: 15.870, east: 78.065 };
+export const BBOX = { south: 15.748, west: 77.975, north: 15.870, east: 78.065 };
 
 // Wider box used to look for landmarks, rivers and bridges just outside the play area.
 export const PAD = 0.02;
