@@ -2,6 +2,12 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-27: Phase G (G.2-G.4) and Phase K merged into main (coordinator)
+- Merged `claude/multiplayer-0fc95f` (G.2-G.4 + G.1 plan, clean) and `claude/accuracy-dab84d` (K.1-K.5, 5 conflicts). Resolved: DECISIONS/PROGRESS/style.css keep both sides; `onFoot.ts` keeps the ground follow (hills) plus `animate()` for friends; `unstuck()` uses `Game.teleport()`, which now calls `settle()` so cars land on slopes.
+- Found and fixed: a stale gitignored `scripts/osm/raw.json` (old box) shadowed `raw.json.gz`, so `map:build` gave a different map. `loadRaw()` now ignores a raw.json from another box; `map:build` on main reproduces the committed `kurnool.json` and `terrain.bin` byte for byte. Added to CLAUDE.md Gotchas.
+- Checked: typecheck and build pass; localhost, 2 tabs in one room on the new terrain (name tags, room panel, game card, player height follows ground); street level on low draws 75-90k triangles in 53-61 calls. Live updated (map 1.92 MB + terrain 0.35 MB brotli), loads with no console errors.
+- Open: Bunny's phone check on the live link (ticks K.1-K.3, K.5); K.4 needs the Abdullah Khan Estate pin; G.1 handed to the multiplayer session; G.5 only if Bunny wants it; Telugu spelling for the Jagannatha Gattu sign.
+
 ## 2026-11-26: Phase 3 merged into main (coordinator)
 - Merged `claude/multiplayer-0fc95f` (head 55fafc3, tasks 3.1 to 3.4 plus the Phase G plan) into `main` with no conflicts. Checked before merging: only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` reach the browser (allowlist in `vite.config.ts`), no keys committed. After merging: typecheck and build pass; on localhost with the real Supabase project, two tabs joined the same room from the link and both saw each other in the room panel (host badge shown).
 - `CLAUDE.md` updated to match: no `VITE_` prefix for the two Supabase values, broadcast rate lives in ARCHITECTURE.
