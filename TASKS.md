@@ -55,11 +55,11 @@ Goal: rooms gather in a lobby, the host picks a game mode, everyone plays a time
 - [ ] **G.1 Jagannatha Gattu lobby hill.** Low-poly hill (about 35 m high) just past the south map edge, flat summit plaza, ghat road up, link road to the city, English + Telugu signboard. Room spawns and the lobby spot move there. Built in game code, not the map pipeline. Waits for Phase K.
   - Accept: drive up and down without getting stuck; phone 30+ fps on low.
   - **Bunny check:** Telugu spelling of the signboard, hill position.
-- [ ] **G.2 Lobby and round flow.** Lobby board (HUD panel) with mode, settings and Ready ticks; host picks mode and round length (3/5/10 min) and starts (2+ players); host's game is the referee. Countdown 3-2-1-Go with cars held, round timer, role banner, results card, everyone back to the lobby spot after 10 s. Late joiners wait for the next round; if the host leaves mid-round the next host carries on. Free roam the whole city between rounds.
+- [x] **G.2 Lobby and round flow.** Lobby board (HUD panel) with mode, settings and Ready ticks; host picks mode and round length (3/5/10 min) and starts (2+ players); host's game is the referee. Countdown 3-2-1-Go with cars held, round timer, role banner, results card, everyone back to the lobby spot after 10 s. Late joiners wait for the next round; if the host leaves mid-round the next host carries on. Free roam the whole city between rounds.
   - Accept: 2 tabs run a full round (start, countdown, timer, results, back to lobby); a third tab joining mid-round waits and joins the next one; host leaving mid-round does not break it.
-- [ ] **G.3 Chor–Police.** 1 police (2 with 5+ players) chases the chors; a bump catches a chor, who turns police. Chors score by survival time; police by catches. Police car gets a light bar and "POLICE" text.
+- [x] **G.3 Chor–Police.** 1 police (2 with 5+ players) chases the chors; a bump catches a chor, who turns police. Chors score by survival time; police by catches. Police car gets a light bar and "POLICE" text.
   - Accept: 2 tabs + bot: catches count once, roles switch, round ends when all are caught or time runs out, scores shown.
-- [ ] **G.4 Landmark hunt.** 3 to 5 landmarks one after another; first to reach each scores; arrow and distance to the current target on screen.
+- [x] **G.4 Landmark hunt.** 3 to 5 landmarks one after another; first to reach each scores; arrow and distance to the current target on screen.
   - Accept: 2 tabs: targets advance for everyone, the first arrival gets the point, results rank by points.
 - [ ] **G.5 King of the circle.** Score by time inside a zone that moves every minute. (After G.4, if Bunny still wants it.)
 
