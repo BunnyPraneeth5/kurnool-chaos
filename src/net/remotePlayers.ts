@@ -3,6 +3,7 @@ import { OnFootPlayer } from '../player/onFoot';
 import { buildCarMesh } from '../vehicles/carModel';
 import { CAR_COLOURS, VEHICLES } from '../vehicles/params';
 import type { Vehicle } from '../vehicles/vehicle';
+import { setPoliceLook } from '../modes/visuals';
 import { SnapshotBuffer, STALE_MS, interpDelayMs, type NetState, type Pose } from './interp';
 import { cssColour, playerColour, type PlayerInfo } from './roomTypes';
 
@@ -28,6 +29,7 @@ interface View {
   bubble: HTMLSpanElement;
   bubbleUntil: number;
   blocked: boolean;
+  police: boolean;
   last: Pose | null;
 }
 
@@ -97,6 +99,22 @@ export class RemotePlayers {
     v.bubbleUntil = nowMs + BUBBLE_MS;
   }
 
+  /** Game rounds: police light bar on their car and a police name tag. */
+  setPolice(id: string, on: boolean): void {
+    const v = this.views.get(id);
+    if (!v || v.police === on) return;
+    v.police = on;
+    setPoliceLook(v.car, on);
+    v.nick.classList.toggle('police', on);
+  }
+
+  /** Where a friend is (even if blocked), for game rules; null if not seen for a while. */
+  posOf(id: string): { x: number; z: number } | null {
+    const v = this.views.get(id);
+    if (!v || !v.last || performance.now() - v.buf.lastRecv > STALE_MS) return null;
+    return { x: v.last.x, z: v.last.z };
+  }
+
   /** Where a friend is drawn right now, or null if we cannot see them. */
   poseOf(id: string): Pose | null {
     const v = this.views.get(id);
@@ -162,7 +180,7 @@ export class RemotePlayers {
     document.body.append(tag);
     const buf = this.early.get(p.id) ?? new SnapshotBuffer();
     this.early.delete(p.id);
-    return { info: p, buf, figure, car: null, carIndex: -1, tag, nick, bubble, bubbleUntil: 0, blocked: false, last: null };
+    return { info: p, buf, figure, car: null, carIndex: -1, tag, nick, bubble, bubbleUntil: 0, blocked: false, police: false, last: null };
   }
 
   /** Switch which parked car (if any) this friend is driving. */
@@ -187,6 +205,7 @@ export class RemotePlayers {
     if (index === -1 || !pose) return;
     const colour = index >= 0 ? CAR_COLOURS[index % CAR_COLOURS.length] : playerColour(v.info.slot);
     v.car = buildCarMesh(VEHICLES.car, colour);
+    setPoliceLook(v.car, v.police);
     this.scene.add(v.car);
     const mine = this.parked[index];
     if (mine && mine !== this.myCar()) mine.mesh.visible = false;

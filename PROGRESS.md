@@ -7,6 +7,13 @@ Newest entry on top. Each session ends with an entry: what got done, what is hal
 - `CLAUDE.md` updated to match: no `VITE_` prefix for the two Supabase values, broadcast rate lives in ARCHITECTURE.
 - The accuracy branch is still open; when it merges, `DECISIONS.md`, `PROGRESS.md` and `src/style.css` need both sides kept.
 
+## 2026-11-26: Tasks G.2 to G.4 (lobby and round flow, Chor–Police, Landmark hunt)
+- Done: `src/modes/` (types, round flow with the host as referee, `hunt.ts`, `chorPolice.ts`, `ui.ts` lobby card / countdown / round bar with arrow / results, `visuals.ts` target light pillar and police light bar), room event `g`, `Game.locked`, `driveCar()`, `toFoot()`, ready/role/score badges in the player list. One commit for all three tasks, because the round flow, the UI and both modes are woven together.
+- Checked with 2 then 3 tabs (render loop pumped by a timer because the pane was hidden): lobby card for host and guest, Ready ticks, "Start anyway?" when not all ready; countdown holds both players in their slot's car; Landmark hunt: 3 targets, guest's claim accepted by the host, targets advance for both, beacon on the current target, round ends after the last target, results (Chandu 2, Anna 1), back on foot at the lobby spot after 10 s. Chor–Police: roles 1 police / 1 chor, police held 10 s with "you can go in 9 s", chor starts 312 m out, light bar on the police car on both screens, catch turns the chor police (scores 30 / 35), round ends with no chors left. A third tab joining mid-round waits ("you'll join the next round"); host leaving mid-round hands over and the next host's updates are accepted.
+- Fixed while testing: a brief dropout ended Chor–Police at once (now 15 s grace); results named a player who had left "Someone".
+- Bunny check: game modes on phone + laptop on the branch preview (commit 09e73dd): "works well". G.2, G.3, G.4 ticked.
+- Next: coordinator merges `claude/multiplayer-0fc95f` into `main`. G.1 (lobby on the real Jagannatha Gattu from the accuracy track's terrain) waits for the accuracy branch to be merged; Bunny to confirm using the real hill and the Telugu spelling.
+
 ## 2026-11-26: Phase G planned
 - Bunny wants a lobby where the host picks a game mode, like a hangout before each round, on Jagannatha Gattu hill. Planned Phase G in TASKS.md (G.1 hill, G.2 lobby and round flow, G.3 Chor–Police, G.4 Landmark hunt, G.5 King of the circle).
 - Found: Jagannatha Gattu (IIITDM campus, 15.7532 N 78.0349 E) is 1.9 km past the south map edge and 8.4 km from Raj Vihar; the game world has no hills.
