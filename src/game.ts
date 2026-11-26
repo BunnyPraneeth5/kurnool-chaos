@@ -25,6 +25,8 @@ export class Game {
   car: Vehicle | null = null;
   /** Friends' cars (set by the room code each frame): solid, cannot be pushed. */
   extraCars: readonly Bumper[] = [];
+  /** Held still (game-round countdown): no driving, getting in or out, or unstuck. */
+  locked = false;
   private mapView = false;
   private readonly keys = new Keyboard();
   private readonly touch = new TouchControls();
@@ -63,9 +65,12 @@ export class Game {
       return;
     }
 
-    const inp: MoveInput = this.touch.merge(this.keys.move());
-    if (this.keys.consume('KeyE') || this.touch.consumeAction()) this.action();
-    if (this.keys.consume('KeyR') || this.touch.consumeUnstuck()) this.unstuck();
+    const raw: MoveInput = this.touch.merge(this.keys.move());
+    const inp: MoveInput = this.locked ? { thr: 0, steer: 0, hand: true } : raw;
+    const act = this.keys.consume('KeyE') || this.touch.consumeAction();
+    const unstuck = this.keys.consume('KeyR') || this.touch.consumeUnstuck();
+    if (act && !this.locked) this.action();
+    if (unstuck && !this.locked) this.unstuck();
 
     if (this.car) {
       const crash = this.car.drive(dt, inp, this.world, this.solidCars());
@@ -87,6 +92,31 @@ export class Game {
 
   toast(msg: string): void {
     this.hud.toast(msg);
+  }
+
+  /** Put the player in parked car `index` at a spot, stopped (game-round start). */
+  driveCar(index: number, x: number, z: number, heading: number): void {
+    const c = this.vehicles[index];
+    if (!c) return;
+    if (this.car && this.car !== c) this.car.park();
+    c.mesh.visible = true;
+    c.kind = 'player';
+    this.car = c;
+    this.player.figure.visible = false;
+    this.nearCar = null;
+    this.teleport(x, z, heading);
+    this.refreshLabels();
+  }
+
+  /** Put the player on foot at a spot; a car they were in stays parked where it is. */
+  toFoot(x: number, z: number, heading: number): void {
+    if (this.car) {
+      this.car.park();
+      this.car = null;
+      this.player.figure.visible = true;
+    }
+    this.teleport(x, z, heading);
+    this.refreshLabels();
   }
 
   /** Put the on-foot player somewhere else (rooms spread players out at the start). */

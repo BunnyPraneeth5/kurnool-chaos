@@ -60,6 +60,8 @@ export class RoomHud {
   private readonly banner = document.createElement('div');
   private players: PlayerInfo[] = [];
   private readonly blocked = new Set<string>();
+  /** Small note after each name: ready tick, role or score during a game round. */
+  private badges: Record<string, string> = {};
   /** Whose menu is open. */
   private menuFor: string | null = null;
   /** The rename box survives list updates, so typing is not lost. */
@@ -105,6 +107,12 @@ export class RoomHud {
     this.render();
   }
 
+  setBadges(badges: Record<string, string>): void {
+    if (JSON.stringify(badges) === JSON.stringify(this.badges)) return;
+    this.badges = badges;
+    this.render();
+  }
+
   setStatus(s: RoomStatus): void {
     this.banner.hidden = s === 'online';
   }
@@ -127,6 +135,8 @@ export class RoomHud {
       if (this.blocked.has(p.id)) text += ' (blocked)';
       name.textContent = text;
       row.append(dot, name);
+      const badge = this.badges[p.id];
+      if (badge) row.append(Object.assign(document.createElement('em'), { textContent: badge, className: 'badge' }));
       if (p.id === host) row.append(Object.assign(document.createElement('b'), { textContent: 'HOST', className: 'host' }));
       row.addEventListener('click', () => {
         this.menuFor = this.menuFor === p.id ? null : p.id;

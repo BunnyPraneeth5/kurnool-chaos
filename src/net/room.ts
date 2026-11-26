@@ -48,6 +48,8 @@ export class Room {
   onKick: (target: PlayerInfo) => void = () => {};
   /** The host removed us; the room is already closed. */
   onKicked: () => void = () => {};
+  /** Game-round message (event `g`): round state from the host, or a claim/ready from anyone. */
+  onGame: (payload: Record<string, unknown>, fromId: string) => void = () => {};
 
   private readonly client: SupabaseClient;
   /** Players the host removed: hidden and ignored even if their client stays. */
@@ -168,6 +170,11 @@ export class Room {
     this.close();
   }
 
+  /** Game-round message to everyone (see src/modes/round.ts). */
+  sendGame(payload: Record<string, unknown>): boolean {
+    return this.sendEvent('g', { ...payload, from: this.myId });
+  }
+
   private sendEvent(event: string, payload: Record<string, unknown>): boolean {
     const ch = this.channel;
     if (this.status !== 'online' || !ch || ch.state !== 'joined') return false;
@@ -210,6 +217,12 @@ export class Room {
       if (gen !== this.generation) return;
       const m = parseChat(msg.payload);
       if (m && m.id !== this.myId && !this.banned.has(m.id)) this.onChat(m);
+    });
+    ch.on('broadcast', { event: 'g' }, (msg) => {
+      if (gen !== this.generation) return;
+      const p = msg.payload as Record<string, unknown> | null;
+      if (!p || typeof p !== 'object' || typeof p.from !== 'string' || p.from === this.myId || this.banned.has(p.from)) return;
+      this.onGame(p, p.from);
     });
     ch.on('broadcast', { event: 'k' }, (msg) => {
       if (gen !== this.generation) return;

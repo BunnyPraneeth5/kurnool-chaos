@@ -9,10 +9,17 @@ import type { Room } from './room';
 import { cssColour, playerColour, type PlayerInfo } from './roomTypes';
 import { spawnPoint } from './spawn';
 import { NetSync } from './sync';
+import { RoundController } from '../modes/round';
+import { GameUi } from '../modes/ui';
+import { Beacon, flashLightBars, setPoliceLook } from '../modes/visuals';
+import { huntMode } from '../modes/hunt';
+import { chorPoliceMode } from '../modes/chorPolice';
+import type { ModeCtx, RoundState } from '../modes/types';
 
 // Everything that runs while you are in a room: spawn point, friends' models,
 // sending our state, the room panel (go to, block, kick, rename, leave), chat,
-// and notices when people join, leave, get removed or the host changes.
+// notices when people join, leave, get removed or the host changes, and game
+// rounds (lobby card, modes, timer, results).
 
 const GO_TO_BEHIND_M = 7;
 
@@ -78,11 +85,72 @@ export function startRoomSession(
     toast: (m) => game.toast(m),
   });
 
+  // Game rounds (Phase G). The lobby spot is Raj Vihar Circle until the hill (G.1) exists.
+  // A player who drops out briefly (phone lock, reconnect) still counts as present for
+  // a while, so a round does not end the moment the only police reconnects.
+  const PRESENT_GRACE_MS = 15000;
+  const lastSeen = new Map<string, number>();
+  /** Names of everyone seen in this room, so results still name players who left. */
+  const nicks = new Map<string, string>();
+  const markSeen = (): void => {
+    const now = performance.now();
+    for (const p of r.players) {
+      lastSeen.set(p.id, now);
+      nicks.set(p.id, p.nick);
+    }
+  };
+  markSeen();
+  const ctx: ModeCtx = {
+    map,
+    roads: game.roads,
+    myId: r.myId,
+    posOf: (id) => {
+      if (id !== r.myId) return remotes.posOf(id);
+      const st = game.netState();
+      return { x: st.x, z: st.z };
+    },
+    present: (id) => r.players.some((p) => p.id === id) || performance.now() - (lastSeen.get(id) ?? -Infinity) < PRESENT_GRACE_MS,
+    slotOf: (id) => byId(id)?.slot ?? 0,
+    nickOf: (id) => byId(id)?.nick ?? nicks.get(id) ?? 'Someone',
+  };
+  const rounds = new RoundController(r, game, ctx, { chor: chorPoliceMode, hunt: huntMode }, (id) => spawnPoint(map, game.roads, ctx.slotOf(id)));
+  const gameUi = new GameUi(rounds, r, camera);
+  const beacon = new Beacon(scene);
+  let lastPhase = rounds.state.phase;
+  let lookCar: THREE.Object3D | null = null;
+  const badges = (s: RoundState): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const p of r.players) {
+      if (s.phase === 'lobby') {
+        if (rounds.isReady(p.id)) out[p.id] = 'ready';
+      } else if (s.players.includes(p.id)) {
+        const role = s.roles[p.id];
+        out[p.id] = `${role ? `${role} · ` : ''}${s.scores[p.id] ?? 0}`;
+      }
+    }
+    return out;
+  };
+  rounds.onChange = () => {
+    const s = rounds.state;
+    gameUi.refresh();
+    hud.setBadges(badges(s));
+    if (s.phase !== lastPhase) {
+      if (s.phase === 'countdown') chat.notice(`${rounds.mode.name} starting!`);
+      if (s.phase === 'lobby' && lastPhase === 'results') chat.notice('Back in the lobby. The host can start the next game.');
+      lastPhase = s.phase;
+    }
+  };
+  r.onGame = (p, from) => rounds.receive(p, from);
+
   // Notices: compare each new member list with the last one.
   let known = new Map(r.players.map((p) => [p.id, p.nick] as const));
   let lastHost = r.hostId;
   const removed = new Set<string>();
   const onPlayers = (players: PlayerInfo[]): void => {
+    // Everyone in the previous list was here until just now.
+    const t = performance.now();
+    for (const id of known.keys()) lastSeen.set(id, t);
+    markSeen();
     hud.setPlayers(players);
     remotes.setPlayers(players);
     const now = new Map(players.map((p) => [p.id, p.nick] as const));
@@ -92,7 +160,11 @@ export function startRoomSession(
       else if (before !== nick) chat.notice(`${before} is now ${nick}`);
     }
     for (const [id, nick] of known) if (!now.has(id) && !removed.has(id)) chat.notice(`${nick} left`);
+    const arrived = [...now.keys()].some((id) => !known.has(id));
     known = now;
+    if (arrived) rounds.welcome();
+    gameUi.refresh();
+    hud.setBadges(badges(rounds.state));
     if (r.hostId !== lastHost) {
       lastHost = r.hostId;
       chat.notice(lastHost === r.myId ? 'You are now the host' : `${byId(lastHost)?.nick ?? 'Someone'} is now the host`);
@@ -116,11 +188,29 @@ export function startRoomSession(
   r.onKicked = exits.onKicked;
   chat.notice(r.players.length <= 1 ? `Room ${r.code} is ready: tap Share to invite friends. You are the host.` : `You joined room ${r.code}`);
 
-  if (import.meta.env.DEV) Object.assign(window, { __remotes: remotes, __sync: sync, __chat: chat, __hud: hud });
+  if (import.meta.env.DEV) Object.assign(window, { __remotes: remotes, __sync: sync, __chat: chat, __hud: hud, __rounds: rounds, __gameUi: gameUi });
 
   return {
     before: (dt) => {
-      remotes.update(dt, performance.now(), r.players.length);
+      const now = performance.now();
+      rounds.update();
+      const s = rounds.state;
+      for (const p of r.players) {
+        const police = rounds.mode.isPolice(s, p.id);
+        if (p.id !== r.myId) {
+          remotes.setPolice(p.id, police);
+          continue;
+        }
+        // Our own car: the bar follows us into another car and comes off after the round.
+        const mesh = game.car?.mesh ?? null;
+        if (lookCar && lookCar !== mesh) setPoliceLook(lookCar, false);
+        setPoliceLook(mesh, police);
+        lookCar = mesh;
+      }
+      flashLightBars(now);
+      beacon.set(gameUi.beaconTarget(), now);
+      gameUi.update();
+      remotes.update(dt, now, r.players.length);
       game.extraCars = remotes.carColliders;
     },
     after: () => sync.update(performance.now()),
