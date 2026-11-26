@@ -1,4 +1,5 @@
 import type { Building, MapData, PackedBuilding, Pt } from './types';
+import { Terrain, type TerrainMeta } from './terrain';
 
 /** Thrown with a message that is safe to show to the player. */
 export class MapLoadError extends Error {}
@@ -61,6 +62,7 @@ export async function loadMap(url: string, onProgress?: (bytes: number) => void)
   if (!Array.isArray(m.water)) problems.push('no water list');
   if (!m.spawn) problems.push('no spawn point');
   if (!Array.isArray(m.rail) || !Array.isArray(m.waterways)) problems.push('no railway or waterways');
+  if (!m.terrain || !(m.terrain.w > 1 && m.terrain.h > 1)) problems.push('no terrain');
   if (!m.props || !Array.isArray(m.props.poles) || !Array.isArray(m.props.trees) || !Array.isArray(m.props.worship)) problems.push('no street details');
   if (problems.length) {
     throw new MapLoadError(`The map file is not usable: ${problems.join(', ')}. Rebuild it with npm run map:build.`);
@@ -90,4 +92,26 @@ function unpackBuilding(b: PackedBuilding): Building {
   if (b.k) out.kind = b.k;
   if (b.w !== undefined) out.gate = b.w;
   return out;
+}
+
+/** Fetch the ground heights grid that sits next to the map file. No fallback to a flat world. */
+export async function loadTerrain(mapUrl: string, meta: TerrainMeta): Promise<Terrain> {
+  const url = mapUrl.replace(/[^/]*$/, '') + meta.file;
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch {
+    throw new MapLoadError('Could not reach the server to download the ground heights. Check your internet connection.');
+  }
+  if (!res.ok) throw new MapLoadError(`The ground heights file is missing (HTTP ${res.status} for ${url}).`);
+  let buf: ArrayBuffer;
+  try {
+    buf = await res.arrayBuffer();
+  } catch {
+    throw new MapLoadError('The ground heights download was interrupted. Check your internet connection and retry.');
+  }
+  if (buf.byteLength !== meta.w * meta.h * 2) {
+    throw new MapLoadError(`The ground heights file is damaged (${buf.byteLength} bytes, expected ${meta.w * meta.h * 2}). Rebuild it with npm run map:build.`);
+  }
+  return new Terrain(meta, new Int16Array(buf));
 }

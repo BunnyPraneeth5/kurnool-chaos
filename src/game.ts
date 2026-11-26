@@ -136,6 +136,7 @@ export class Game {
       c.a = c.va = p.heading;
       c.speed = 0;
       c.pushOut(this.world);
+      c.settle(this.world); // straight onto the ground there (hills and valleys)
       c.sync();
       this.chase.snap(c, this.world, true);
     } else {

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { MapData, Pt } from './types';
 import type { QualitySettings } from '../world/quality';
-import { FlatMeshBuilder } from './meshBuilder';
+import { FlatMeshBuilder, drapePolygon } from './meshBuilder';
+import { groundY } from './terrain';
 import { makeRng, pointInRing } from '../util/rng';
 
 // Green park patches plus low-poly trees, instanced per 500 m chunk.
@@ -57,9 +58,7 @@ export function buildParks(map: MapData, quality: QualitySettings): THREE.Group 
     if (ring.length < 3) return;
     const rng = makeRng((i * 2246822519 + 7) >>> 0);
     green.setHSL(0.27 + rng() * 0.06, 0.32, 0.3 + rng() * 0.06);
-    const contour = ring.map(([x, z]) => new THREE.Vector2(x, z));
-    const idx = ring.map(([x, z]) => mb.vertex(x, PARK_Y, z, green));
-    for (const [a, b, c] of THREE.ShapeUtils.triangulateShape(contour, [])) mb.tri(idx[a], idx[b], idx[c]);
+    drapePolygon(() => mb, ring, [], (x, z) => groundY(x, z) + PARK_Y, green, 20);
 
     // Trees at random spots inside the park.
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
@@ -108,7 +107,7 @@ export function buildParks(map: MapData, quality: QualitySettings): THREE.Group 
       const mesh = new THREE.InstancedMesh(geo, mat, list.length);
       list.forEach((t, i) => {
         q.setFromAxisAngle(up, t.r);
-        p.set(t.x, 0, t.z);
+        p.set(t.x, groundY(t.x, t.z), t.z);
         s.setScalar(t.s);
         mesh.setMatrixAt(i, m.compose(p, q, s));
         mesh.setColorAt(i, c.setHSL(0.25 + t.tint * 0.1, 0.25, 0.85 + t.tint * 0.3));

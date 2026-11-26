@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { MapData, Pt, RailRun } from './types';
 import { SolidMeshBuilder } from './meshBuilder';
 import { box, boxRing, offsetLine } from './props';
+import { groundY } from './terrain';
 
 // Railway (follow-up to Phase K): the Guntakal - Kurnool - Dhone main line and the station
 // sidings from OSM. Ballast and sleepers come from one repeating texture, the two rails are
@@ -62,30 +63,42 @@ function trackTexture(): THREE.CanvasTexture {
   return t;
 }
 
-/** Resampled run (points at most `step` m apart) with the deck height at each point. */
+/**
+ * Resampled run (points at most `step` m apart) with the height of the track bed at each point:
+ * on the ground it follows the terrain; high bridges run straight from the ground at one end to
+ * the ground at the other, raised by the bridge height in the middle.
+ */
 function profile(run: RailRun, step: number): { p: Pt; h: number }[] {
   const pts = run.pts;
-  let total = 0;
-  for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  // The build stores the track bed height at each point (the undug ground); fall back to the terrain.
+  const base = run.y && run.y.length === pts.length ? run.y : pts.map(([x, z]) => groundY(x, z));
+  const along: number[] = [0];
+  for (let i = 1; i < pts.length; i++) along.push(along[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const total = along[along.length - 1] || 1;
   const high = !!run.overWater;
+  const straight = high || !!run.bridge; // bridges run straight between their ends
   const top = Math.min(BRIDGE_H, total / 6);
-  const hAt = (s: number): number => {
-    if (!high) return 0;
-    const t = Math.min(1, Math.min(s, total - s) / RAMP);
-    return top * t * t * (3 - 2 * t);
-  };
-  const out: { p: Pt; h: number }[] = [{ p: pts[0], h: hAt(0) }];
-  let along = 0;
-  for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1];
+  const g0 = base[0];
+  const g1 = base[base.length - 1];
+  const out: { p: Pt; h: number }[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)];
     const b = pts[i];
-    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    const n = high ? Math.max(1, Math.ceil(L / step)) : 1;
-    for (let k = 1; k <= n; k++) {
-      const t = k / n;
-      out.push({ p: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t], h: hAt(along + L * t) });
+    const n = i === 0 ? 1 : Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+    for (let k = i === 0 ? 1 : 1; k <= n; k++) {
+      const t = i === 0 ? 1 : k / n;
+      const p: Pt = i === 0 ? b : [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+      const s = i === 0 ? 0 : along[i - 1] + (along[i] - along[i - 1]) * t;
+      let h: number;
+      if (straight) {
+        h = g0 + ((g1 - g0) * s) / total;
+        if (high) {
+          const r = Math.min(1, Math.min(s, total - s) / RAMP);
+          h += top * r * r * (3 - 2 * r);
+        }
+      } else h = i === 0 ? base[0] : base[i - 1] + (base[i] - base[i - 1]) * t;
+      out.push({ p, h });
     }
-    along += L;
   }
   return out;
 }
@@ -98,55 +111,9 @@ export interface LevelCrossing {
   hw: number; // road half width
 }
 
-/** Where a road crosses a ground-level track. */
+/** Level crossings: where OSM marks one (railway=level_crossing), placed on the road by the build. */
 export function levelCrossings(map: MapData): LevelCrossing[] {
-  const cell = 64;
-  const grid = new Map<string, { a: Pt; b: Pt; hw: number }[]>();
-  for (const road of map.roads) {
-    if (road.bridge) continue;
-    for (let i = 1; i < road.pts.length; i++) {
-      const a = road.pts[i - 1];
-      const b = road.pts[i];
-      for (let x = Math.floor(Math.min(a[0], b[0]) / cell); x <= Math.floor(Math.max(a[0], b[0]) / cell); x++) {
-        for (let z = Math.floor(Math.min(a[1], b[1]) / cell); z <= Math.floor(Math.max(a[1], b[1]) / cell); z++) {
-          const k = `${x},${z}`;
-          let l = grid.get(k);
-          if (!l) grid.set(k, (l = []));
-          l.push({ a, b, hw: road.width / 2 });
-        }
-      }
-    }
-  }
-  const out: LevelCrossing[] = [];
-  for (const run of map.rail) {
-    if (run.bridge) continue;
-    for (let i = 1; i < run.pts.length; i++) {
-      const p = run.pts[i - 1];
-      const q = run.pts[i];
-      const seen = new Set<{ a: Pt; b: Pt; hw: number }>();
-      for (let x = Math.floor(Math.min(p[0], q[0]) / cell); x <= Math.floor(Math.max(p[0], q[0]) / cell); x++) {
-        for (let z = Math.floor(Math.min(p[1], q[1]) / cell); z <= Math.floor(Math.max(p[1], q[1]) / cell); z++) {
-          for (const s of grid.get(`${x},${z}`) ?? []) {
-            if (seen.has(s)) continue;
-            seen.add(s);
-            // Segment intersection p-q with a-b.
-            const d1x = q[0] - p[0], d1z = q[1] - p[1];
-            const d2x = s.b[0] - s.a[0], d2z = s.b[1] - s.a[1];
-            const den = d1x * d2z - d1z * d2x;
-            if (Math.abs(den) < 1e-9) continue;
-            const t = ((s.a[0] - p[0]) * d2z - (s.a[1] - p[1]) * d2x) / den;
-            const u = ((s.a[0] - p[0]) * d1z - (s.a[1] - p[1]) * d1x) / den;
-            if (t < 0 || t > 1 || u < 0 || u > 1) continue;
-            const x0 = p[0] + d1x * t, z0 = p[1] + d1z * t;
-            if (out.some((c) => Math.hypot(c.x - x0, c.z - z0) < 12)) continue;
-            const L = Math.hypot(d2x, d2z) || 1;
-            out.push({ x: x0, z: z0, rx: d2x / L, rz: d2z / L, hw: s.hw });
-          }
-        }
-      }
-    }
-  }
-  return out;
+  return map.props.crossings.map((c) => ({ x: c.x, z: c.z, rx: Math.sin(c.a), rz: Math.cos(c.a), hw: c.hw }));
 }
 
 /** Barrier posts at a level crossing: road edges, 4.5 m either side of the track. */
@@ -233,8 +200,8 @@ export function buildRail(map: MapData): THREE.Group {
       const seg = Math.hypot(b[0] - a[0], b[1] - a[1]);
       if (seg < 0.01) continue;
       const mb = mbAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
-      const y0 = (high ? prof[i - 1].h : 0) + GROUND_Y;
-      const y1 = (high ? prof[i].h : 0) + GROUND_Y;
+      const y0 = prof[i - 1].h + GROUND_Y;
+      const y1 = prof[i].h + GROUND_Y;
       const u0 = along / SLEEPER_REPEAT, u1 = (along + seg) / SLEEPER_REPEAT;
       const dx = (b[0] - a[0]) / seg, dz = (b[1] - a[1]) / seg;
       // Ballast top with sleepers.
@@ -248,7 +215,8 @@ export function buildRail(map: MapData): THREE.Group {
       const sideC = high ? girder : concrete;
       for (const [E, s] of [[L, 1], [R, -1]] as const) {
         const nx = -dz * s, nz = dx * s;
-        const lo0 = high ? Math.max(0, y0 - 1.4) : 0, lo1 = high ? Math.max(0, y1 - 1.4) : 0;
+        const ga = groundY(E[i - 1][0], E[i - 1][1]), gb = groundY(E[i][0], E[i][1]);
+        const lo0 = high ? Math.max(ga, y0 - 1.4) : Math.min(ga, y0) - 0.1, lo1 = high ? Math.max(gb, y1 - 1.4) : Math.min(gb, y1) - 0.1;
         const hi0 = high ? y0 + 1.0 : y0, hi1 = high ? y1 + 1.0 : y1; // girder sides stand 1 m above the deck
         const p0 = mb.vertex(E[i - 1][0], lo0, E[i - 1][1], nx, 0, nz, 0.875, 0.125, sideC);
         const p1 = mb.vertex(E[i][0], lo1, E[i][1], nx, 0, nz, 0.875, 0.125, sideC);
@@ -298,11 +266,10 @@ export function buildRail(map: MapData): THREE.Group {
       if (high) {
         while (nextPier <= along + seg) {
           const t = (nextPier - along) / seg;
-          const h = prof[i - 1].h + (prof[i].h - prof[i - 1].h) * t;
-          if (h > 2) {
-            const x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t;
-            box(mb, x, z, Math.atan2(dx, dz), 1.6, DECK_W - 0.6, 0, h - 1.3, concrete);
-          }
+          const deck = prof[i - 1].h + (prof[i].h - prof[i - 1].h) * t;
+          const x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t;
+          const g = groundY(x, z);
+          if (deck - g > 2) box(mb, x, z, Math.atan2(dx, dz), 1.6, DECK_W - 0.6, g - 0.5, deck - 1.3, concrete);
           nextPier += PIER_EVERY;
         }
         // Overhead wire on the high bridge too, carried by the girders (no masts in the river).
@@ -317,10 +284,12 @@ export function buildRail(map: MapData): THREE.Group {
   // Overhead line masts with a cantilever arm over the track.
   for (const [x, z, h] of masts(map)) {
     const mb = mbAt(x, z);
-    box(mb, x, z, h, 0.3, 0.3, 0, 7.2, mastC);
+    const g0 = mb.count;
+    box(mb, x, z, h, 0.3, 0.3, -0.3, 7.2, mastC);
     // Masts stand at offsetLine(+MAST_OFF), on the (-dz, dx) side; the arm reaches back over the track.
     const nx = Math.cos(h), nz = -Math.sin(h);
     box(mb, x + nx * 1.3, z + nz * 1.3, h + Math.PI / 2, 2.8, 0.12, 6.4, 6.55, mastC);
+    mb.lift(g0, groundY(x, z));
   }
 
   // Level crossings: posts with raised red-and-white booms.
@@ -329,8 +298,10 @@ export function buildRail(map: MapData): THREE.Group {
   for (const c of levelCrossings(map)) {
     for (const [x, z] of crossingPosts(c)) {
       const mb = mbAt(x, z);
-      box(mb, x, z, 0, 0.35, 0.35, 0, 1.1, post);
+      const g0 = mb.count;
+      box(mb, x, z, 0, 0.35, 0.35, -0.3, 1.1, post);
       for (let k = 0; k < 6; k++) box(mb, x, z, 0, 0.12, 0.12, 1.1 + k * 0.7, 1.8 + k * 0.7, k % 2 ? white : red);
+      mb.lift(g0, groundY(x, z));
     }
   }
 

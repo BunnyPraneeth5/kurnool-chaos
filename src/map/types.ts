@@ -1,5 +1,6 @@
 // Shape of public/map/kurnool.json. Keep in sync with docs/ARCHITECTURE.md and scripts/osm/build.mjs.
 // Units are metres. X = east, Z = south. Polygons are open rings.
+import type { TerrainMeta } from './terrain';
 
 export type Pt = [number, number];
 
@@ -17,6 +18,7 @@ export interface Road {
   oneway: boolean;
   bridge: boolean;
   pts: Pt[];
+  lift?: number[]; // flyovers and their ramps: metres above the ground at each point
 }
 
 export interface GraphEdge {
@@ -62,6 +64,7 @@ export interface RailRun {
   overWater?: boolean;
   electric?: boolean;
   service?: string;
+  y?: number[]; // track bed height at each point (the undug ground; it bridges underpasses)
 }
 
 /** A river or canal centreline (OSM has no outline for it). Canal water is also in `water` (not aqueducts or culverts); rivers are a sandy bed with satellite water outlines on top. */
@@ -91,6 +94,7 @@ export interface Props {
   hoardings: number[]; // [x, z, headingDeg, ...], heading = the way the board faces
   worship: Worship[];
   autoStands: number[]; // [x, z, headingDeg, count, ...], autos parked along the heading
+  crossings: { x: number; z: number; a: number; hw: number }[]; // OSM level crossings: point, road heading, road half width
 }
 
 export interface MapData {
@@ -107,6 +111,7 @@ export interface MapData {
   waterways: Waterway[];
   landmarks: Landmark[];
   props: Props;
+  terrain: TerrainMeta; // ground heights grid in a separate file (public/map/terrain.bin)
   airport: {
     runway: { x: number; z: number; len: number; w: number; heading: number };
     terminal: { pts: Pt[] };

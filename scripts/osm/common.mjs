@@ -11,6 +11,7 @@ export const RAW_GZ_PATH = join(DIR, 'raw.json.gz');
 export const PREVIEW_PATH = join(DIR, 'preview.html');
 export const MAP_PREVIEW_PATH = join(DIR, 'map-preview.html');
 export const MAP_OUT_PATH = join(DIR, '..', '..', 'public', 'map', 'kurnool.json');
+export const TERRAIN_OUT_PATH = join(DIR, '..', '..', 'public', 'map', 'terrain.bin');
 
 /** The OSM snapshot: raw.json if present, otherwise the committed raw.json.gz. */
 export async function loadRaw() {
@@ -74,10 +75,13 @@ export async function loadEarthEngine() {
   if (!existsSync(EARTHENGINE_PATH)) throw new Error('No Earth Engine snapshot (scripts/osm/earthengine.json). Run scripts/osm/earthengine.py, see its header.');
   const meta = JSON.parse(await readFile(EARTHENGINE_PATH, 'utf8'));
   const out = { licence: meta.licence };
-  for (const k of ['heights', 'water']) {
+  for (const k of ['heights', 'water', 'terrain', 'trees']) {
     const g = meta[k];
-    const data = gunzipSync(await readFile(join(DIR, g.file)));
-    if (data.length !== g.width * g.height) throw new Error(`Earth Engine ${k} grid is ${data.length} bytes, expected ${g.width} x ${g.height}`);
+    if (!g) throw new Error(`Earth Engine snapshot has no ${k} layer. Run scripts/osm/earthengine.py ${k}`);
+    const buf = gunzipSync(await readFile(join(DIR, g.file)));
+    const bytes = g.dtype === 'uint16' ? 2 : 1;
+    if (buf.length !== g.width * g.height * bytes) throw new Error(`Earth Engine ${k} grid is ${buf.length} bytes, expected ${g.width} x ${g.height} x ${bytes}`);
+    const data = bytes === 2 ? new Uint16Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length)) : buf;
     out[k] = { ...g, data };
   }
   return out;

@@ -6,7 +6,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { BBOX, CENTER, project, unproject, loadEarthEngine, DRIVABLE, loadRaw, loadOverture, loadDetails, loadCorrections, MAP_OUT_PATH, MAP_PREVIEW_PATH } from './common.mjs';
+import { BBOX, CENTER, project, unproject, loadEarthEngine, DRIVABLE, loadRaw, loadOverture, loadDetails, loadCorrections, MAP_OUT_PATH, TERRAIN_OUT_PATH, MAP_PREVIEW_PATH } from './common.mjs';
 import {
   wayLines, polygons, centerOf, allNames, uid, polyLen, ringArea, ringCentroid, pointInRing,
   segDist, segSegDist, selfIntersects, simplify, clipRingToRect, makeRng, hash32,
@@ -137,6 +137,7 @@ for (const w of roadWays) {
   }
   if (t.oneway === 'no') oneway = false;
   const bridge = !!t.bridge && t.bridge !== 'no';
+  const tunnel = t.tunnel === 'yes';
   let cur = null;
   const flush = () => {
     if (cur && cur.ids.length > 1) runs.push(cur);
@@ -149,7 +150,7 @@ for (const w of roadWays) {
       flush();
       continue;
     }
-    if (!cur) cur = { id: w.id, kind: t.highway, oneway, bridge, name: t.name || '', ids: [], xz: [] };
+    if (!cur) cur = { id: w.id, kind: t.highway, oneway, bridge, tunnel, name: t.name || '', ids: [], xz: [] };
     cur.ids.push(ids[i]);
     cur.xz.push(xz);
   }
@@ -180,6 +181,7 @@ const nodeOf = (id, xz) => {
 const roads = [];
 const edges = [];
 const roadNames = []; // build-time only (Park Road lookup, airport link log)
+const roadTunnel = []; // build-time only: OSM tunnel=yes (underpasses)
 for (const r of runs) {
   const roadIdx = roads.length;
   const out = [];
@@ -198,8 +200,105 @@ for (const r of runs) {
     start = i;
   }
   roads.push({ id: r.id, kind: r.kind, width: ROAD_WIDTH[r.kind], oneway: r.oneway, bridge: r.bridge, pts: out });
+  roadTunnel.push(r.tunnel);
   roadNames.push(r.name);
 }
+
+/* ---------- Flyovers and underpasses (task K.5) ---------- */
+// OSM bridges that cross another road or the railway are flyovers: raised FLYOVER_H, with ramps
+// down the connecting road ways at RAMP_GRADE. OSM tunnels (roads under the railway) are dug
+// UNDERPASS_D into the terrain the same way. Positive lifts go into the map (road.lift, metres
+// per point); dips are cut into the terrain grid (see TERRAIN).
+const FLYOVER_H = 6.5;
+const UNDERPASS_D = 5.5;
+const RAMP_GRADE = 0.06;
+const railRawLines = main.filter((el) => el.type === 'way' && el.tags?.railway === 'rail').map((el) => wayLines(el)[0].map(P));
+function crossesLines(pts, lines) {
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i - 1], q = pts[i];
+    for (const l of lines) {
+      for (let k = 1; k < l.length; k++) {
+        const a = l[k - 1], b = l[k];
+        const d1x = q[0] - p[0], d1z = q[1] - p[1], d2x = b[0] - a[0], d2z = b[1] - a[1];
+        const den = d1x * d2z - d1z * d2x;
+        if (Math.abs(den) < 1e-9) continue;
+        const t = ((a[0] - p[0]) * d2z - (a[1] - p[1]) * d2x) / den;
+        const u = ((a[0] - p[0]) * d1z - (a[1] - p[1]) * d1x) / den;
+        if (t > 0.02 && t < 0.98 && u > 0.02 && u < 0.98) return true;
+      }
+    }
+  }
+  return false;
+}
+const groundRoadLines = roads.filter((r) => !r.bridge).map((r) => r.pts);
+const lifts = roads.map(() => null); // per road: lift (+ up, - down) at each point, or null
+const gStats = { flyovers: 0, underpasses: 0, ramps: 0 };
+const setLift = (ri, k, v) => {
+  if (!lifts[ri]) lifts[ri] = new Array(roads[ri].pts.length).fill(0);
+  const cur = lifts[ri][k];
+  lifts[ri][k] = Math.abs(v) > Math.abs(cur) ? v : cur;
+};
+const samePt = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.5;
+/** Ramp from road ri's start (atStart) or end, going away from it down the best continuation. */
+function ramp(ri, atStart, H, depth) {
+  const pts = roads[ri].pts;
+  const P0 = atStart ? pts[0] : pts[pts.length - 1];
+  const P1 = atStart ? pts[1] : pts[pts.length - 2];
+  const ox = P0[0] - P1[0], oz = P0[1] - P1[1];
+  const ol = Math.hypot(ox, oz) || 1;
+  let best = null;
+  roads.forEach((r, j) => {
+    if (j === ri || r.bridge || r.pts.length < 2 || r.id === -1) return;
+    for (const fromStart of [true, false]) {
+      const a = fromStart ? r.pts[0] : r.pts[r.pts.length - 1];
+      const b = fromStart ? r.pts[1] : r.pts[r.pts.length - 2];
+      if (!samePt(a, P0)) continue;
+      const cx = b[0] - a[0], cz = b[1] - a[1];
+      const dot = (ox * cx + oz * cz) / (ol * (Math.hypot(cx, cz) || 1));
+      if (dot > 0.6 && (!best || dot > best.dot)) best = { j, fromStart, dot };
+    }
+  });
+  if (!best) return;
+  const rp = roads[best.j].pts;
+  const order = best.fromStart ? rp.map((_, k) => k) : rp.map((_, k) => rp.length - 1 - k);
+  const R = Math.abs(H) / RAMP_GRADE;
+  let sAt = 0;
+  let Lr = R;
+  // The ramp ends at the first point at or past R, so it never stops mid-segment.
+  for (let n = 1; n < order.length; n++) {
+    sAt += Math.hypot(rp[order[n]][0] - rp[order[n - 1]][0], rp[order[n]][1] - rp[order[n - 1]][1]);
+    if (sAt >= R) {
+      Lr = sAt;
+      break;
+    }
+  }
+  let s = 0;
+  for (let n = 0; n < order.length; n++) {
+    if (n) s += Math.hypot(rp[order[n]][0] - rp[order[n - 1]][0], rp[order[n]][1] - rp[order[n - 1]][1]);
+    if (s > Lr) break;
+    setLift(best.j, order[n], H * Math.max(0, 1 - s / Lr));
+  }
+  gStats.ramps++;
+  if (s < R && depth < 4) ramp(best.j, !best.fromStart, H * (1 - s / R), depth + 1);
+}
+roads.forEach((r, ri) => {
+  if (r.id === -1 || r.pts.length < 2) return;
+  let H = 0;
+  if (roadTunnel[ri]) {
+    H = -UNDERPASS_D;
+    gStats.underpasses++;
+  } else if (r.bridge && (crossesLines(r.pts, railRawLines) || crossesLines(r.pts, groundRoadLines))) {
+    H = FLYOVER_H;
+    gStats.flyovers++;
+  }
+  if (!H) return;
+  r.pts.forEach((_, k) => setLift(ri, k, H));
+  ramp(ri, true, H, 0);
+  ramp(ri, false, H, 0);
+});
+roads.forEach((r, ri) => {
+  if (lifts[ri] && lifts[ri].some((v) => v > 0.05)) r.lift = lifts[ri].map((v) => r1(Math.max(0, v)));
+});
 
 // Road segments for clearance checks.
 const segGrid = new Grid(32);
@@ -1532,7 +1631,28 @@ for (const id of STAND_AT) {
   autoStands.push(dm(x), dm(z), Math.round((Math.atan2(ux, uz) * 180) / Math.PI), 4);
 }
 
-const props = { poles: poleRuns, trees, hoardings, worship, autoStands };
+// Level crossings: only where OSM marks one (railway=level_crossing), on the road through it.
+const crossings = [];
+for (const el of detailEls) {
+  if (el.type !== 'node' || el.tags?.railway !== 'level_crossing') continue;
+  const [x, z] = P([el.lat, el.lon]);
+  if (!inPA(x, z)) continue;
+  let best = null;
+  roads.forEach((r, ri) => {
+    if (r.bridge || r.lift || (lifts[ri] && lifts[ri].some((v) => v < -0.05))) return;
+    for (let k = 1; k < r.pts.length; k++) {
+      const a = r.pts[k - 1], b = r.pts[k];
+      const d = segDist(x, z, a[0], a[1], b[0], b[1]);
+      if (d < 15 && (!best || d < best.d)) best = { d, a, b, hw: r.width / 2 };
+    }
+  });
+  if (!best) continue;
+  const L = Math.hypot(best.b[0] - best.a[0], best.b[1] - best.a[1]) || 1;
+  crossings.push({ x: r1(x), z: r1(z), a: Math.round(Math.atan2(best.b[0] - best.a[0], best.b[1] - best.a[1]) * 1000) / 1000, hw: best.hw });
+  void L;
+}
+
+const props = { poles: poleRuns, trees, hoardings, worship, autoStands, crossings };
 for (const q of clearZones) applied.push(`props cleared around ${q.c.at} (${q.r} m)${q.c.note ? ': ' + q.c.note : ''}`);
 
 // Hand corrections to buildings (K.4).
@@ -1571,6 +1691,111 @@ const bounds = {
   maxX: r1(Math.max(PA.maxX, runway.x + RUNWAY_LEN / 2 + 200)),
   maxZ: r1(Math.max(PA.maxZ, termCz + 300)),
 };
+/* ================= TERRAIN (task K.5) ================= */
+// Ground heights from the Copernicus DEM (roofs and trees taken off), on a 20 m grid over the
+// whole map plus a margin, in metres relative to Raj Vihar (the spawn). Under rivers, canals and
+// lakes the ground is lowered to the lowest point within 60 m, so water lies flat on it.
+// Written as public/map/terrain.bin: Int16 decimetres, row by row (z), little-endian.
+const TER_CELL = 20;
+const TER_MARGIN = 300;
+const tgrid = eeGrids.terrain;
+function elevAt(x, z) {
+  const [fi, fj] = gridPx(tgrid, x, z);
+  const u = Math.min(tgrid.width - 1.001, Math.max(0, fi - 0.5));
+  const v = Math.min(tgrid.height - 1.001, Math.max(0, fj - 0.5));
+  const i = Math.floor(u), j = Math.floor(v);
+  const fx = u - i, fy = v - j;
+  const c = (a, b) => tgrid.data[b * tgrid.width + a];
+  const raw = c(i, j) * (1 - fx) * (1 - fy) + c(i + 1, j) * fx * (1 - fy) + c(i, j + 1) * (1 - fx) * fy + c(i + 1, j + 1) * fx * fy;
+  return raw / 10 + tgrid.base;
+}
+const terrainRef = r1(elevAt(spawn.x, spawn.z));
+const terX0 = Math.floor((bounds.minX - TER_MARGIN) / TER_CELL) * TER_CELL;
+const terZ0 = Math.floor((bounds.minZ - TER_MARGIN) / TER_CELL) * TER_CELL;
+const terW = Math.ceil((bounds.maxX + TER_MARGIN - terX0) / TER_CELL) + 1;
+const terH = Math.ceil((bounds.maxZ + TER_MARGIN - terZ0) / TER_CELL) + 1;
+const terRaw = new Float32Array(terW * terH);
+for (let j = 0; j < terH; j++) for (let i = 0; i < terW; i++) terRaw[j * terW + i] = elevAt(terX0 + i * TER_CELL, terZ0 + j * TER_CELL) - terrainRef;
+const terOut = Float32Array.from(terRaw);
+let terFlat = 0;
+{
+  const R = 3; // vertices (60 m)
+  for (let j = 0; j < terH; j++) {
+    for (let i = 0; i < terW; i++) {
+      const x = terX0 + i * TER_CELL, z = terZ0 + j * TER_CELL;
+      if (!inPA(x, z)) continue;
+      const k = cellAt(x, z);
+      if (k < 0 || !waterOcc[k]) continue;
+      let lo = Infinity;
+      for (let dj = -R; dj <= R; dj++) for (let di = -R; di <= R; di++) {
+        const ii = i + di, jj = j + dj;
+        if (ii >= 0 && jj >= 0 && ii < terW && jj < terH) lo = Math.min(lo, terRaw[jj * terW + ii]);
+      }
+      terOut[j * terW + i] = lo;
+      terFlat++;
+    }
+  }
+}
+// Underpasses: dig each tunnel road and its ramps into the ground (full depth across the road,
+// easing out over 12 m beyond its edge).
+let terDug = 0;
+roads.forEach((r, ri) => {
+  const L = lifts[ri];
+  if (!L || !L.some((v) => v < -0.05)) return;
+  const hw = r.width / 2;
+  const reach = hw + 13;
+  for (let k = 1; k < r.pts.length; k++) {
+    const a = r.pts[k - 1], b = r.pts[k];
+    const la = Math.min(0, L[k - 1]), lb = Math.min(0, L[k]);
+    if (la === 0 && lb === 0) continue;
+    const i0 = Math.max(0, Math.floor((Math.min(a[0], b[0]) - reach - terX0) / TER_CELL));
+    const i1 = Math.min(terW - 1, Math.ceil((Math.max(a[0], b[0]) + reach - terX0) / TER_CELL));
+    const j0 = Math.max(0, Math.floor((Math.min(a[1], b[1]) - reach - terZ0) / TER_CELL));
+    const j1 = Math.min(terH - 1, Math.ceil((Math.max(a[1], b[1]) + reach - terZ0) / TER_CELL));
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const l2 = dx * dx + dz * dz || 1;
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const x = terX0 + i * TER_CELL, z = terZ0 + j * TER_CELL;
+        const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / l2));
+        const d = Math.hypot(x - (a[0] + dx * t), z - (a[1] + dz * t));
+        if (d > reach) continue;
+        const w = d <= hw + 1 ? 1 : Math.max(0, 1 - (d - hw - 1) / 12);
+        const v = terRaw[j * terW + i] + (la + (lb - la) * t) * w;
+        if (v < terOut[j * terW + i]) {
+          terOut[j * terW + i] = v;
+          terDug++;
+        }
+      }
+    }
+  }
+});
+// The railway keeps the undug ground under it (it crosses underpasses on its bridges): heights
+// every 20 m from the DEM, so tracks never sag into a cutting.
+for (const run of rail) {
+  const dense = [];
+  for (let i = 0; i < run.pts.length; i++) {
+    if (i) {
+      const a = run.pts[i - 1], b = run.pts[i];
+      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 20));
+      for (let k = 1; k < n; k++) dense.push([r1(a[0] + ((b[0] - a[0]) * k) / n), r1(a[1] + ((b[1] - a[1]) * k) / n)]);
+    }
+    dense.push(run.pts[i]);
+  }
+  run.pts = dense;
+  run.y = dense.map(([x, z]) => r1(elevAt(x, z) - terrainRef));
+}
+
+const terBin = Buffer.alloc(terW * terH * 2);
+let terMin = Infinity, terMax = -Infinity;
+for (let k = 0; k < terW * terH; k++) {
+  const v = Math.max(-32767, Math.min(32767, Math.round(terOut[k] * 10)));
+  terBin.writeInt16LE(v, k * 2);
+  terMin = Math.min(terMin, v / 10);
+  terMax = Math.max(terMax, v / 10);
+}
+const terrain = { file: 'terrain.bin', x0: terX0, z0: terZ0, cell: TER_CELL, w: terW, h: terH, ref: terrainRef };
+
 const map = {
   version: 2,
   center: { lat: CENTER.lat, lon: CENTER.lon },
@@ -1586,8 +1811,9 @@ const map = {
   landmarks,
   props,
   airport: { runway, terminal },
+  terrain,
   spawn,
-  meta: { osmBase: raw.osmBase, overtureRelease: overture.release, credit: '© OpenStreetMap contributors, Overture Maps Foundation, Google Open Buildings, Dynamic World' },
+  meta: { osmBase: raw.osmBase, overtureRelease: overture.release, credit: '© OpenStreetMap contributors, Overture Maps Foundation, Google Open Buildings, Dynamic World, Copernicus DEM' },
 };
 
 function validate(m) {
@@ -1683,6 +1909,8 @@ function packBuilding(b) {
 const json = JSON.stringify({ ...map, buildings: buildings.map(packBuilding) });
 await mkdir(dirname(MAP_OUT_PATH), { recursive: true });
 await writeFile(MAP_OUT_PATH, json);
+await writeFile(TERRAIN_OUT_PATH, terBin);
+const terSha = createHash('sha256').update(terBin).digest('hex').slice(0, 16);
 const gzBytes = gzipSync(json, { level: 9 }).length;
 const sha = createHash('sha256').update(json).digest('hex').slice(0, 16);
 
@@ -1708,6 +1936,8 @@ console.log(
 );
 console.log(`Heights (K.5): ${hStats.satellite} from Google Open Buildings 2.5D, ${hStats.osmLevels} from OSM levels, ${hStats.notSeen} not seen by the satellite (style height). Floors 1/2/3/4/5/6+: ${hFloors.join('/')}`);
 console.log(`Water widths (K.5, Dynamic World): ${eeWidths.map((e) => `${e.name} ${e.len} m: ${e.wet}/${e.stations} wet, ${e.width ?? '-'} m${e.offset != null ? ' (centre ' + e.offset + ' m off OSM)' : ''} [${e.used}]`).join('; ')}`);
+console.log(`Terrain (K.5, Copernicus DEM): public/map/terrain.bin ${terW} x ${terH} at ${TER_CELL} m, ${(terBin.length / 1e6).toFixed(2)} MB, sha256 ${terSha}. Raj Vihar = ${terrainRef} m above sea level; ground from ${terMin} to ${terMax} m relative to it; ${terFlat} points under water lowered to the water level, ${terDug} dug for underpasses`);
+console.log(`Grade separation (K.5): ${gStats.flyovers} flyover ways raised ${FLYOVER_H} m, ${gStats.underpasses} underpass ways dug ${UNDERPASS_D} m, ${gStats.ramps} ramp ways; ${crossings.length} level crossings (OSM)`);
 console.log(`Corrections (K.4, scripts/osm/corrections.json): ${applied.length ? applied.join('; ') : 'none'}`);
 console.log(
   `Rail (K.5): ${rail.length} runs, ${rail.filter((r) => r.bridge).length} bridges (${rail.filter((r) => r.overWater).length} over water, drawn high), ${rail.filter((r) => r.electric).length} electrified${railSkipped.length ? '; skipped ' + railSkipped.join(', ') : ''}. ` +

@@ -4,6 +4,7 @@ import type { QualitySettings } from '../world/quality';
 import { SolidMeshBuilder } from './meshBuilder';
 import { makeRng, pointInRing } from '../util/rng';
 import { STYLE, WALL_H, compoundWall } from './buildingStyle';
+import { groundY, lowestGround } from './terrain';
 
 // Extruded building footprints merged per 250 m chunk (MAP-SPEC: Buildings), one material.
 // Kurnool styles (task K.2): each style has its own colours and wall pattern. The wall
@@ -236,8 +237,8 @@ const bandC = new THREE.Color();
 const roofC = new THREE.Color();
 const white = new THREE.Color(0xffffff);
 
-/** Walls of a ring from y0 to y1 with the style's pattern (or plain), floors counted from the ground. */
-function walls(mb: SolidMeshBuilder, ring: Pt[], y0: number, y1: number, styleV: number | null, uOff: number, c: THREE.Color): void {
+/** Walls of a ring from y0 to y1 above the floor at `base`, with the style's pattern (or plain), floors counted from the floor. */
+function walls(mb: SolidMeshBuilder, ring: Pt[], base: number, y0: number, y1: number, styleV: number | null, uOff: number, c: THREE.Color): void {
   const n = ring.length;
   let along = 0;
   for (let k = 0; k < n; k++) {
@@ -254,10 +255,10 @@ function walls(mb: SolidMeshBuilder, ring: Pt[], y0: number, y1: number, styleV:
     const u1 = uOff + (along + len) / TEX_M;
     const v0 = styleV === null ? PLAIN_V : styleV + y0 / FLOOR_M;
     const v1 = styleV === null ? PLAIN_V : styleV + y1 / FLOOR_M;
-    const p0 = mb.vertex(a[0], y0, a[1], nx, 0, nz, u0, v0, c);
-    const q0 = mb.vertex(e[0], y0, e[1], nx, 0, nz, u1, v0, c);
-    const q1 = mb.vertex(e[0], y1, e[1], nx, 0, nz, u1, v1, c);
-    const p1 = mb.vertex(a[0], y1, a[1], nx, 0, nz, u0, v1, c);
+    const p0 = mb.vertex(a[0], base + y0, a[1], nx, 0, nz, u0, v0, c);
+    const q0 = mb.vertex(e[0], base + y0, e[1], nx, 0, nz, u1, v0, c);
+    const q1 = mb.vertex(e[0], base + y1, e[1], nx, 0, nz, u1, v1, c);
+    const p1 = mb.vertex(a[0], base + y1, a[1], nx, 0, nz, u0, v1, c);
     mb.tri(p0, q0, q1);
     mb.tri(p0, q1, p1);
     along += len;
@@ -353,10 +354,11 @@ function compound(mb: SolidMeshBuilder, lines: Pt[][], c: THREE.Color): void {
       for (const side of [1, -1]) {
         const nx = (side * dz) / len;
         const nz = (-side * dx) / len;
-        const p0 = mb.vertex(a[0], 0, a[1], nx, 0, nz, 0, PLAIN_V, c);
-        const q0 = mb.vertex(e[0], 0, e[1], nx, 0, nz, 0, PLAIN_V, c);
-        const q1 = mb.vertex(e[0], WALL_H, e[1], nx, 0, nz, 0, PLAIN_V, c);
-        const p1 = mb.vertex(a[0], WALL_H, a[1], nx, 0, nz, 0, PLAIN_V, c);
+        const ga = groundY(a[0], a[1]), ge = groundY(e[0], e[1]);
+        const p0 = mb.vertex(a[0], ga - 0.3, a[1], nx, 0, nz, 0, PLAIN_V, c);
+        const q0 = mb.vertex(e[0], ge - 0.3, e[1], nx, 0, nz, 0, PLAIN_V, c);
+        const q1 = mb.vertex(e[0], ge + WALL_H, e[1], nx, 0, nz, 0, PLAIN_V, c);
+        const p1 = mb.vertex(a[0], ga + WALL_H, a[1], nx, 0, nz, 0, PLAIN_V, c);
         mb.tri(p0, q0, q1);
         mb.tri(p0, q1, p1);
       }
@@ -375,6 +377,7 @@ function addBuilding(mb: SolidMeshBuilder, b: Building, i: number): void {
   roofC.copy(wallC).lerp(ROOF_GREY, 0.65).multiplyScalar(0.8);
   // Tiny height offset so neighbouring roofs never share a plane (no z-fighting).
   const h = b.h + (i % 7) * 0.03;
+  const base = lowestGround(ring); // the floor sits on the lowest ground; uphill walls go into the slope
   const styleV = style * STYLE_V;
   const uOff = Math.floor(rng() * BAYS) / BAYS; // start at a random bay, so neighbours differ
 
@@ -390,19 +393,19 @@ function addBuilding(mb: SolidMeshBuilder, b: Building, i: number): void {
   const sloped =
     (style === STYLE.industrial || (style === STYLE.outskirts && rng() < 0.45)) && n === 4 && Math.abs(ringArea(ring)) < 1500;
   if (sloped) {
-    walls(mb, ring, 0, h, styleV, uOff, wallC);
+    walls(mb, ring, base, 0, h, styleV, uOff, wallC);
     roofC.setHex(SHEET_ROOFS[Math.floor(rng() * SHEET_ROOFS.length)]);
-    if (gableRoof(mb, ring, h, roofC, wallC)) return;
+    if (gableRoof(mb, ring, base + h, roofC, wallC)) return;
     roofC.copy(wallC).lerp(ROOF_GREY, 0.65).multiplyScalar(0.8);
-    flatRoof(mb, ring, h, roofC);
+    flatRoof(mb, ring, base + h, roofC);
     return;
   }
 
   const body = h >= 6 ? h - PARAPET : h;
-  walls(mb, ring, 0, body, styleV, uOff, wallC);
-  if (body < h) walls(mb, ring, body, h, null, 0, bandC);
-  flatRoof(mb, ring, h, roofC);
-  if (rng() < TANK_CHANCE && Math.abs(ringArea(ring)) > 50 && pointInRing(cx, cz, ring)) waterTank(mb, cx, cz, h);
+  walls(mb, ring, base, 0, body, styleV, uOff, wallC);
+  if (body < h) walls(mb, ring, base, body, h, null, 0, bandC);
+  flatRoof(mb, ring, base + h, roofC);
+  if (rng() < TANK_CHANCE && Math.abs(ringArea(ring)) > 50 && pointInRing(cx, cz, ring)) waterTank(mb, cx, cz, base + h);
 
   const wall = compoundWall(b);
   if (wall) compound(mb, wall, bandC);

@@ -1,5 +1,6 @@
 import type { MapData, Pt } from './types';
-import { roadY } from './roads';
+import { roadY, roadProfile, flyoverPiers } from './roads';
+import { groundY } from './terrain';
 import { pointInRing } from '../util/rng';
 import { compoundWall } from './buildingStyle';
 import { propWalls } from './props';
@@ -30,7 +31,8 @@ interface Seg {
   bx: number;
   bz: number;
   hw: number;
-  y: number;
+  y: number; // surface height at a (bridge decks: ya at a, yb at b)
+  yb?: number;
 }
 
 const key = (i: number, j: number): number => (i + 2048) * 4096 + (j + 2048);
@@ -69,6 +71,8 @@ export class CollisionWorld {
   private readonly az: Float64Array;
   private readonly bx: Float64Array;
   private readonly bz: Float64Array;
+  private readonly ylo: Float64Array; // walls only block between these heights (railings up on decks)
+  private readonly yhi: Float64Array;
   private readonly cells = new Map<number, number[]>();
   private readonly stamp: Uint32Array;
   private query = 0;
@@ -83,11 +87,15 @@ export class CollisionWorld {
     const az: number[] = [];
     const bx: number[] = [];
     const bz: number[] = [];
-    const addWall = (x0: number, z0: number, x1: number, z1: number): void => {
+    const ylo: number[] = [];
+    const yhi: number[] = [];
+    const addWall = (x0: number, z0: number, x1: number, z1: number, lo = -1e9, hi = 1e9): void => {
       ax.push(x0);
       az.push(z0);
       bx.push(x1);
       bz.push(z1);
+      ylo.push(lo);
+      yhi.push(hi);
     };
 
     // Buildings.
@@ -117,7 +125,20 @@ export class CollisionWorld {
         const s: Seg = { ax: x0, az: z0, bx: x1, bz: z1, hw, y };
         const m = hw + ROAD_GAP;
         roadSegs.add(s, Math.min(x0, x1) - m, Math.min(z0, z1) - m, Math.max(x0, x1) + m, Math.max(z0, z1) + m);
-        if (road.bridge) this.decks.add(s, Math.min(x0, x1) - hw, Math.min(z0, z1) - hw, Math.max(x0, x1) + hw, Math.max(z0, z1) + hw);
+
+      }
+    }
+    // Decks: bridges run straight between their banks and flyovers stand on their ramps (see
+    // roadProfile); the ground or deck under a car is the one nearest its height (heightAt).
+    for (const road of map.roads) {
+      if (!road.bridge && !road.lift) continue;
+      const hw = road.width / 2;
+      const p = roadProfile(road);
+      for (let i = 1; i < p.pts.length; i++) {
+        const [x0, z0] = p.pts[i - 1];
+        const [x1, z1] = p.pts[i];
+        const s: Seg = { ax: x0, az: z0, bx: x1, bz: z1, hw, y: p.y[i - 1], yb: p.y[i] };
+        this.decks.add(s, Math.min(x0, x1) - hw, Math.min(z0, z1) - hw, Math.max(x0, x1) + hw, Math.max(z0, z1) + hw);
       }
     }
     const onRoad = (x: number, z: number): boolean => roadSegs.at(x, z).some((s) => segDist(x, z, s) < s.hw + ROAD_GAP);
@@ -150,9 +171,11 @@ export class CollisionWorld {
     const inWater = (x: number, z: number): boolean =>
       waterGrid.at(x, z).some((w) => pointInRing(x, z, w.pts) && !w.holes.some((h) => pointInRing(x, z, h)));
 
-    // Railings: along whole bridges, and along any other road where it is over water.
+    // Railings: along whole bridges and raised flyover ramps, and along any other road where it is
+    // over water. They only block at deck height, so roads underneath stay open.
     for (const road of map.roads) {
       const hw = road.width / 2 + RAILING;
+      const lifted = !!road.lift;
       for (let i = 1; i < road.pts.length; i++) {
         const [x0, z0] = road.pts[i - 1];
         const [x1, z1] = road.pts[i];
@@ -165,14 +188,32 @@ export class CollisionWorld {
           const sx = x0 + ((x1 - x0) * k) / n, sz = z0 + ((z1 - z0) * k) / n;
           const ex = x0 + ((x1 - x0) * (k + 1)) / n, ez = z0 + ((z1 - z0) * (k + 1)) / n;
           const mx = (sx + ex) / 2, mz = (sz + ez) / 2;
-          if (!road.bridge && !inWater(mx + nx, mz + nz) && !inWater(mx - nx, mz - nz)) continue;
-          addWall(sx + nx, sz + nz, ex + nx, ez + nz);
-          addWall(sx - nx, sz - nz, ex - nx, ez - nz);
+          const deck = this.heightAt(mx, mz, 1e9);
+          const raised = lifted && deck - groundY(mx, mz) > 1.0;
+          if (!road.bridge && !raised && !inWater(mx + nx, mz + nz) && !inWater(mx - nx, mz - nz)) continue;
+          addWall(sx + nx, sz + nz, ex + nx, ez + nz, deck - 0.8, deck + 2.5);
+          addWall(sx - nx, sz - nz, ex - nx, ez - nz, deck - 0.8, deck + 2.5);
         }
       }
     }
 
+    // Flyover piers stand from the ground to the deck.
+    for (const [x, z, h, top] of flyoverPiers(map)) {
+      const ux = Math.sin(h), uz = Math.cos(h);
+      const nx = -uz, nz = ux;
+      const g = groundY(x, z);
+      const c: Pt[] = [
+        [x - ux * 0.8 - nx * 1.2, z - uz * 0.8 - nz * 1.2],
+        [x + ux * 0.8 - nx * 1.2, z + uz * 0.8 - nz * 1.2],
+        [x + ux * 0.8 + nx * 1.2, z + uz * 0.8 + nz * 1.2],
+        [x - ux * 0.8 + nx * 1.2, z - uz * 0.8 + nz * 1.2],
+      ];
+      for (let k = 0; k < 4; k++) addWall(c[k][0], c[k][1], c[(k + 1) % 4][0], c[(k + 1) % 4][1], g - 2, top);
+    }
+
     this.ax = Float64Array.from(ax);
+    this.ylo = Float64Array.from(ylo);
+    this.yhi = Float64Array.from(yhi);
     this.az = Float64Array.from(az);
     this.bx = Float64Array.from(bx);
     this.bz = Float64Array.from(bz);
@@ -196,7 +237,7 @@ export class CollisionWorld {
    * Push a circle at (x, z) with radius r out of every wall it overlaps, and keep
    * it inside the map bounds. The returned object is reused between calls.
    */
-  collide(x: number, z: number, r: number): CollideResult {
+  collide(x: number, z: number, r: number, y?: number): CollideResult {
     let hit = false;
     const r2 = r * r;
     for (let iter = 0; iter < 3; iter++) {
@@ -211,6 +252,7 @@ export class CollisionWorld {
           for (const e of list) {
             if (this.stamp[e] === q) continue;
             this.stamp[e] = q;
+            if (y !== undefined && (y < this.ylo[e] || y > this.yhi[e])) continue;
             const ax = this.ax[e], az = this.az[e];
             const dx = this.bx[e] - ax, dz = this.bz[e] - az;
             const l2 = dx * dx + dz * dz;
@@ -247,10 +289,21 @@ export class CollisionWorld {
     return this.out;
   }
 
-  /** Surface height at a point: the deck height on bridges, otherwise the ground (0). */
-  heightAt(x: number, z: number): number {
-    let y = 0;
-    for (const s of this.decks.at(x, z)) if (segDist(x, z, s) < s.hw) y = Math.max(y, s.y);
+  /**
+   * Surface height at a point: the ground (terrain) or a deck (bridge, flyover, ramp). With
+   * `near` (the caller's current height) it is the highest surface no more than 1.5 m above it,
+   * so a car under a flyover stays under it and one on the flyover stays on it. Without it, the top one.
+   */
+  heightAt(x: number, z: number, near = 1e9): number {
+    let y = groundY(x, z);
+    for (const s of this.decks.at(x, z)) {
+      if (segDist(x, z, s) >= s.hw) continue;
+      const dx = s.bx - s.ax, dz = s.bz - s.az;
+      const l2 = dx * dx + dz * dz;
+      const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - s.ax) * dx + (z - s.az) * dz) / l2)) : 0;
+      const d = s.y + ((s.yb ?? s.y) - s.y) * t;
+      if (d > y && d <= near + 1.5) y = d;
+    }
     return y;
   }
 }

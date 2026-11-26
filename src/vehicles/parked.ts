@@ -43,6 +43,7 @@ export function spawnParkedCars(spawnX: number, spawnZ: number, roads: RoadIndex
     // Skip spots where the car would touch a wall.
     const bx = car.x, bz = car.z;
     if (car.pushOut(world) || Math.hypot(car.x - bx, car.z - bz) > 0.01) continue;
+    car.settle(world);
     car.sync();
     cars.push(car);
   }

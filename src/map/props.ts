@@ -5,6 +5,7 @@ import type { QualitySettings } from '../world/quality';
 import { SolidMeshBuilder } from './meshBuilder';
 import { roadY } from './roads';
 import { makeRng } from '../util/rng';
+import { densify, groundY, lowestGround } from './terrain';
 
 // Street details (task K.3): black-and-yellow kerbs and dividers with street lights on
 // main roads, electric poles and wires, roadside neem trees, hoardings, temples, mosques
@@ -155,7 +156,7 @@ export function dividerRuns(map: MapData): DividerRun[] {
   const grid = new PointGrid(junctions(map, 4));
   const out: DividerRun[] = [];
   for (const road of map.roads) {
-    if (!DIVIDER_ROADS.has(road.kind) || road.oneway || road.bridge || road.width < 12 || road.id === -1) continue;
+    if (!DIVIDER_ROADS.has(road.kind) || road.oneway || road.bridge || road.lift || road.width < 12 || road.id === -1) continue;
     const y = roadY(road.kind, road.bridge);
     for (const pts of clipRuns(road.pts, (x, z, along) => !grid.near(x, z) && along % DIVIDER_OPENING_EVERY > DIVIDER_OPENING)) {
       out.push({ pts, y });
@@ -506,32 +507,34 @@ export function buildProps(map: MapData, quality: QualitySettings, anisotropy: n
   const kerbMb = (x: number, z: number): SolidMeshBuilder => get(kerbs, key(x, z), () => new SolidMeshBuilder());
 
   /* Kerbs and dividers: a strip with stripes on its sides (u = metres / 2) and a top. */
-  const strip = (line: Pt[], halfW: number, y0: number, h: number, topV: number): void => {
+  const strip = (line: Pt[], halfW: number, base: (x: number, z: number) => number, h: number, topV: number): void => {
     const l = offsetLine(line, halfW);
     const r = offsetLine(line, -halfW);
+    const yl = l.map(([x, z]) => base(x, z));
+    const yr = r.map(([x, z]) => base(x, z));
     let along = 0;
+    col.setHex(0xffffff);
     for (let i = 1; i < line.length; i++) {
       const L = Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]);
       const u0 = along / 2, u1 = (along + L) / 2;
       along += L;
       const mb = kerbMb((line[i][0] + line[i - 1][0]) / 2, (line[i][1] + line[i - 1][1]) / 2);
-      const y1 = y0 + h;
-      for (const [p, q, sgn] of [[l, l, 1], [r, r, -1]] as const) {
-        const a = p[i - 1], b = q[i];
-        const dx = line[i][0] - line[i - 1][0], dz = line[i][1] - line[i - 1][1];
-        const nl = Math.hypot(dx, dz) || 1;
+      const dx = line[i][0] - line[i - 1][0], dz = line[i][1] - line[i - 1][1];
+      const nl = Math.hypot(dx, dz) || 1;
+      for (const [E, Y, sgn] of [[l, yl, 1], [r, yr, -1]] as const) {
         const nx = (-dz / nl) * sgn, nz = (dx / nl) * sgn;
-        const i0 = mb.vertex(a[0], y0, a[1], nx, 0, nz, u0, STRIPE_V, col.setHex(0xffffff));
-        const i1 = mb.vertex(b[0], y0, b[1], nx, 0, nz, u1, STRIPE_V, col);
-        const i2 = mb.vertex(b[0], y1, b[1], nx, 0, nz, u1, STRIPE_V, col);
-        const i3 = mb.vertex(a[0], y1, a[1], nx, 0, nz, u0, STRIPE_V, col);
+        const a = E[i - 1], b = E[i];
+        const i0 = mb.vertex(a[0], Y[i - 1], a[1], nx, 0, nz, u0, STRIPE_V, col);
+        const i1 = mb.vertex(b[0], Y[i], b[1], nx, 0, nz, u1, STRIPE_V, col);
+        const i2 = mb.vertex(b[0], Y[i] + h, b[1], nx, 0, nz, u1, STRIPE_V, col);
+        const i3 = mb.vertex(a[0], Y[i - 1] + h, a[1], nx, 0, nz, u0, STRIPE_V, col);
         mb.tri(i0, i1, i2);
         mb.tri(i0, i2, i3);
       }
-      const t0 = mb.vertex(l[i - 1][0], y0 + h, l[i - 1][1], 0, 1, 0, u0, topV, col);
-      const t1 = mb.vertex(l[i][0], y0 + h, l[i][1], 0, 1, 0, u1, topV, col);
-      const t2 = mb.vertex(r[i][0], y0 + h, r[i][1], 0, 1, 0, u1, topV, col);
-      const t3 = mb.vertex(r[i - 1][0], y0 + h, r[i - 1][1], 0, 1, 0, u0, topV, col);
+      const t0 = mb.vertex(l[i - 1][0], yl[i - 1] + h, l[i - 1][1], 0, 1, 0, u0, topV, col);
+      const t1 = mb.vertex(l[i][0], yl[i] + h, l[i][1], 0, 1, 0, u1, topV, col);
+      const t2 = mb.vertex(r[i][0], yr[i] + h, r[i][1], 0, 1, 0, u1, topV, col);
+      const t3 = mb.vertex(r[i - 1][0], yr[i - 1] + h, r[i - 1][1], 0, 1, 0, u0, topV, col);
       mb.tri(t0, t1, t2);
       mb.tri(t0, t2, t3);
     }
@@ -539,17 +542,17 @@ export function buildProps(map: MapData, quality: QualitySettings, anisotropy: n
 
   const kerbGrid = new PointGrid(junctions(map, 2.5));
   for (const road of map.roads) {
-    if (!KERB_ROADS.has(road.kind) || road.bridge || road.id === -1) continue;
+    if (!KERB_ROADS.has(road.kind) || road.bridge || road.lift || road.id === -1) continue;
     const hw = road.width / 2;
     const y = roadY(road.kind, road.bridge);
     for (const run of clipRuns(road.pts, (x, z) => !kerbGrid.near(x, z))) {
-      for (const side of [1, -1]) strip(offsetLine(run, side * (hw + KERB_W / 2)), KERB_W / 2, y - 0.05, KERB_H + 0.05, STRIPE_V);
+      for (const side of [1, -1]) strip(offsetLine(densify(run, 16), side * (hw + KERB_W / 2)), KERB_W / 2, (x, z) => groundY(x, z) + y - 0.05, KERB_H + 0.05, STRIPE_V);
     }
   }
   const lightC = new THREE.Color(0x8d9096);
   const lampC = new THREE.Color(0xfff1b8);
   for (const d of dividerRuns(map)) {
-    strip(d.pts, DIVIDER_W / 2, d.y - 0.05, DIVIDER_H + 0.05, GREEN_V);
+    strip(densify(d.pts, 16), DIVIDER_W / 2, (x, z) => groundY(x, z) + d.y - 0.05, DIVIDER_H + 0.05, GREEN_V);
     // Street lights on the divider, arms across the road.
     let along = 0;
     let next = LIGHT_EVERY / 2;
@@ -562,9 +565,11 @@ export function buildProps(map: MapData, quality: QualitySettings, anisotropy: n
         const x = a[0] + ux * t, z = a[1] + uz * t;
         const h = Math.atan2(ux, uz);
         const mb = propMb(x, z);
+        const g0 = mb.count;
         box(mb, x, z, h, 0.2, 0.2, d.y, d.y + 9, lightC);
         box(mb, x, z, h + Math.PI / 2, 3.6, 0.12, d.y + 8.8, d.y + 9, lightC);
         for (const s of [-1.75, 1.75]) box(mb, x - uz * s, z + ux * s, h, 0.6, 0.3, d.y + 8.6, d.y + 8.85, lampC);
+        mb.lift(g0, groundY(x, z));
         next += LIGHT_EVERY;
       }
       along += L;
@@ -580,12 +585,16 @@ export function buildProps(map: MapData, quality: QualitySettings, anisotropy: n
       const q = run[Math.min(run.length - 1, i + 1)];
       const h = Math.atan2(q[0] - p[0], q[1] - p[1]);
       const mb = propMb(x, z);
-      box(mb, x, z, h, 0.22, 0.22, 0, POLE_H, poleC);
+      const g0 = mb.count;
+      const gy = groundY(x, z);
+      box(mb, x, z, h, 0.22, 0.22, -0.3, POLE_H, poleC);
       box(mb, x, z, h + Math.PI / 2, 1.6, 0.12, WIRE_Y - 0.1, WIRE_Y + 0.05, poleC);
+      mb.lift(g0, gy);
       if (i > 0) {
         const nx = Math.cos(h) * 0.7, nz = -Math.sin(h) * 0.7; // arm ends, across the road direction
         const list = get(wires, key(x, z), () => [] as number[]);
-        for (const s of [-1, 1]) list.push(p[0] + nx * s, WIRE_Y, p[1] + nz * s, x + nx * s, WIRE_Y, z + nz * s);
+        const py = groundY(p[0], p[1]);
+        for (const s of [-1, 1]) list.push(p[0] + nx * s, py + WIRE_Y, p[1] + nz * s, x + nx * s, gy + WIRE_Y, z + nz * s);
       }
     }
   }
@@ -597,34 +606,45 @@ export function buildProps(map: MapData, quality: QualitySettings, anisotropy: n
     const x = xd / 10, z = zd / 10, a = rad(deg);
     const sx = Math.cos(a), sz = -Math.sin(a);
     const mb = propMb(x, z);
-    for (const t of [-2.2, 2.2]) box(mb, x + sx * t, z + sz * t, a, 0.3, 0.3, 0, 4.2, postC);
+    const g0 = mb.count;
+    for (const t of [-2.2, 2.2]) box(mb, x + sx * t, z + sz * t, a, 0.3, 0.3, -0.5, 4.2, postC);
     const ad = i % AUTO_STAND_AD; // every ad except the auto stand board
     const u0 = (ad % AD_COLS) / AD_COLS, u1 = u0 + 1 / AD_COLS;
     const v1 = 1 - Math.floor(ad / AD_COLS) / AD_ROWS, v0 = v1 - 1 / AD_ROWS;
     // box(): w along heading, d across. The board is 6 m along (sx, sz) and 0.3 m deep along the heading.
     box(mb, x, z, a + Math.PI / 2, 6, 0.3, 4.2, 7.2, backC, [u0, v0, u1, v1]);
+    mb.lift(g0, Math.min(groundY(x + sx * 2.2, z + sz * 2.2), groundY(x - sx * 2.2, z - sz * 2.2)));
   });
 
   /* Places of worship. */
   for (const w of map.props.worship) {
     const mb = propMb(w.x, w.z);
+    const g0 = mb.count;
     if (w.r === 'm') mosque(mb, w);
     else if (w.r === 'c') church(mb, w);
     else temple(mb, w);
+    mb.lift(g0, lowestGround(boxRing(w.x, w.z, w.a, w.w, w.d)));
   }
 
   /* Auto stands: parked autos and a sign. */
   const AUTO_TINTS = [0x2f8f4a, 0xf2c21b, 0x2f8f4a, 0x2f8f4a];
-  autoSpots(map).forEach(([x, z, a], i) => auto(propMb(x, z), x, z, a, AUTO_TINTS[i % AUTO_TINTS.length]));
+  autoSpots(map).forEach(([x, z, a], i) => {
+    const mb = propMb(x, z);
+    const g0 = mb.count;
+    auto(mb, x, z, a, AUTO_TINTS[i % AUTO_TINTS.length]);
+    mb.lift(g0, groundY(x, z) + 0.12);
+  });
   for (const [xd, zd, deg, n] of decode(map.props.autoStands, 4)) {
     const a = rad(deg);
     const x = xd / 10 + Math.sin(a) * ((n / 2) * AUTO_GAP + 1.5);
     const z = zd / 10 + Math.cos(a) * ((n / 2) * AUTO_GAP + 1.5);
     const mb = propMb(x, z);
-    box(mb, x, z, a, 0.15, 0.15, 0, 2.6, postC);
+    const g0 = mb.count;
+    box(mb, x, z, a, 0.15, 0.15, -0.3, 2.6, postC);
     const u0 = (AUTO_STAND_AD % AD_COLS) / AD_COLS, v1 = 1 - Math.floor(AUTO_STAND_AD / AD_COLS) / AD_ROWS;
     // Board 1.6 m along the kerb, facing the road (right of the heading = +n).
     box(mb, x, z, a, 1.6, 0.08, 2.2, 3.0, backC, [u0, v1 - 1 / AD_ROWS, u0 + 1 / AD_COLS, v1]);
+    mb.lift(g0, groundY(x, z));
   }
 
   /* Roadside neem trees. */
@@ -671,7 +691,7 @@ export function buildProps(map: MapData, quality: QualitySettings, anisotropy: n
     list.forEach(([x, z], i) => {
       q.setFromAxisAngle(up, rng() * Math.PI * 2);
       const s = 0.8 + rng() * 0.45;
-      mesh.setMatrixAt(i, m4.compose(pos.set(x, 0, z), q, scl.set(s, s * (0.9 + rng() * 0.25), s)));
+      mesh.setMatrixAt(i, m4.compose(pos.set(x, groundY(x, z), z), q, scl.set(s, s * (0.9 + rng() * 0.25), s)));
       mesh.setColorAt(i, tint.setHSL(0.27 + rng() * 0.05, 0.3, 0.75 + rng() * 0.35));
     });
     mesh.computeBoundingSphere();

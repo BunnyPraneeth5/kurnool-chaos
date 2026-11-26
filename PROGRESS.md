@@ -2,6 +2,15 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-26: Task K.5 part 3, terrain, flyovers, underpasses, satellite rivers (accuracy track)
+- Bunny reported inaccuracies (KC Canal, rivers, railway, station platforms shown as houses, bridges, flyovers, underpasses) and asked for real ground highs and lows, using Google Earth Engine data where it beats OSM.
+- Terrain: Copernicus DEM GLO-30 from Earth Engine (roofs and trees removed), 20 m grid in `public/map/terrain.bin` (0.77 MB). Raj Vihar is 281.7 m above sea level; the city slopes north to the Tungabhadra (-20 m) and rises to the south-east hills (+35 m in the box). The ground, roads, water, parks, buildings, props, railway and canal walls all sit on it; cars and the player follow it and cars tilt on slopes; chase and map cameras stay above hills; fog and near plane use height above the ground.
+- Rivers: water outlines traced from the Dynamic World water map (53 outlines, 7 with islands), sandy river bed where the river is dry. Ground under water lowered to the water level.
+- Flyovers and underpasses: 11 OSM bridges that cross a road or the railway are raised 6.5 m with ramps (47 ramp ways), deck slabs, parapets and piers; 10 OSM underpasses are dug 5.5 m under the railway, which stays level on its bridges. Collision is height-aware: cars drive under flyovers and stay on them. Level crossings only from OSM (3).
+- OSM details re-downloaded: now include 2 platforms, the station building and 3 level crossings (the station is barely mapped in OSM).
+- Checks: typecheck and build pass; map and terrain rebuild identical. Autopilot (real car physics, left lane): Raj Vihar - fort - station - bus stand - GGH - C-Camp, and fort - Tungabhadra bridge (through the NH44 flyover underpass that blocked before): 0 stuck. Low quality street level: avg 81k, max 111k triangles, 45-74 draw calls (was 62k / 101k). No console errors. Credit fits on phones (portrait and landscape).
+- Not done yet: station platforms (satellite platform roofs still drawn as houses), buildings touching the tracks. Next in this session.
+
 ## 2026-11-25: Task K.5 part 2, satellite heights and water widths (accuracy track)
 - Bunny registered Google Earth Engine (free noncommercial Community tier, valid to May 2028) and signed in on the laptop (the first two sign-ins failed because two sign-in listeners were waiting on the same port; the third worked). `earthengine-api` installed as a uv tool.
 - Done: `scripts/osm/earthengine.py` downloaded Google Open Buildings 2.5D heights (2023, 4 m grid, 2411 x 2767) and Dynamic World water probability (5 m grid) into committed snapshots (0.86 MB + 0.40 MB). `build.mjs` gives 58,902 buildings their satellite height (70 keep OSM levels, 7,585 not seen by the satellite keep their style height). Floors now 1: 29k, 2: 26k, 3: 8k, 4: 2.1k, 5: 0.6k, 6+: 0.5k; median 5 m, tallest 67 m.

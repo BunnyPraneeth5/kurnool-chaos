@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { loadMap, MapLoadError } from './map/loadMap';
+import { loadMap, loadTerrain, MapLoadError } from './map/loadMap';
+import { setTerrain } from './map/terrain';
 import { buildGround } from './map/ground';
 import { buildWater } from './map/water';
 import { buildRoads } from './map/roads';
@@ -54,6 +55,14 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   let map;
   try {
     map = await loadMap(mapUrl, (bytes) => showLoading(`Loading Kurnool… ${(bytes / 1e6).toFixed(1)} MB`));
+  } catch (err) {
+    const detail = err instanceof MapLoadError ? err.message : `Unexpected error: ${String(err)}`;
+    showError('Could not load the map', detail);
+    return;
+  }
+
+  try {
+    setTerrain(await loadTerrain(mapUrl, map.terrain));
   } catch (err) {
     const detail = err instanceof MapLoadError ? err.message : `Unexpected error: ${String(err)}`;
     showError('Could not load the map', detail);

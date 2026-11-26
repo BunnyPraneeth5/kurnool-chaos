@@ -35,6 +35,9 @@ kurnool-chaos/
    - Street details (task K.3): electric poles every 38 m on the left verge of town roads (wired in runs), neem trees on verges every 26 m, hoardings every 240 m on main roads, places of worship (a small building under an OSM temple/mosque/church point is replaced by the model, otherwise it goes on free ground facing the road) and auto stands at the kerb near busy landmarks. Every spot is checked against a 2 m raster of buildings, water, compound walls and earlier props, and kept off every road surface and away from junctions.
    - Corrections (task K.4): `scripts/osm/corrections.json` holds Bunny's fixes: landmark pins, buildings to remove or add, river and canal widths by name, and circles kept free of props. Each one is listed in the build report; one that matches nothing stops the build.
    - Satellite data (task K.5): `scripts/osm/earthengine.py` (Google Earth Engine, Bunny's free noncommercial project, id passed in `EE_PROJECT`, never committed) downloads Google Open Buildings 2.5D heights (2023, 4 m) and Dynamic World water probability (90th percentile June 2023 to June 2024, 5 m) into committed grids (`ee-heights.bin.gz`, `ee-water.bin.gz`, `earthengine.json`). Buildings without OSM levels take the 80th percentile height inside their outline when at least 30% of it shows a building. Canal and river widths are measured across the water map every 20 m (50% water = edge, median of the wet points); runs the satellite cannot resolve keep the default. Order of width sources: corrections, satellite, OSM width tag, default.
+   - Terrain (task K.5): Copernicus DEM GLO-30 from Earth Engine (roofs and trees removed by a 45 m morphological opening), sampled onto a 20 m grid over the map plus 300 m, heights relative to Raj Vihar, written to `public/map/terrain.bin` (Int16 decimetres, row by row). Ground under water is lowered to the lowest point within 60 m; underpasses are dug into it (full depth across the road, easing out over 12 m).
+   - Water outlines (task K.5): traced from the Dynamic World water map at 50% (`scripts/osm/contour.mjs`), kept only where they touch an OSM river or lake; islands are holes. River lines are a sandy bed (no water unless the satellite sees it); canal lines stay water strips.
+   - Flyovers and underpasses (task K.5): an OSM bridge that crosses another road or the railway is raised 6.5 m (`road.lift`), with ramps down the connecting road ways at 6%; OSM tunnels (roads under the railway) are dug 5.5 m into the terrain the same way. Level crossings only where OSM has railway=level_crossing. Rail runs carry their own heights (`rail[].y`, the undug ground every 20 m).
    - Filler: where an area has almost no OSM or Overture buildings, add parks (green patches, a few trees) and simple random buildings along road edges. Seeded, not precise.
    - Water: river polygons. River centreline as fallback if no polygon. Roads tagged `bridge=yes` cross water: water collision is removed under them.
    - Landmarks: id, name_en, name_te, position, footprint, type.
@@ -50,16 +53,16 @@ type MapData = {
   center: { lat: number; lon: number }
   bounds: { minX: number; minZ: number; maxX: number; maxZ: number }   // play area + airport
   playArea: { minX: number; minZ: number; maxX: number; maxZ: number } // the OSM box only
-  roads: { id: number; kind: string; width: number; oneway: boolean; bridge: boolean; pts: [number, number][] }[]
+  roads: { id: number; kind: string; width: number; oneway: boolean; bridge: boolean; pts: [number, number][]; lift?: number[] }[] // lift: flyover height above ground per point
   graph: {
     nodes: [number, number][]
     // road = index into roads; pts i0..i1 of that road is the edge's polyline (a at i0, b at i1)
     edges: { a: number; b: number; road: number; len: number; i0: number; i1: number }[]
   }
   buildings: { p: number[]; h: number; k?: string; s?: number; w?: number }[]   // file form; the loader unpacks it to { pts, h, kind, style, gate }. kind 'filler' = generated
-  water: { pts: [number, number][] }[]
+  water: { pts: [number, number][]; holes?: [number, number][][] }[]  // holes = islands
   parks: { pts: [number, number][] }[]
-  rail: { pts: [number, number][]; bridge?: true; overWater?: true; electric?: true; service?: string }[]
+  rail: { pts: [number, number][]; y?: number[]; bridge?: true; overWater?: true; electric?: true; service?: string }[]
   waterways: { pts: [number, number][]; w: number; kind: 'river' | 'canal'; name?: string; part?: 'aqueduct' | 'culvert' }[] // OSM centre lines
   landmarks: { id: string; nameEn: string; nameTe: string; type: string; x: number; z: number; pts?: [number, number][] }[]
   props: {                                  // street details (K.3), flat arrays in whole decimetres
@@ -68,7 +71,9 @@ type MapData = {
     hoardings: number[]                     // [x, z, headingDeg, ...], heading = the way the board faces
     worship: { x: number; z: number; a: number; w: number; d: number; r: 'h' | 'm' | 'c'; name?: string }[] // metres, a in radians
     autoStands: number[]                    // [x, z, headingDeg, count, ...]
+    crossings: { x: number; z: number; a: number; hw: number }[] // OSM level crossings
   }
+  terrain: { file: 'terrain.bin'; x0: number; z0: number; cell: number; w: number; h: number; ref: number } // ref = metres above sea level of height 0
   airport: { runway: { x: number; z: number; len: number; w: number; heading: number }; terminal: { pts: [number, number][] } }
   spawn: { x: number; z: number; heading: number }
   meta: { osmBase: string; overtureRelease: string; credit: string }
@@ -77,7 +82,7 @@ type MapData = {
 Building outlines are packed to keep the file small: `p = [x0, z0, dx1, dz1, ...]` in whole decimetres (first point absolute, then deltas), `k` = kind, `s` = style (0 plain, 1 old city, 2 colony, 3 market, 4 campus, 5 outskirts, 6 industrial; see `src/map/buildingStyle.ts`), `w` = compound wall gate side (0..3 of the box around the house aligned to its longest edge). `src/map/loadMap.ts` unpacks them into `pts` in metres.
 Conventions:
 - Units are metres, rounded to 0.1. X = east, Z = south.
-- Credit (`meta.credit` and `#credit` in index.html): "© OpenStreetMap contributors, Overture Maps Foundation, Google Open Buildings, Dynamic World". OSM and Overture are ODbL, the two Google datasets CC BY 4.0. On phones it is 9 px and fits under the controls.
+- Credit (`meta.credit` and `#credit` in index.html): "© OpenStreetMap contributors, Overture Maps Foundation, Google Open Buildings, Dynamic World, Copernicus DEM". Copernicus DEM: produced using Copernicus WorldDEM-30, © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA. OSM and Overture are ODbL, the two Google datasets CC BY 4.0. On phones it is 9 px and fits under the controls.
 - Polygons are open rings (no repeated closing point) with positive shoelace area in (x, z).
 - Heading is radians with forward = (sin h, cos h), same as the demo.
 - Roads with `oneway` run in point order. The airport link road has `id: -1`.
@@ -91,6 +96,7 @@ Conventions:
 - Street details (`src/map/props.ts`): black-and-yellow kerbs on trunk, primary and secondary roads and a green divider with street lights on two-way trunk and primary roads (gaps at junctions, U-turn openings every 300 m) come from the road shapes; poles, wires, trees, hoardings, temples, mosques, churches and auto stands come from `map.props`. Per 500 m chunk: one merged props mesh (hoarding atlas), one kerb mesh (stripe texture), one instanced neem mesh, one set of wire lines. Poles, tree trunks, hoarding posts, places of worship, autos and dividers are solid; kerbs are not.
 - Railway (`src/map/rail.ts`): ballast and sleepers from one repeating texture, two rails at broad gauge, bridges over water 6 m high on piers with girder sides, other bridges at ground level with low side rails, overhead line masts and contact wire on electrified track, raised barrier booms where a road crosses at ground level. Masts and barrier posts are solid.
 - Waterways (`src/map/waterways.ts`): KC Canal walls along both banks (gaps where roads cross), sand banks along river lines, the aqueduct over the Handri as a raised trough on piers. Culverts are not drawn.
+- Terrain (`src/map/terrain.ts`): `groundY(x, z)` (bilinear on the 20 m grid) is the ground for everything: the ground mesh (640 m chunks plus a coarse skirt), roads (a point every 16 m; bridges straight between their banks; flyover lift on top), water and parks (split only where the ground bends), buildings (floor on the lowest corner), props, rail, canal walls. The collision world's `heightAt(x, z, near)` returns the ground or the deck nearest the caller's height; walls have a height range (railings only at deck height), so cars drive under flyovers. Cars tilt with the slope. Flyovers get deck slabs, parapets and piers (never on a road below).
 - Landmarks: hand-built low-poly groups (fort tower, bridge with railings, station shed, hospital block). Signboards are CanvasTexture planes with English and Telugu text. Wait for `document.fonts.load` on Noto Sans Telugu before drawing them, otherwise the text shows as boxes.
 - Dusk sky, fog and lights reused from the demo.
 - Quality setting: low / high. Low = pixel ratio 1, shorter fog distance, fewer traffic cars, no window emissive.

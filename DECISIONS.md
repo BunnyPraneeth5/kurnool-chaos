@@ -30,6 +30,13 @@
 | 2026-11-11 | Commits use the GitHub noreply email, not Bunny's personal email | Public repo, keeps the email private |
 | 2026-11-18 | Play area S15.805 W78.003 N15.870 E78.065 (6.6 x 7.2 km), bigger than the first guess | Bunny's pick, so the NH44 Tungabhadra bridge is inside |
 | 2026-11-18 | Bus stand = main APSRTC Bus Station Kurnool (15.8240, 78.0278). The Rajvihar bus station is part of Rajvihar Centre | Two APSRTC stations in OSM; the main one fits "Kurnool Bus Stand" |
+| 2026-11-26 | Terrain from Copernicus DEM GLO-30 via Earth Engine, roofs and trees removed with a 45 m opening; separate `terrain.bin` (0.77 MB) instead of inside kurnool.json | Bunny wants the real highs and lows; a DSM has buildings in it; keeps kurnool.json under 6 MB |
+| 2026-11-26 | Heights relative to Raj Vihar (281.7 m above sea level) | Spawn at 0; small numbers in the file |
+| 2026-11-26 | Rivers from satellite water outlines (Dynamic World) where they touch an OSM river or lake; river lines become a sandy bed | Real river shapes and dry stretches; flooded fields are left out |
+| 2026-11-26 | Flyovers: OSM bridges crossing a road or the railway raised 6.5 m with 6% ramps down the connecting ways; underpasses (OSM tunnels) dug 5.5 m into the terrain; height-aware collision | Bunny reported flat bridges and underpasses; a road under a flyover was blocked by its railings |
+| 2026-11-26 | Level crossings only from OSM (3), not every geometric road/rail meeting (was 20) | Most meetings are really underpasses or bridges |
+| 2026-11-26 | Road points every 16 m (terrain grid is 20 m); street-level triangles on low now avg 81k, max 111k, 45-74 draw calls | Follows the ground without doubling triangles; still inside the 90-115k the phone ran at 60 fps in 2.3 |
+| 2026-11-26 | Satellite tree cover downloaded but not used | Dynamic World marks only 0.2% of the box as 50%+ trees; too sparse for Kurnool scattered trees |
 | 2026-11-25 | K.5: building heights from Google Open Buildings 2.5D (2023) for 58,902 buildings; OSM building:levels still win | Real heights instead of made-up ones; OSM levels are hand-entered |
 | 2026-11-25 | K.5: canal and river widths from Dynamic World at the 50% water edge; widths change a lot with the threshold (KC Canal west reach 35/29/16 m at 40/50/60%), so they are approximate | 10 m pixels are close to the canal's width; 50% is the unbiased edge of a blurred boundary |
 | 2026-11-25 | K.5: the KC Canal's city reach keeps 12 m (satellite sees water at only 11 of 201 points); Bunny can set it in corrections.json | Too narrow for 10 m pixels; no silent guess from neighbouring reaches |

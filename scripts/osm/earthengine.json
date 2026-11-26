@@ -2,24 +2,55 @@
   "heights": {
     "west": 77.975,
     "north": 15.87,
-    "dLon": 3.7337943544935724e-05,
-    "dLat": 3.614778824277379e-05,
+    "dLon": 0.000037337943544935724,
+    "dLat": 0.00003614778824277379,
     "width": 2411,
     "height": 2767,
     "file": "ee-heights.bin.gz",
     "unit": "half metres",
-    "source": "GOOGLE/Research/open-buildings-temporal/v1, 2023, building_height"
+    "source": "GOOGLE/Research/open-buildings-temporal/v1, 2023, building_height",
+    "dtype": "uint8",
+    "licence": "CC BY 4.0, Google Open Buildings 2.5D Temporal"
   },
   "water": {
     "west": 77.975,
     "north": 15.87,
-    "dLon": 4.667242943116966e-05,
-    "dLat": 4.518473530346724e-05,
+    "dLon": 0.00004667242943116966,
+    "dLat": 0.00004518473530346724,
     "width": 1929,
     "height": 2214,
     "file": "ee-water.bin.gz",
     "unit": "percent",
-    "source": "GOOGLE/DYNAMICWORLD/V1, water probability, 90th percentile 2023-06 to 2024-06"
+    "source": "GOOGLE/DYNAMICWORLD/V1, water probability, 90th percentile 2023-06 to 2024-06",
+    "dtype": "uint8",
+    "licence": "CC BY 4.0, Dynamic World"
   },
-  "licence": "CC BY 4.0 (Google Open Buildings 2.5D Temporal; Dynamic World)"
+  "licence": "CC BY 4.0, Dynamic World; CC BY 4.0, Google Open Buildings 2.5D Temporal; Copernicus DEM GLO-30, (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA",
+  "trees": {
+    "west": 77.975,
+    "north": 15.87,
+    "dLon": 0.00009334485886233931,
+    "dLat": 0.00009036947060693449,
+    "width": 965,
+    "height": 1107,
+    "file": "ee-trees.bin.gz",
+    "unit": "percent",
+    "dtype": "uint8",
+    "source": "GOOGLE/DYNAMICWORLD/V1, tree probability, median 2023-06 to 2024-06",
+    "licence": "CC BY 4.0, Dynamic World"
+  },
+  "terrain": {
+    "west": 77.965,
+    "north": 15.88,
+    "dLon": 0.00009334485886233931,
+    "dLat": 0.00009036947060693449,
+    "width": 1500,
+    "height": 1328,
+    "base": 200,
+    "file": "ee-terrain.bin.gz",
+    "unit": "decimetres above base",
+    "dtype": "uint16",
+    "source": "COPERNICUS/DEM/GLO30, 45 m opening + 30 m smoothing",
+    "licence": "Copernicus DEM GLO-30, (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA"
+  }
 }
