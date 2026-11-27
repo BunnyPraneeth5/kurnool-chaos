@@ -75,7 +75,7 @@ export class Game {
     camera: THREE.PerspectiveCamera,
     canvas: HTMLCanvasElement,
     shirt: number | undefined,
-    opts: { traffic: number; shadows: boolean },
+    opts: { traffic: number; shadows: boolean; pedestrians: number },
   ) {
     this.world = new CollisionWorld(map);
     this.roads = new RoadIndex(map);
@@ -90,7 +90,7 @@ export class Game {
     this.chase.snap(this.player, this.world);
     this.free = new FreeCamera(camera, canvas);
     this.free.enabled = false;
-    this.life = new Life(map, scene, this.world, opts.traffic, opts.shadows);
+    this.life = new Life(map, scene, this.world, opts.traffic, opts.shadows, opts.pedestrians);
     this.life.traffic.onHonk = (c) => sound.honkAt(c.x, c.z, c.type);
     this.minimap = new Minimap(map, camera);
     // Traffic stops for you when you walk in front of it.
@@ -185,6 +185,7 @@ export class Game {
       sound.beep(160, 0.6, 'sawtooth');
       this.busted();
     }
+    if (this.life.peds.scared && this.life.crime(1, me)) this.hud.toast('Mind the people!', 'bad');
     const red = this.life.ranRed;
     if (red) {
       if (red.seen && this.life.crime(1, me)) this.hud.toast('Ran a red light: the police saw you', 'bad');

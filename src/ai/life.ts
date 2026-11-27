@@ -7,6 +7,7 @@ import { RoadGraph } from './graph';
 import { Traffic, type Obstacle, type TrafficCar } from './traffic';
 import { Cops, type CopEvent } from './cops';
 import { junctionsOf, lightFor, type Junctions } from './junctions';
+import { Pedestrians } from './pedestrians';
 
 // The city's local life: traffic, cops and heat (TASKS 5.2, 5.3). Each player has their
 // own; none of it is synced (PRD: synced traffic and cops are out of scope).
@@ -22,15 +23,17 @@ export class Life {
   private crimeCd = 0;
   private readonly obstacles: Obstacle[] = [];
   readonly junctions: Junctions;
+  readonly peds: Pedestrians;
   private lastPos: { x: number; z: number } | null = null;
   /** Set for the frame in which the player ran a red light: whether a cop or traffic policeman saw it. */
   ranRed: { seen: boolean } | null = null;
 
-  constructor(map: MapData, scene: THREE.Scene, world: CollisionWorld, trafficCount: number, shadows: boolean) {
+  constructor(map: MapData, scene: THREE.Scene, world: CollisionWorld, trafficCount: number, shadows: boolean, pedCount: number) {
     this.graph = new RoadGraph(map);
     this.traffic = new Traffic(scene, this.graph, world, trafficCount, shadows);
     this.cops = new Cops(scene, this.graph, world, shadows);
     this.junctions = junctionsOf(map, this.graph);
+    this.peds = new Pedestrians(scene, this.graph, world, pedCount);
   }
 
   /** Did the player just drive past a red light's stop line? */
@@ -67,7 +70,17 @@ export class Life {
     for (const b of parked) o.push({ body: b, still: true });
     for (const b of moving) o.push({ body: b });
     for (const c of this.cops.cops) o.push({ body: c });
+    for (const p of this.peds.inRoad) o.push({ body: p });
     this.traffic.update(dt, focus, o);
+    // People jump out of the way of everything that moves.
+    const movers: { b: Bumper; speed: number }[] = [];
+    for (const c of this.traffic.cars) movers.push({ b: c, speed: c.speed });
+    for (const c of this.cops.cops) movers.push({ b: c, speed: c.speed });
+    // Friends' vehicles have no speed here: treat them as moving. Your own figure on foot does not scare anyone.
+    for (const b of moving) movers.push({ b, speed: b.id ? 8 : ((b as { speed?: number }).speed ?? 0) });
+    const player = focus.driving ? movers[movers.length - 1] ?? null : null;
+    if (player) player.speed = focus.speed;
+    this.peds.update(dt, focus, movers, player);
     if (focus.driving) this.checkRed(focus);
     else this.ranRed = null;
     flashLightBars(performance.now());

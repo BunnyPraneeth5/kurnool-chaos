@@ -190,7 +190,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     }
   }
 
-  const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined, { traffic: quality.traffic, shadows: quality.vehicleShadows });
+  const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined, { traffic: quality.traffic, shadows: quality.vehicleShadows, pedestrians: quality.pedestrians });
   menu.add(settingsPage(quality.level), 'about');
   menu.add(statsPage(), 'about');
   showPlace = (x, z) => {
