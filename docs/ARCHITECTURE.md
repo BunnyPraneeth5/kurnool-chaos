@@ -142,7 +142,7 @@ Real numbers in `src/vehicles/params.ts` (also turn rate, roll, weight, camera).
 - Traffic behaviour (H.7): honks when held up, overtakes on the right on two-way roads 9 m+ wide with 70 m clear, buses pull in every 300 m on main roads, autos at auto stands; passengers on some bikes and autos.
 - Pedestrians (H.8, `src/ai/pedestrians.ts`): instanced, 25 low / 50 high, walking the road edges along graph edges, crossing at road ends, pushed clear of vehicles; traffic stops for those in the road.
 - Cops (H.9): at 2+ stars they lead the player by up to 1.5 s and ram; at 3 stars a two-car roadblock about 160 m ahead along the player's road; bike cops in lanes 7 m wide or less.
-- Sound (H.7, `src/audio/sound.ts`): Web Audio, generated; starts on the first tap or key.
+- Sound (H.7, `src/audio/sound.ts`): Web Audio playing the CC0 recordings in `public/sounds/` (297 KB; list, sources and loop points in `src/audio/clips.ts`). Downloaded at boot, decoded on the first tap or key. An engine loop per vehicle type (playback speed follows speed), held and traffic horns (panned), siren by distance, crash, beeps. A file that fails to load is named in a box with Retry; no generated fallback.
 - Chaos points (H.10, `src/modes/chaosPoints.ts`): local; see DECISIONS for values.
 - HUD (`src/ui/minimap.ts`, `hud.ts`): minimap top right (roads, water, parks, runway and landmarks drawn once at 6 m per pixel; turns with the camera; cops, friends, game target; tap for the whole city), heat stars beside it.
 - Police vehicles say "POLICE" only. No real department logos.

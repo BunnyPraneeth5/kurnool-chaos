@@ -15,6 +15,7 @@ import { BorderMeshes } from './map/bordersMesh';
 import { createSky } from './world/sky';
 import { detectQuality } from './world/quality';
 import { Game } from './game';
+import { sound } from './audio/sound';
 import { showLoading, showError, hideStatus } from './ui/status';
 import { createFpsMeter } from './ui/fps';
 import { readNetConfig, NetConfigError, type NetConfig } from './net/config';
@@ -99,6 +100,9 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   const menu = new Menu();
   menu.add(guidePage({ map: () => mapForGuide, renderer, get showPlace() { return showPlace; } }));
   menu.add(aboutPage());
+
+  // The sound files download meanwhile; any that fail are named on screen.
+  sound.load();
 
   // Download the map while the player types a nickname.
   let lobbyOpen = true;

@@ -139,7 +139,7 @@ export class Game {
     if (boost && !still && this.car && this.boostsLeft > 0 && this.car.boostT <= 0) {
       this.boostsLeft--;
       this.car.boostT = 3;
-      sound.beep(880, 0.3, 'sawtooth');
+      sound.cue('boost');
       this.hud.toast(`BOOST! (${this.boostsLeft} left)`);
       this.refreshLabels();
     }
@@ -224,7 +224,7 @@ export class Game {
     this.chaos.heat(dt, this.life.cops.heat);
     this.hud.chaos(this.chaos.total);
     if (ev === 'busted') {
-      sound.beep(160, 0.6, 'sawtooth');
+      sound.cue('busted');
       this.chaos.busted();
       this.busted();
     }
@@ -496,7 +496,7 @@ export class Game {
 
   /** Get into a vehicle (on a bike you can be seen riding it). */
   private sit(c: Vehicle): void {
-    sound.beep(420, 0.08);
+    sound.cue('getIn');
     c.kind = 'player';
     this.car = c;
     this.player.figure.visible = false;
@@ -506,7 +506,7 @@ export class Game {
 
   /** Leave a vehicle parked where it is. */
   private leave(c: Vehicle): void {
-    sound.beep(300, 0.08);
+    sound.cue('getOut');
     setRider(c.mesh, null);
     c.park();
   }

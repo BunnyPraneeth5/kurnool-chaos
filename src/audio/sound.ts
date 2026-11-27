@@ -1,37 +1,34 @@
 import { settings, onSettings } from '../ui/settings';
-import type { VehicleType } from '../vehicles/params';
+import { showNotice } from '../ui/status';
+import { VEHICLES, type VehicleType } from '../vehicles/params';
+import { CLIP_NAMES, CUES, ENGINES, HORNS, clipInfo, fetchClip, type ClipName, type Cue } from './clips';
 
-// Basic sound (task H.7) with Web Audio, all generated (no sound files): the engine of the
-// vehicle you drive, your horn, traffic horns from where they are, cop sirens, crash thuds
-// and short beeps. Browsers only allow sound after a tap or key press, so it starts then.
+// Sound (task H.7) with Web Audio, playing the recordings in public/sounds/ (clips.ts): the
+// engine of the vehicle you drive, your horn, traffic horns from where they are, cop
+// sirens, crashes and short beeps. A file that cannot load is named on screen and stays
+// silent until Retry. Browsers only allow sound after a tap or key press, so it starts then.
 
-const ENGINE: Record<VehicleType, { base: number; perMs: number; type: OscillatorType; cut: number }> = {
-  car: { base: 46, perMs: 3.1, type: 'sawtooth', cut: 380 },
-  auto: { base: 70, perMs: 6, type: 'square', cut: 520 },
-  bike: { base: 80, perMs: 5.5, type: 'sawtooth', cut: 700 },
-  bus: { base: 32, perMs: 2.6, type: 'sawtooth', cut: 260 },
-  lorry: { base: 30, perMs: 2.6, type: 'sawtooth', cut: 240 },
-};
-const HORN: Record<VehicleType, [number, number]> = {
-  car: [392, 494],
-  auto: [660, 660],
-  bike: [880, 880],
-  bus: [220, 277],
-  lorry: [196, 247],
-};
 const VOLUME = { low: 0.35, normal: 0.7, high: 1 };
 const HEAR_M = 90;
+const SIREN_M = 220;
+/** A quick tap on the horn still sounds this long. */
+const MIN_HORN_S = 0.15;
+
+interface Voice {
+  src: AudioBufferSourceNode;
+  gain: GainNode;
+}
 
 class Sound {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
-  private engineOsc: OscillatorNode | null = null;
-  private engineFilter: BiquadFilterNode | null = null;
-  private engineGain: GainNode | null = null;
-  private engineType: VehicleType | null = null;
-  private hornNodes: { oscs: OscillatorNode[]; gain: GainNode } | null = null;
-  private sirenOsc: OscillatorNode | null = null;
-  private sirenGain: GainNode | null = null;
+  /** Downloaded files, kept until the audio context exists to decode them. */
+  private readonly files = new Map<ClipName, ArrayBuffer>();
+  private readonly buffers = new Map<ClipName, AudioBuffer>();
+  private readonly failed = new Map<ClipName, string>();
+  private engineVoice: (Voice & { type: VehicleType }) | null = null;
+  private hornVoice: (Voice & { type: VehicleType; since: number }) | null = null;
+  private sirenVoice: Voice | null = null;
   /** Listener: where the camera is and which way it looks. */
   private lx = 0;
   private lz = 0;
@@ -39,9 +36,54 @@ class Sound {
 
   constructor() {
     const start = (): void => this.start();
+    // Phones count the finger lifting (not touching down) as the tap that allows sound.
     window.addEventListener('pointerdown', start, { passive: true });
+    window.addEventListener('pointerup', start, { passive: true });
     window.addEventListener('keydown', start);
     onSettings(() => this.applyVolume());
+  }
+
+  /** Download every recording (called at boot). */
+  load(): void {
+    for (const name of CLIP_NAMES) void this.loadClip(name);
+  }
+
+  private async loadClip(name: ClipName): Promise<void> {
+    const url = `${import.meta.env.BASE_URL}sounds/${name}.mp3`;
+    try {
+      let file = this.files.get(name);
+      if (!file) {
+        file = await fetchClip(url);
+        this.files.set(name, file);
+      }
+      const ctx = this.ctx;
+      if (!ctx) return; // decoded when sound starts
+      // decodeAudioData empties what it is given, so it gets a copy.
+      const buffer = await ctx.decodeAudioData(file.slice(0)).catch(() => {
+        throw new Error(`${url} is damaged or this browser cannot play it.`);
+      });
+      this.buffers.set(name, buffer);
+    } catch (e) {
+      this.files.delete(name);
+      this.failed.set(name, e instanceof Error ? e.message : String(e));
+      this.reportFailures();
+    }
+  }
+
+  private reportFailures(): void {
+    const all = [...this.failed.values()];
+    const more = all.length > 3 ? ` And ${all.length - 3} more.` : '';
+    showNotice('Sound could not load', `${all.slice(0, 3).join(' ')}${more}`, [
+      {
+        label: 'Retry',
+        run: () => {
+          const names = [...this.failed.keys()];
+          this.failed.clear();
+          for (const name of names) void this.loadClip(name);
+        },
+      },
+      { label: 'Close', run: () => {} },
+    ]);
   }
 
   private start(): void {
@@ -50,36 +92,43 @@ class Sound {
       return;
     }
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) {
-      console.warn('Web Audio is not available: the game will be silent');
-      return;
-    }
+    if (!AC) return;
     const ctx = new AC();
     this.ctx = ctx;
     this.master = ctx.createGain();
     this.master.connect(ctx.destination);
     this.applyVolume();
-    // Engine: one oscillator through a low-pass filter.
-    this.engineOsc = ctx.createOscillator();
-    this.engineFilter = ctx.createBiquadFilter();
-    this.engineFilter.type = 'lowpass';
-    this.engineGain = ctx.createGain();
-    this.engineGain.gain.value = 0;
-    this.engineOsc.connect(this.engineFilter).connect(this.engineGain).connect(this.master);
-    this.engineOsc.start();
-    // Siren: a triangle wave swept up and down.
-    this.sirenOsc = ctx.createOscillator();
-    this.sirenOsc.type = 'triangle';
-    this.sirenGain = ctx.createGain();
-    this.sirenGain.gain.value = 0;
-    this.sirenOsc.connect(this.sirenGain).connect(this.master);
-    this.sirenOsc.start();
+    for (const name of this.files.keys()) void this.loadClip(name);
   }
 
   private applyVolume(): void {
     if (!this.master || !this.ctx) return;
     const s = settings();
     this.master.gain.setTargetAtTime(s.sound ? VOLUME[s.volume] * 0.6 : 0, this.ctx.currentTime, 0.05);
+  }
+
+  /** A source for a recording, not yet started; null until it is ready. */
+  private voice(name: ClipName, level: number, out: AudioNode | null = this.master): Voice | null {
+    const ctx = this.ctx;
+    const buffer = this.buffers.get(name);
+    if (!ctx || !out || !buffer) return null;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const loop = clipInfo(name).loop;
+    if (loop) {
+      src.loop = true;
+      [src.loopStart, src.loopEnd] = loop;
+    }
+    const gain = ctx.createGain();
+    gain.gain.value = level;
+    src.connect(gain).connect(out);
+    return { src, gain };
+  }
+
+  /** Fade a playing sound out from time `at`, then stop it. */
+  private release(v: Voice, at: number, fade: number): void {
+    v.gain.gain.setTargetAtTime(0, at, fade);
+    v.src.stop(at + fade * 5);
   }
 
   setListener(x: number, z: number, yaw: number): void {
@@ -91,45 +140,42 @@ class Sound {
   /** Your engine: the vehicle type you drive (null on foot), speed in m/s, throttle 0..1. */
   engine(type: VehicleType | null, speed: number, throttle: number): void {
     const ctx = this.ctx;
-    if (!ctx || !this.engineOsc || !this.engineGain || !this.engineFilter) return;
+    if (!ctx) return;
     const t = ctx.currentTime;
-    if (!type) {
-      this.engineGain.gain.setTargetAtTime(0, t, 0.1);
-      return;
+    if (this.engineVoice && this.engineVoice.type !== type) {
+      this.release(this.engineVoice, t, 0.08);
+      this.engineVoice = null;
     }
-    const e = ENGINE[type];
-    if (type !== this.engineType) {
-      this.engineType = type;
-      this.engineOsc.type = e.type;
-      this.engineFilter.frequency.value = e.cut;
+    if (!type) return;
+    const e = ENGINES[type];
+    // Faster than top speed (a boost) goes a little higher still.
+    const rate = e.idle + (e.top - e.idle) * Math.min(1.4, Math.abs(speed) / VEHICLES[type].top);
+    if (!this.engineVoice) {
+      const v = this.voice(e.clip, 0);
+      if (!v) return;
+      v.src.playbackRate.value = rate;
+      v.src.start(t, v.src.loopStart);
+      this.engineVoice = { ...v, type };
     }
-    this.engineOsc.frequency.setTargetAtTime(e.base + Math.abs(speed) * e.perMs, t, 0.05);
-    this.engineGain.gain.setTargetAtTime(0.05 + 0.04 * Math.abs(throttle), t, 0.08);
+    this.engineVoice.src.playbackRate.setTargetAtTime(rate, t, 0.08);
+    this.engineVoice.gain.gain.setTargetAtTime(0.14 + 0.11 * Math.abs(throttle), t, 0.08);
   }
 
   /** Your own horn, held down. */
   horn(on: boolean, type: VehicleType | null): void {
     const ctx = this.ctx;
-    if (!ctx || !this.master) return;
-    if (on && type && !this.hornNodes) {
-      const gain = ctx.createGain();
-      gain.gain.value = 0.09;
-      gain.connect(this.master);
-      const oscs = HORN[type].map((f) => {
-        const o = ctx.createOscillator();
-        o.type = 'square';
-        o.frequency.value = f;
-        o.connect(gain);
-        o.start();
-        return o;
-      });
-      this.hornNodes = { oscs, gain };
-    } else if ((!on || !type) && this.hornNodes) {
-      const h = this.hornNodes;
-      h.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.02);
-      for (const o of h.oscs) o.stop(ctx.currentTime + 0.1);
-      this.hornNodes = null;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const held = this.hornVoice;
+    if (held && (!on || held.type !== type)) {
+      this.release(held, Math.max(t, held.since + MIN_HORN_S), 0.02);
+      this.hornVoice = null;
     }
+    if (!on || !type || this.hornVoice) return;
+    const v = this.voice(HORNS[type].clip, 0.55);
+    if (!v) return;
+    v.src.start(t);
+    this.hornVoice = { ...v, type, since: t };
   }
 
   /** Stereo pan and loudness for a sound at (x, z), or null when out of earshot. */
@@ -142,7 +188,7 @@ class Sound {
     return { gain: (1 - d / HEAR_M) ** 2, pan: Math.max(-1, Math.min(1, right)) };
   }
 
-  /** A short honk from a traffic vehicle (beep-beep for autos and bikes). */
+  /** A short honk from a traffic vehicle (the auto and bike recordings are beep-beeps). */
   honkAt(x: number, z: number, type: VehicleType): void {
     const ctx = this.ctx;
     const p = this.place(x, z);
@@ -150,70 +196,49 @@ class Sound {
     const pan = ctx.createStereoPanner();
     pan.pan.value = p.pan;
     pan.connect(this.master);
-    const double = type === 'auto' || type === 'bike';
-    const t0 = ctx.currentTime;
-    for (let k = 0; k < (double ? 2 : 1); k++) {
-      const g = ctx.createGain();
-      const start = t0 + k * 0.22;
-      const len = double ? 0.15 : 0.45;
-      g.gain.setValueAtTime(0, start);
-      g.gain.linearRampToValueAtTime(0.08 * p.gain, start + 0.01);
-      g.gain.setValueAtTime(0.08 * p.gain, start + len);
-      g.gain.linearRampToValueAtTime(0, start + len + 0.03);
-      g.connect(pan);
-      for (const f of HORN[type]) {
-        const o = ctx.createOscillator();
-        o.type = 'square';
-        o.frequency.value = f;
-        o.connect(g);
-        o.start(start);
-        o.stop(start + len + 0.05);
-      }
-    }
+    const h = HORNS[type];
+    const level = 0.5 * p.gain;
+    const v = this.voice(h.clip, level, pan);
+    if (!v) return;
+    const t = ctx.currentTime;
+    v.gain.gain.setValueAtTime(level, t + h.honk);
+    v.gain.gain.linearRampToValueAtTime(0, t + h.honk + 0.05);
+    v.src.start(t);
+    v.src.stop(t + h.honk + 0.06);
   }
 
   /** Cop sirens: loudness from the nearest cop's distance (Infinity = none). */
   siren(nearestM: number): void {
     const ctx = this.ctx;
-    if (!ctx || !this.sirenOsc || !this.sirenGain) return;
+    if (!ctx) return;
     const t = ctx.currentTime;
-    const level = nearestM < 220 ? (1 - nearestM / 220) ** 1.5 : 0;
-    this.sirenGain.gain.setTargetAtTime(level * 0.06, t, 0.1);
-    if (level > 0) this.sirenOsc.frequency.setTargetAtTime(700 + 350 * Math.sin(t * 5), t, 0.02);
+    const level = nearestM < SIREN_M ? (1 - nearestM / SIREN_M) ** 1.5 : 0;
+    if (level === 0) {
+      if (this.sirenVoice) this.release(this.sirenVoice, t, 0.1);
+      this.sirenVoice = null;
+      return;
+    }
+    if (!this.sirenVoice) {
+      const v = this.voice('siren', 0);
+      if (!v) return;
+      v.src.start(t, v.src.loopStart);
+      this.sirenVoice = v;
+    }
+    this.sirenVoice.gain.gain.setTargetAtTime(level * 0.16, t, 0.1);
   }
 
-  /** A crash: a short burst of noise. */
+  /** A crash, louder the harder the hit. */
   thud(strength: number): void {
-    const ctx = this.ctx;
-    if (!ctx || !this.master) return;
-    const len = 0.25;
-    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * len), ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 3;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const f = ctx.createBiquadFilter();
-    f.type = 'lowpass';
-    f.frequency.value = 600;
-    const g = ctx.createGain();
-    g.gain.value = Math.min(0.5, 0.25 * strength + 0.1);
-    src.connect(f).connect(g).connect(this.master);
-    src.start();
+    this.voice('crash', Math.min(0.5, 0.25 * strength + 0.1))?.src.start();
   }
 
-  /** A short beep (getting in, a star, busted). */
-  beep(freq: number, dur: number, type: OscillatorType = 'triangle'): void {
-    const ctx = this.ctx;
-    if (!ctx || !this.master) return;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = type;
-    o.frequency.value = freq;
-    g.gain.value = 0.07;
-    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
-    o.connect(g).connect(this.master);
-    o.start();
-    o.stop(ctx.currentTime + dur);
+  /** A short beep (getting in or out, a star, boost, busted). */
+  cue(which: Cue): void {
+    const c = CUES[which];
+    const v = this.voice(c.clip, c.gain);
+    if (!v) return;
+    v.src.playbackRate.value = c.rate;
+    v.src.start();
   }
 }
 

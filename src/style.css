@@ -56,6 +56,41 @@ body {
   color: #1c1a3a;
 }
 
+/* A problem that does not stop the game (a sound that could not load). */
+#notice {
+  position: fixed;
+  top: calc(max(6px, env(safe-area-inset-top)) + 46px);
+  left: 50%;
+  z-index: 30;
+  box-sizing: border-box;
+  width: min(440px, calc(100% - 24px));
+  transform: translateX(-50%);
+  padding: 10px 14px;
+  border: 1px solid #e9748f;
+  border-radius: 10px;
+  background: rgba(24, 20, 48, 0.94);
+  color: #fff3e0;
+  font: 14px/1.4 system-ui, sans-serif;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+#notice p {
+  margin: 4px 0 8px;
+}
+#notice .actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+#notice button {
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #ffc247;
+  color: #1c1a3a;
+  font: 700 14px system-ui, sans-serif;
+}
+
 #fps {
   position: fixed;
   top: max(6px, env(safe-area-inset-top));
@@ -906,6 +941,13 @@ body.touch #fps {
 }
 #menu li {
   margin: 4px 0;
+}
+#menu a {
+  color: #ffc247;
+}
+#menu .sounds {
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 #menu .note,
 #menu small {
