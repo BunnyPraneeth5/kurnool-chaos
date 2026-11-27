@@ -40,6 +40,8 @@ export class Vehicle implements Bumper {
   speed = 0;
   /** Seconds of boost left (Chor–Police, task H.11): faster and quicker off the line. */
   boostT = 0;
+  /** Breakable pieces this vehicle went through since the game last collected them. */
+  broke: number[] = [];
   /** The vehicle hit hard during the last drive() call, if any. */
   bumped: Bumper | null = null;
   private roll = 0;
@@ -165,10 +167,17 @@ export class Vehicle implements Bumper {
   pushOut(world: CollisionWorld): boolean {
     const t = this.t;
     let hit = false;
+    // Kerbs stop slow vehicles; hard hits break railings, fences and barricades (Phase R).
+    const veh = { speed: Math.abs(this.speed), heavy: t.mass >= 4 };
     for (const off of t.circles) {
       const fx = Math.sin(this.a) * off;
       const fz = Math.cos(this.a) * off;
-      const r = world.collide(this.x + fx, this.z + fz, t.radius, this.y);
+      const r = world.collide(this.x + fx, this.z + fz, t.radius, this.y, veh);
+      for (const id of r.broke) {
+        if (this.broke.includes(id) || world.broken[id]) continue;
+        this.broke.push(id);
+        this.speed *= 0.85; // breaking through costs some speed
+      }
       hit = hit || r.hit;
       this.x = r.x - fx;
       this.z = r.z - fz;

@@ -96,6 +96,7 @@ export interface Props {
   autoStands: number[]; // [x, z, headingDeg, count, ...], autos parked along the heading
   crossings: { x: number; z: number; a: number; hw: number }[]; // OSM level crossings: point, road heading, road half width
   platforms: { pts: Pt[]; roof: boolean }[]; // railway platforms (roof = with a shelter)
+  bumps?: number[]; // speed breakers (R.3): [x, z, headingDeg, halfWidth, ...] in decimetres
 }
 
 export interface MapData {

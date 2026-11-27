@@ -54,6 +54,8 @@ export class Game {
   /** Ask for a seat in a friend's vehicle: the seat number, or why not (set by the room code). */
   askRide: (driver: string) => number | string = () => 'Riding along works in rooms';
   private rideLast: Pose | null = null;
+  /** Pieces we broke, to tell friends (set by the room code). */
+  onBreak: ((ids: number[]) => void) | null = null;
   /** Chaos points hook (H.10). */
   onRanRed: ((seen: boolean) => void) | null = null;
   /** Chaos points (H.10). */
@@ -152,6 +154,17 @@ export class Game {
         stats.crashes++;
         sound.thud(crash * 2);
       }
+      // Railings, fences and barricades we smashed (Phase R.1).
+      if (this.car.broke.length) {
+        const fresh = this.world.breakPieces(this.car.broke);
+        this.car.broke.length = 0;
+        if (fresh.length) {
+          sound.thud(0.6);
+          this.chase.shake(0.25);
+          this.chaos.add(fresh.length * CHAOS.smash, 'Smash');
+          this.onBreak?.(fresh);
+        }
+      }
       const hit = this.car.bumped;
       if (hit && (this.life.isCop(hit) || this.life.isTraffic(hit))) {
         if (this.life.crime(1, this.car)) this.hud.toast(this.life.isCop(hit) ? 'You hit a cop car' : 'Hit and run');
@@ -174,6 +187,7 @@ export class Game {
     const moved = Math.hypot(me.x - bx, me.z - bz);
     if (moved < 5) stats.distance[this.car ? this.car.type : 'foot'] += moved;
     if (this.car) stats.topSpeed = Math.max(stats.topSpeed, Math.abs(this.car.speed));
+    this.world.updateBreaks();
     this.updateLife(dt);
     this.updateSound(inp, still);
     this.hud.speed(!!this.car, this.car ? this.car.speed : 0);

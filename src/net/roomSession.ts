@@ -12,6 +12,7 @@ import { buildLobby, findLobby, lobbySpot, parkLobbyCars } from '../modes/lobby'
 import { NetSync } from './sync';
 import { LOBBY_CARS } from '../vehicles/parked';
 import { VEHICLES } from '../vehicles/params';
+import { FIX_MS } from '../map/collision';
 import { RoundController } from '../modes/round';
 import { GameUi } from '../modes/ui';
 import { Beacon, flashLightBars, setPoliceLook } from '../modes/visuals';
@@ -171,6 +172,12 @@ export function startRoomSession(
   };
   r.onGame = (p, from) => rounds.receive(p, from);
 
+  // Broken railings, fences and barricades are the same for everyone (Phase R.1).
+  game.onBreak = (ids) => void r.sendBreaks(ids.map((id) => [id, FIX_MS]));
+  r.onBreaks = (list) => {
+    for (const [id, left] of list) game.world.breakPieces([id], left);
+  };
+
   // Riding along (task H.4): seats, and same team only during a round.
   const rideRule = (driver: string): string | null => {
     const s = rounds.state;
@@ -233,7 +240,11 @@ export function startRoomSession(
     for (const [id, nick] of known) if (!now.has(id) && !removed.has(id)) chat.notice(`${nick} left`);
     const arrived = [...now.keys()].some((id) => !known.has(id));
     known = now;
-    if (arrived) rounds.welcome();
+    if (arrived) {
+      rounds.welcome();
+      // The host tells newcomers which pieces are still broken.
+      if (r.isHost) r.sendBreaks(game.world.openBreaks());
+    }
     gameUi.refresh();
     hud.setBadges(badges(rounds.state));
     if (r.hostId !== lastHost) {
