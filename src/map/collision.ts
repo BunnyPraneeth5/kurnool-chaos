@@ -6,6 +6,7 @@ import { compoundWall } from './buildingStyle';
 import { propWalls } from './props';
 import { railWalls } from './rail';
 import { junctionWalls } from '../ai/junctions';
+import { bordersOf, type BreakItem, type Raised } from './borders';
 
 // Collision world (ARCHITECTURE: Collision): a uniform 32 m hash grid of wall
 // segments. Players and vehicles are circles pushed out of walls.
@@ -24,7 +25,23 @@ export interface CollideResult {
   x: number;
   z: number;
   hit: boolean;
+  /** breakable pieces this circle went through (hit hard enough, Phase R.1) */
+  broke: number[];
 }
+
+/** A vehicle's speed (m/s) and weight class: kerbs stop slow vehicles, hard hits break things. */
+export interface VehicleHit {
+  speed: number;
+  heavy: boolean;
+}
+
+/** Above this a vehicle mounts kerbs (about 25 km/h). */
+export const KERB_MOUNT = 7;
+/** Hit a breakable piece faster than this and it breaks (30 km/h; buses and lorries 15 km/h). */
+export const BREAK_SPEED = 8.3;
+export const BREAK_SPEED_HEAVY = 4.2;
+/** Broken pieces are fixed after this long (shared with friends). */
+export const FIX_MS = 120000;
 
 interface Seg {
   ax: number;
@@ -74,13 +91,23 @@ export class CollisionWorld {
   private readonly bz: Float64Array;
   private readonly ylo: Float64Array; // walls only block between these heights (railings up on decks)
   private readonly yhi: Float64Array;
+  private readonly kerb: Uint8Array; // 1 = kerb-like: stops slow vehicles, mounted at speed, walked over
   private readonly cells = new Map<number, number[]>();
   private readonly stamp: Uint32Array;
   private query = 0;
   private readonly decks = new ItemGrid<Seg>(CELL);
   private readonly bounds: MapData['bounds'];
   readonly wallCount: number;
-  private readonly out: CollideResult = { x: 0, z: 0, hit: false };
+  private readonly out: CollideResult = { x: 0, z: 0, hit: false, broke: [] };
+  /** Breakable pieces (Phase R.1): state, and when each broken one is fixed (performance.now ms). */
+  readonly breakables: readonly BreakItem[];
+  readonly broken: Uint8Array;
+  private readonly fixAt: Float64Array;
+  private readonly bcells = new Map<number, number[]>();
+  /** Pieces that broke or were fixed since the last drain (for the meshes). */
+  private changed: number[] = [];
+  private readonly brokenNow = new Set<number>();
+  private readonly raised = new ItemGrid<Raised>(CELL);
 
   constructor(map: MapData) {
     this.bounds = map.bounds;
@@ -90,13 +117,15 @@ export class CollisionWorld {
     const bz: number[] = [];
     const ylo: number[] = [];
     const yhi: number[] = [];
-    const addWall = (x0: number, z0: number, x1: number, z1: number, lo = -1e9, hi = 1e9): void => {
+    const kerb: number[] = [];
+    const addWall = (x0: number, z0: number, x1: number, z1: number, lo = -1e9, hi = 1e9, isKerb = 0): void => {
       ax.push(x0);
       az.push(z0);
       bx.push(x1);
       bz.push(z1);
       ylo.push(lo);
       yhi.push(hi);
+      kerb.push(isKerb);
     };
 
     // Buildings.
@@ -114,6 +143,35 @@ export class CollisionWorld {
 
     // Solid street details (task K.3): poles, tree trunks, hoarding posts, temples, mosques, churches, autos, dividers.
     for (const line of [...propWalls(map), ...railWalls(map), ...junctionWalls(map)]) for (let i = 1; i < line.length; i++) addWall(line[i - 1][0], line[i - 1][1], line[i][0], line[i][1]);
+
+    // Roads and borders (Phase R): dividers, station walls, flyover barriers; kerbs; breakables; raised surfaces.
+    const borders = bordersOf(map);
+    for (const w of borders.walls) for (let i = 1; i < w.pts.length; i++) addWall(w.pts[i - 1][0], w.pts[i - 1][1], w.pts[i][0], w.pts[i][1], w.lo, w.hi);
+    for (const line of borders.kerbs) for (let i = 1; i < line.length; i++) addWall(line[i - 1][0], line[i - 1][1], line[i][0], line[i][1], -1e9, 1e9, 1);
+    this.breakables = borders.breakables;
+    this.broken = new Uint8Array(this.breakables.length);
+    this.fixAt = new Float64Array(this.breakables.length);
+    for (const b of this.breakables) {
+      if (!b.solid) continue;
+      const r = b.len / 2 + 1;
+      for (let i = Math.floor((b.x - r) / CELL); i <= Math.floor((b.x + r) / CELL); i++) {
+        for (let j = Math.floor((b.z - r) / CELL); j <= Math.floor((b.z + r) / CELL); j++) {
+          const k = key(i, j);
+          let l = this.bcells.get(k);
+          if (!l) this.bcells.set(k, (l = []));
+          l.push(b.id);
+        }
+      }
+    }
+    for (const r of borders.raised) {
+      if (r.ring) {
+        let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+        for (const [x, z] of r.ring) {
+          x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z);
+        }
+        this.raised.add(r, x0, z0, x1, z1);
+      } else this.raised.add(r, Math.min(r.ax, r.bx) - r.hw, Math.min(r.az, r.bz) - r.hw, Math.max(r.ax, r.bx) + r.hw, Math.max(r.az, r.bz) + r.hw);
+    }
 
     // Road segments, for carving bank gaps and placing railings.
     const roadSegs = new ItemGrid<Seg>(CELL);
@@ -215,6 +273,7 @@ export class CollisionWorld {
     this.ax = Float64Array.from(ax);
     this.ylo = Float64Array.from(ylo);
     this.yhi = Float64Array.from(yhi);
+    this.kerb = Uint8Array.from(kerb);
     this.az = Float64Array.from(az);
     this.bx = Float64Array.from(bx);
     this.bz = Float64Array.from(bz);
@@ -238,9 +297,12 @@ export class CollisionWorld {
    * Push a circle at (x, z) with radius r out of every wall it overlaps, and keep
    * it inside the map bounds. The returned object is reused between calls.
    */
-  collide(x: number, z: number, r: number, y?: number): CollideResult {
+  collide(x: number, z: number, r: number, y?: number, veh?: VehicleHit): CollideResult {
     let hit = false;
     const r2 = r * r;
+    // Kerbs only stop vehicles going slowly; people and fast vehicles go over them.
+    const kerbs = !!veh && veh.speed < KERB_MOUNT;
+    this.out.broke.length = 0;
     for (let iter = 0; iter < 3; iter++) {
       let moved = false;
       const q = ++this.query;
@@ -254,6 +316,7 @@ export class CollisionWorld {
             if (this.stamp[e] === q) continue;
             this.stamp[e] = q;
             if (y !== undefined && (y < this.ylo[e] || y > this.yhi[e])) continue;
+            if (this.kerb[e] && !kerbs) continue;
             const ax = this.ax[e], az = this.az[e];
             const dx = this.bx[e] - ax, dz = this.bz[e] - az;
             const l2 = dx * dx + dz * dz;
@@ -277,6 +340,39 @@ export class CollisionWorld {
           }
         }
       }
+      // Breakable pieces: hard hits go through (and break them), soft ones push back.
+      const fast = !!veh && veh.speed >= (veh.heavy ? BREAK_SPEED_HEAVY : BREAK_SPEED);
+      const i0b = Math.floor((x - r) / CELL), i1b = Math.floor((x + r) / CELL);
+      const j0b = Math.floor((z - r) / CELL), j1b = Math.floor((z + r) / CELL);
+      for (let i = i0b; i <= i1b; i++) {
+        for (let j = j0b; j <= j1b; j++) {
+          for (const id of this.bcells.get(key(i, j)) ?? []) {
+            if (this.broken[id]) continue;
+            const b = this.breakables[id];
+            if (y !== undefined && (y < b.y - 1 || y > b.y + 2.5)) continue;
+            const ux = Math.sin(b.a) * (b.len / 2), uz = Math.cos(b.a) * (b.len / 2);
+            const ax = b.x - ux, az = b.z - uz;
+            const dx = ux * 2, dz = uz * 2;
+            const l2 = dx * dx + dz * dz;
+            let t = l2 > 0 ? ((x - ax) * dx + (z - az) * dz) / l2 : 0;
+            t = t < 0 ? 0 : t > 1 ? 1 : t;
+            const cx = ax + t * dx, cz = az + t * dz;
+            const ox = x - cx, oz = z - cz;
+            const reach = r + (b.kind === 'cone' ? 0.3 : 0.15);
+            const d2 = ox * ox + oz * oz;
+            if (d2 >= reach * reach) continue;
+            if (fast) {
+              if (!this.out.broke.includes(id)) this.out.broke.push(id);
+              continue;
+            }
+            hit = true;
+            moved = true;
+            const d = Math.sqrt(d2) || 1;
+            x = cx + (ox / d) * reach;
+            z = cz + (oz / d) * reach;
+          }
+        }
+      }
       if (!moved) break;
     }
     const B = this.bounds;
@@ -290,6 +386,62 @@ export class CollisionWorld {
     return this.out;
   }
 
+  /** Break pieces (locally or from a friend); `leftMs` until they are fixed. True for each newly broken. */
+  breakPieces(ids: readonly number[], leftMs = FIX_MS, now = performance.now()): number[] {
+    const fresh: number[] = [];
+    for (const id of ids) {
+      if (id < 0 || id >= this.broken.length) continue;
+      const at = now + Math.max(0, Math.min(FIX_MS, leftMs));
+      if (!this.broken[id]) {
+        this.broken[id] = 1;
+        this.brokenNow.add(id);
+        fresh.push(id);
+        this.changed.push(id);
+      }
+      this.fixAt[id] = Math.max(this.fixAt[id], at);
+    }
+    return fresh;
+  }
+
+  /** Broken pieces and how long until each is fixed (for someone who joins). */
+  openBreaks(now = performance.now()): [number, number][] {
+    const out: [number, number][] = [];
+    for (const id of this.brokenNow) out.push([id, Math.max(0, Math.round(this.fixAt[id] - now))]);
+    return out;
+  }
+
+  /** Fix pieces whose time is up. */
+  updateBreaks(now = performance.now()): void {
+    for (const id of this.brokenNow) {
+      if (now >= this.fixAt[id]) {
+        this.broken[id] = 0;
+        this.brokenNow.delete(id);
+        this.changed.push(id);
+      }
+    }
+  }
+
+  /** Pieces that broke or were fixed since the last call. */
+  drainChanges(): number[] {
+    const c = this.changed;
+    this.changed = [];
+    return c;
+  }
+
+  /** Barricades and cones near a point that are standing (traffic steers round them). */
+  standingItems(x: number, z: number, r: number): BreakItem[] {
+    const out: BreakItem[] = [];
+    for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) {
+      for (let j = Math.floor((z - r) / CELL); j <= Math.floor((z + r) / CELL); j++) {
+        for (const id of this.bcells.get(key(i, j)) ?? []) {
+          const b = this.breakables[id];
+          if (!this.broken[id] && (b.kind === 'barrier' || b.kind === 'cone') && Math.hypot(b.x - x, b.z - z) < r && !out.includes(b)) out.push(b);
+        }
+      }
+    }
+    return out;
+  }
+
   /**
    * Surface height at a point: the ground (terrain) or a deck (bridge, flyover, ramp). With
    * `near` (the caller's current height) it is the highest surface no more than 1.5 m above it,
@@ -297,6 +449,18 @@ export class CollisionWorld {
    */
   heightAt(x: number, z: number, near = 1e9): number {
     let y = groundY(x, z);
+    // Raised surfaces on the ground (Phase R.3/R.5): footpaths, islands, speed breakers, embankments.
+    let lift = 0;
+    for (const r of this.raised.at(x, z)) {
+      if (r.ring) {
+        if (pointInRing(x, z, r.ring)) lift = Math.max(lift, r.h);
+        continue;
+      }
+      const d = segDist(x, z, { ax: r.ax, az: r.az, bx: r.bx, bz: r.bz });
+      if (d >= r.hw) continue;
+      lift = Math.max(lift, r.bump ? r.h * Math.cos((d / r.hw) * (Math.PI / 2)) : r.h);
+    }
+    if (lift > 0 && near < y + lift + 3) y += lift;
     for (const s of this.decks.at(x, z)) {
       if (segDist(x, z, s) >= s.hw) continue;
       const dx = s.bx - s.ax, dz = s.bz - s.az;

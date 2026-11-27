@@ -305,12 +305,12 @@ roads.forEach((r, ri) => {
 // Road segments for clearance checks.
 const segGrid = new Grid(32);
 const maxHalfWidth = Math.max(...Object.values(ROAD_WIDTH)) / 2;
-for (const road of roads) {
+for (const [ri, road] of roads.entries()) {
   const hw = road.width / 2;
   for (let i = 1; i < road.pts.length; i++) {
     const a = road.pts[i - 1];
     const b = road.pts[i];
-    const s = { a, b, hw };
+    const s = { a, b, hw, road: ri };
     segGrid.add(s, Math.min(a[0], b[0]) - hw, Math.min(a[1], b[1]) - hw, Math.max(a[0], b[0]) + hw, Math.max(a[1], b[1]) + hw);
   }
 }
@@ -1733,7 +1733,42 @@ for (const el of detailEls) {
   void L;
 }
 
-const props = { poles: poleRuns, trees, hoardings, worship, autoStands, crossings, platforms };
+// Speed breakers (task R.3): on the smaller roads next to schools, colleges, hospitals and
+// clinics (OSM amenities), and on some colony roads. Across the road: [x, z, headingDeg, halfWidth] in decimetres.
+const bumps = [];
+const bumpAt = [];
+const BUMP_ROADS = /^(secondary|tertiary|residential|unclassified|living_street)$/;
+const addBump = (x, z) => {
+  let best = null;
+  for (const s of segGrid.query(x - 60, z - 60, x + 60, z + 60)) {
+    const road = roads[s.road];
+    if (!road || !BUMP_ROADS.test(road.kind) || road.bridge || road.lift) continue;
+    const d = segDist(x, z, s.a[0], s.a[1], s.b[0], s.b[1]);
+    if (d < 60 && (!best || d < best.d)) best = { d, s };
+  }
+  if (!best) return;
+  const { a, b, hw } = best.s;
+  const dx = b[0] - a[0], dz = b[1] - a[1];
+  const L2 = dx * dx + dz * dz || 1;
+  const t = Math.max(0.15, Math.min(0.85, ((x - a[0]) * dx + (z - a[1]) * dz) / L2));
+  const px = a[0] + dx * t, pz = a[1] + dz * t;
+  if (nearJunction(px, pz, 15) || bumpAt.some((p) => Math.hypot(p[0] - px, p[1] - pz) < 60)) return;
+  bumpAt.push([px, pz]);
+  bumps.push(dm(px), dm(pz), Math.round((Math.atan2(dx, dz) * 180) / Math.PI), dm(hw));
+};
+for (const el of [...detailEls, ...main].filter((e) => /^(school|college|hospital|clinic|kindergarten)$/.test(e.tags?.amenity || ''))) {
+  const c = centreOf(el);
+  if (c && inPA(c[0], c[1])) addBump(c[0], c[1]);
+}
+roads.forEach((road, ri) => {
+  if (road.kind !== 'residential' || road.bridge || road.lift || road.id === -1) return;
+  const rng = makeRng(hash32('bump', ri));
+  if (rng() > 0.06) return;
+  const m = road.pts[Math.floor(road.pts.length / 2)];
+  addBump(m[0], m[1]);
+});
+
+const props = { poles: poleRuns, trees, hoardings, worship, autoStands, crossings, platforms, bumps };
 for (const q of clearZones) applied.push(`props cleared around ${q.c.at} (${q.r} m)${q.c.note ? ': ' + q.c.note : ''}`);
 
 // Hand corrections to buildings (K.4).
@@ -1989,6 +2024,7 @@ function validate(m) {
     flatPts(m.props.trees, 2, 'tree');
     flatPts(m.props.hoardings, 3, 'hoarding');
     flatPts(m.props.autoStands, 4, 'auto stand');
+    flatPts(m.props.bumps, 4, 'speed breaker');
     m.props.worship.forEach((w, i) => {
       pt([w.x, w.z], `worship ${i}`);
       if (!(w.w > 0 && w.d > 0 && Number.isFinite(w.a) && 'hmc'.includes(w.r))) err(`worship ${i}: bad shape`);
@@ -2032,6 +2068,7 @@ const sha = createHash('sha256').update(json).digest('hex').slice(0, 16);
 /* ================= REPORT ================= */
 console.log('\n================ Kurnool map build ================');
 console.log(`Wrote public/map/kurnool.json: ${(json.length / 1e6).toFixed(2)} MB (gzip ${(gzBytes / 1e6).toFixed(2)} MB), sha256 ${sha}`);
+console.log(`Speed breakers (R.3): ${bumps.length / 4}`);
 console.log(`Police stations (H.5): ${police.length} (${police.map((p) => p.name).join(', ')})`);
 console.log(`Roads: ${roads.length - 1} from OSM + 1 airport link, graph ${nodes.length} nodes / ${edges.length} edges`);
 console.log(

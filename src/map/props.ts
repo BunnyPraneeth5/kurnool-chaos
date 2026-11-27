@@ -16,28 +16,22 @@ import { densify, groundY, lowestGround } from './terrain';
 
 export const PROP_CHUNK = 500;
 const KERB_ROADS = new Set(['trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link']);
-const DIVIDER_ROADS = new Set(['trunk', 'primary']);
 const KERB_W = 0.25;
-const KERB_H = 0.22;
-const DIVIDER_W = 0.9;
-const DIVIDER_H = 0.4;
-const DIVIDER_OPENING_EVERY = 300; // m, U-turn gaps
-const DIVIDER_OPENING = 12; // m
-const LIGHT_EVERY = 35; // m
+const KERB_H = 0.3; // R.3: taller kerbs (they stop slow vehicles, see borders.ts)
 const POLE_H = 8;
 const WIRE_Y = 7.55;
 const AUTO_GAP = 3.1; // m between parked autos
 
 /* ---------- shared shapes (rendering and collision) ---------- */
 
-interface Junction {
+export interface Junction {
   x: number;
   z: number;
   r: number;
 }
 
 /** Junctions with three or more road pieces, with a clearance radius from their widest road. */
-function junctions(map: MapData, margin: number): Junction[] {
+export function junctions(map: MapData, margin: number): Junction[] {
   const deg = new Map<number, number>();
   const wide = new Map<number, number>();
   for (const e of map.graph.edges) {
@@ -56,7 +50,7 @@ function junctions(map: MapData, margin: number): Junction[] {
   return out;
 }
 
-class PointGrid {
+export class PointGrid {
   private readonly cells = new Map<string, Junction[]>();
   constructor(list: Junction[], private readonly cell = 50) {
     for (const j of list) {
@@ -146,24 +140,33 @@ export function offsetLine(pts: Pt[], d: number): Pt[] {
   return out;
 }
 
-export interface DividerRun {
-  pts: Pt[];
-  y: number;
-}
+/** Kerb lines (both sides of main roads, cut at junctions), shared by the kerbs drawn here and the kerb walls in borders.ts. */
+const kerbCache = new WeakMap<MapData, { pts: Pt[]; y: number; road: number; side: number }[]>();
 
-/** Centre dividers of two-way trunk and primary roads, with gaps at junctions and U-turn openings. */
-export function dividerRuns(map: MapData): DividerRun[] {
-  const grid = new PointGrid(junctions(map, 4));
-  const out: DividerRun[] = [];
-  for (const road of map.roads) {
-    if (!DIVIDER_ROADS.has(road.kind) || road.oneway || road.bridge || road.lift || road.width < 12 || road.id === -1) continue;
-    const y = roadY(road.kind, road.bridge);
-    for (const pts of clipRuns(road.pts, (x, z, along) => !grid.near(x, z) && along % DIVIDER_OPENING_EVERY > DIVIDER_OPENING)) {
-      out.push({ pts, y });
-    }
-  }
+export function kerbLines(map: MapData): { pts: Pt[]; y: number; road: number; side: number }[] {
+  const hit = kerbCache.get(map);
+  if (hit) return hit;
+  const out = kerbLinesUncached(map);
+  kerbCache.set(map, out);
   return out;
 }
+
+function kerbLinesUncached(map: MapData): { pts: Pt[]; y: number; road: number; side: number }[] {
+  // Gaps of 5 m past the widest road at junctions, so turning slowly never catches a kerb end.
+  const kerbGrid = new PointGrid(junctions(map, 5));
+  const out: { pts: Pt[]; y: number; road: number; side: number }[] = [];
+  map.roads.forEach((road, ri) => {
+    if (!KERB_ROADS.has(road.kind) || road.bridge || road.lift || road.id === -1) return;
+    const hw = road.width / 2;
+    const y = roadY(road.kind, road.bridge);
+    for (const run of clipRuns(road.pts, (x, z) => !kerbGrid.near(x, z))) {
+      for (const side of [1, -1]) out.push({ pts: offsetLine(densify(run, 16), side * (hw + KERB_W / 2)), y, road: ri, side });
+    }
+  });
+  return out;
+}
+
+export const KERB_ROAD_KINDS = KERB_ROADS;
 
 const decode = (flat: number[], stride: number): number[][] => {
   const out: number[][] = [];
@@ -228,11 +231,7 @@ export function propWalls(map: MapData): Pt[][] {
   for (const w of map.props.worship) out.push(closed(boxRing(w.x, w.z, w.a, w.w, w.d)));
   for (const pl of map.props.platforms) out.push(closed(pl.pts));
   for (const [x, z, a] of autoSpots(map)) out.push(closed(boxRing(x, z, a, 2.7, 1.4)));
-  for (const d of dividerRuns(map)) {
-    const l = offsetLine(d.pts, DIVIDER_W / 2);
-    const r = offsetLine(d.pts, -DIVIDER_W / 2);
-    out.push([...l, ...r.reverse(), l[0]]);
-  }
+  // Dividers are in borders.ts (Phase R).
   return out;
 }
 
@@ -321,7 +320,6 @@ function stripeTexture(): THREE.CanvasTexture {
   return t;
 }
 const STRIPE_V = 0.25;
-const GREEN_V = 0.75;
 
 const col = new THREE.Color();
 const WHITE = new THREE.Color(0xffffff);
@@ -541,41 +539,8 @@ export function buildProps(map: MapData, quality: QualitySettings, anisotropy: n
     }
   };
 
-  const kerbGrid = new PointGrid(junctions(map, 2.5));
-  for (const road of map.roads) {
-    if (!KERB_ROADS.has(road.kind) || road.bridge || road.lift || road.id === -1) continue;
-    const hw = road.width / 2;
-    const y = roadY(road.kind, road.bridge);
-    for (const run of clipRuns(road.pts, (x, z) => !kerbGrid.near(x, z))) {
-      for (const side of [1, -1]) strip(offsetLine(densify(run, 16), side * (hw + KERB_W / 2)), KERB_W / 2, (x, z) => groundY(x, z) + y - 0.05, KERB_H + 0.05, STRIPE_V);
-    }
-  }
-  const lightC = new THREE.Color(0x8d9096);
-  const lampC = new THREE.Color(0xfff1b8);
-  for (const d of dividerRuns(map)) {
-    strip(densify(d.pts, 16), DIVIDER_W / 2, (x, z) => groundY(x, z) + d.y - 0.05, DIVIDER_H + 0.05, GREEN_V);
-    // Street lights on the divider, arms across the road.
-    let along = 0;
-    let next = LIGHT_EVERY / 2;
-    for (let i = 1; i < d.pts.length; i++) {
-      const a = d.pts[i - 1], b = d.pts[i];
-      const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      const ux = (b[0] - a[0]) / (L || 1), uz = (b[1] - a[1]) / (L || 1);
-      while (next <= along + L) {
-        const t = next - along;
-        const x = a[0] + ux * t, z = a[1] + uz * t;
-        const h = Math.atan2(ux, uz);
-        const mb = propMb(x, z);
-        const g0 = mb.count;
-        box(mb, x, z, h, 0.2, 0.2, d.y, d.y + 9, lightC);
-        box(mb, x, z, h + Math.PI / 2, 3.6, 0.12, d.y + 8.8, d.y + 9, lightC);
-        for (const s of [-1.75, 1.75]) box(mb, x - uz * s, z + ux * s, h, 0.6, 0.3, d.y + 8.6, d.y + 8.85, lampC);
-        mb.lift(g0, groundY(x, z));
-        next += LIGHT_EVERY;
-      }
-      along += L;
-    }
-  }
+  for (const k of kerbLines(map)) strip(k.pts, KERB_W / 2, (x, z) => groundY(x, z) + k.y - 0.05, KERB_H + 0.05, STRIPE_V);
+  // Dividers and their street lights are drawn by borders.ts (Phase R).
 
   /* Electric poles and wires. */
   const poleC = new THREE.Color(0x9c9a94);

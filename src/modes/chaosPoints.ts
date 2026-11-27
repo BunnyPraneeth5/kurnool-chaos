@@ -10,6 +10,7 @@ export const CHAOS = {
   heatPerStarS: 2,
   escapePerStar: 50,
   redLight: 10,
+  smash: 5, // per railing, fence panel or barricade (Phase R)
   bustedShare: 0.25,
   bustedMin: 50,
 } as const;

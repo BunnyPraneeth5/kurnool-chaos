@@ -11,6 +11,7 @@ import { buildRail } from './map/rail';
 import { buildWaterways } from './map/waterways';
 import { buildPoliceStations } from './map/police';
 import { JunctionScenery } from './map/signals';
+import { BorderMeshes } from './map/bordersMesh';
 import { createSky } from './world/sky';
 import { detectQuality } from './world/quality';
 import { Game } from './game';
@@ -191,6 +192,9 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   }
 
   const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined, { traffic: quality.traffic, shadows: quality.vehicleShadows, pedestrians: quality.pedestrians });
+  // Roads and borders (Phase R): drawn from the same data as the collision world's borders.
+  const borderMeshes = new BorderMeshes(map, game.world, quality);
+  scene.add(borderMeshes.group);
   menu.add(settingsPage(quality.level), 'about');
   menu.add(statsPage(() => game.chaos), 'about');
   showPlace = (x, z) => {
@@ -235,6 +239,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     if (!(solo && menu.isOpen)) game.update(dt);
     afterUpdate();
     junctionScene.update(Date.now());
+    borderMeshes.update();
     sky.update(camera);
     renderer.render(scene, camera);
     fps.frame(ts);

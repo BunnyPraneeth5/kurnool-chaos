@@ -28,7 +28,7 @@ export class Life {
   /** Set for the frame in which the player ran a red light: whether a cop or traffic policeman saw it. */
   ranRed: { seen: boolean } | null = null;
 
-  constructor(map: MapData, scene: THREE.Scene, world: CollisionWorld, trafficCount: number, shadows: boolean, pedCount: number) {
+  constructor(map: MapData, scene: THREE.Scene, private readonly world: CollisionWorld, trafficCount: number, shadows: boolean, pedCount: number) {
     this.graph = new RoadGraph(map);
     this.traffic = new Traffic(scene, this.graph, world, trafficCount, shadows);
     this.cops = new Cops(scene, this.graph, world, shadows);
@@ -71,6 +71,8 @@ export class Life {
     for (const b of moving) o.push({ body: b });
     for (const c of this.cops.cops) o.push({ body: c });
     for (const p of this.peds.inRoad) o.push({ body: p });
+    // Standing barricades and cones (Phase R.6): steer round them like a parked vehicle.
+    for (const it of this.world.standingItems(focus.x, focus.z, 300)) o.push({ body: { x: it.x, z: it.z, a: it.a, type: 'bike' }, still: true });
     this.traffic.update(dt, focus, o);
     // People jump out of the way of everything that moves.
     const movers: { b: Bumper; speed: number }[] = [];

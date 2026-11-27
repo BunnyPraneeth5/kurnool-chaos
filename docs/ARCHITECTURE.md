@@ -192,6 +192,11 @@ create index on race_results (room, race_id, time_ms);
 ```
 No update or delete policies, so results cannot be edited from the client. Anyone with the publishable key can insert fake times: accepted risk for a friends game.
 
+## Roads and borders (Phase R)
+- `src/map/borders.ts` (data, cached per map) and `src/map/bordersMesh.ts` (meshes, 250 m chunks). Dividers: twin one-way roads (opposite-direction samples 0.5 to 14 m apart are joined by a median), two-way trunk/primary (12 m+) and secondary (11 m+) roads, flyover and bridge centre barriers (walls at deck height). Kerb lines (shared with props.ts) and railing-divider bases are kerb walls. Footpaths, islands, speed breakers (`props.bumps` from the build) and embankments are raised surfaces in `heightAt`.
+- Collision world: walls have a kerb flag (block only vehicles under 7 m/s); breakable pieces have ids, a grid and a broken flag with a fix time; `collide(x, z, r, y, { speed, heavy })` returns the pieces a fast vehicle went through. Fixed 2 minutes after breaking.
+- Network: broadcast `b` `{ from, l: [[id, msLeft], ...] }` for new breaks; the host sends all open breaks when someone joins.
+
 ## Menu and guide
 - `src/ui/menu.ts`: Menu button (top left), Esc, G for the guide. Pages: Guide (`guide.ts`), Settings (`settings.ts`, saved in localStorage `kc.settings`: quality, camera distance, steering, minimap), Room (the room panel from `roomHud.ts`), Stats (`stats.ts`, this session), About (version from package.json, credits). Leave room / Exit at the end. Solo play pauses while it is open; in rooms the player stands still.
 - The guide reads vehicle numbers from `params.ts` and places from the map, so it stays true; vehicle pictures are drawn once with the game's renderer.

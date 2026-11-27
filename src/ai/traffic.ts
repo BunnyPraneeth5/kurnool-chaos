@@ -6,6 +6,7 @@ import { seatedFigure } from '../vehicles/models';
 import { Agent, angDiff } from './agent';
 import type { Arc, RoadGraph } from './graph';
 import { junctionsOf, lightFor } from './junctions';
+import { bordersOf } from '../map/borders';
 
 // Local traffic (TASKS 5.2, H.6, H.7): vehicles on the road graph around the player, keeping
 // left, stopping for whatever is ahead and for red lights, squeezing through after 5 s stuck
@@ -63,6 +64,7 @@ export class Traffic {
   private first = true;
   private spawnWait = 0;
   readonly junctions;
+  private readonly divided: Set<number>;
   /** A vehicle honks (for the sound). */
   onHonk: (c: TrafficCar) => void = () => {};
   private readonly stands: { x: number; z: number }[] = [];
@@ -75,6 +77,7 @@ export class Traffic {
     private readonly shadows: boolean,
   ) {
     this.junctions = junctionsOf(graph.map, graph);
+    this.divided = bordersOf(graph.map).dividedRoads;
     const a = graph.map.props.autoStands;
     for (let i = 0; i + 3 < a.length; i += 4) this.stands.push({ x: a[i] / 10, z: a[i + 1] / 10 });
   }
@@ -175,7 +178,8 @@ export class Traffic {
     }
 
     // Overtaking (H.7): a slow vehicle ahead on a wide two-way road, nothing coming the other way.
-    const twoWay = !road.oneway && road.width >= OVERTAKE_ROAD_W;
+    // Never across a divider (Phase R.2).
+    const twoWay = !road.oneway && road.width >= OVERTAKE_ROAD_W && !this.divided.has(c.arc.road);
     const shift = road.width * 0.5; // from our lane into the other one
     if (c.overtaking) {
       c.overtakeT += dt;

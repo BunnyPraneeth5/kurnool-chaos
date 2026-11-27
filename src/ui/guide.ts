@@ -197,8 +197,17 @@ const SECTIONS: Section[] = [
       h('h3', '', 'Chaos points'),
       LIST([
         'Always counting (💥 next to the stars), in free roam and in Chaos rounds.',
-        'Crash into traffic or a cop: 10 plus your speed. Near miss at speed: 15. Drift (Space while turning fast): 10 a second. Every second with stars: 2 per star. Losing a star: 50. Red light: 10.',
+        'Crash into traffic or a cop: 10 plus your speed. Near miss at speed: 15. Drift (Space while turning fast): 10 a second. Every second with stars: 2 per star. Losing a star: 50. Red light: 10. Smashing a railing, fence panel or barricade: 5.',
         'Busted: you lose a quarter of your points (at least 50).',
+      ]),
+      h('h3', '', 'Roads and borders'),
+      LIST([
+        'Main roads have dividers: black-and-yellow concrete with plants and street lights; the busiest ones have a metal railing on top. NH44, NH40 and the other twin roads have a divider between the two sides too. Flyovers have a concrete barrier down the middle.',
+        'Kerbs stop you below about 25 km/h; faster, you bump up over them. Busy market streets, the old city and the roads round the station and bus stand have raised footpaths.',
+        'Speed breakers near schools and hospitals bump your vehicle. The Raj Vihar circle has a raised island.',
+        'The railway is fenced through the city, with walls round the station: cross at level crossings, underpasses and bridges.',
+        'Railings, railway fence panels, barricades and cones break if you hit them faster than 30 km/h (buses and lorries 15 km/h): 5 chaos points each. Friends see the gap too; everything is fixed 2 minutes later. Walls, bridge railings and canal walls do not break.',
+        'Look out for road works (one lane closed), police checkposts where the highways leave the city, and stone steps (ghats) down to the Tungabhadra and the Handri.',
       ]),
       h('h3', '', 'Junctions'),
       LIST([

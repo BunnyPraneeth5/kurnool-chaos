@@ -2,6 +2,14 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-28 | Borders worked out in the game from the map (borders.ts, cached), not in the build; only speed-breaker spots come from the build (OSM schools/hospitals) | The map file is at 5.96 of 6 MB; the game has the shapes already |
+| 2026-11-28 | Dividers with a railing (trunk and primary) have a mountable concrete base, so a broken railing opens a way across at speed; other dividers are solid planters | A breakable railing on a solid base would never open a gap |
+| 2026-11-28 | Kerbs mountable above 25 km/h, gaps 5 m past the widest road at junctions | Slow turns caught kerb ends with 2.5 m gaps |
+| 2026-11-28 | No barricades round traffic police stands | A ring of barricades blocked the middle of the junction |
+| 2026-11-28 | Canal railings are breakable for looks only (the canal wall still blocks) | Nobody drives into the canal |
+| 2026-11-28 | Ghats placed on the real water's edge (bank pieces), not from river centre lines | The Tungabhadra centre line is far from its 800 m-wide water |
+| 2026-11-28 | Breaks are a room event `b` with [id, ms left]; ids are the order pieces are made in, the same on every screen | Small messages, no server |
+| 2026-11-28 | Border meshes in 250 m chunks; railing and fence pieces as flat double-sided panels (8 triangles, 4 m); plain divider sides on low | Measured 15-35% fewer triangles than 500 m chunks; 36-triangle pieces cost 27k triangles at Raj Vihar |
 | 2026-11-27 | New Phase R (roads and borders): dividers on twin one-way roads, wide two-way trunk/primary/secondary roads, flyovers and big bridges; Kurnool-mix look (black-and-yellow concrete strip with plants and lights, a metal railing on the busiest roads) | Bunny's picks |
 | 2026-11-27 | Breakable: plastic barricades and cones, metal railings, fence panels; break above 30 km/h (buses and lorries 15 km/h); shared with friends, the host tells late joiners, fixed for everyone after 2 min | Bunny's picks |
 | 2026-11-27 | Not breakable: station walls, bridge railings over water, canal walls | Nobody drives into the river; the station stays closed |
