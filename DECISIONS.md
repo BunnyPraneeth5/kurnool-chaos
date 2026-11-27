@@ -2,6 +2,13 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-27 | New Phase R (roads and borders): dividers on twin one-way roads, wide two-way trunk/primary/secondary roads, flyovers and big bridges; Kurnool-mix look (black-and-yellow concrete strip with plants and lights, a metal railing on the busiest roads) | Bunny's picks |
+| 2026-11-27 | Breakable: plastic barricades and cones, metal railings, fence panels; break above 30 km/h (buses and lorries 15 km/h); shared with friends, the host tells late joiners, fixed for everyone after 2 min | Bunny's picks |
+| 2026-11-27 | Not breakable: station walls, bridge railings over water, canal walls | Nobody drives into the river; the station stays closed |
+| 2026-11-27 | Raised edges: taller kerbs (mountable above about 25 km/h), 15 cm footpaths and speed breakers in busy areas only, raised junction islands | Bunny's picks; busy areas only keeps phones fast |
+| 2026-11-27 | Railway fenced in the city (walls round the station), open in the fields; cross at crossings, underpasses, bridges or through a broken panel | Bunny's pick |
+| 2026-11-27 | Rivers and canals: canal railings in the city, embankments with a few ghats near the city, visible railings on all road bridges over water, a stone edge where roads run beside water | Bunny's picks |
+| 2026-11-27 | Barricades at lit junctions, made-up road works, police checkposts and some divider openings | Bunny's picks |
 | 2026-11-27 | Traffic lights only at junctions with 4+ ways, 3+ of them main roads and one trunk or primary (84); the first rule (192) put lights almost everywhere | Bunny asked for the busiest junctions |
 | 2026-11-27 | Light cycle from Date.now() with a per-junction offset, not synced | Friends' clocks are close enough; no extra messages |
 | 2026-11-27 | Red-light heat only when a cop is within 120 m or at a traffic policeman's junction | Being seen is the point; chaos points either way |
