@@ -2,6 +2,25 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-27 | Police stations keep their real OSM buildings; a signboard at the road in front instead of a separate model | A model would sit on top of the real building |
+| 2026-11-27 | Busted in a shared vehicle: it stays where you were caught (for everyone); a borrowed traffic vehicle is taken away | Sending a shared vehicle home for friends would need a new network message; leaving it is already how getting out works |
+| 2026-11-27 | Police quarters and the radio receiving station are left out of police stations (5 of 7 kept) | Busted players should land at a station |
+| 2026-11-27 | Riders send `mode: 'ride'` with the driver id and seat; their figure is drawn inside the driver's vehicle on every screen; no rider physics | Cheap, and the vehicle is already synced |
+| 2026-11-27 | Seated friends are hidden behind the glass in cars, buses and lorries; seen on bikes and autos | The low-poly glass is opaque; name tags still show who rides |
+| 2026-11-27 | Menu pauses solo play; in rooms the world goes on and you stand still | Rooms cannot pause for everyone |
+| 2026-11-27 | No sound settings yet; they come with sound in H.7 | No setting that does nothing |
+| 2026-11-27 | Telugu font: Noto Sans Telugu Bold TTF from Google's notofonts repo, OFL, 243 KB | Bunny approved; only one weight is needed |
+| 2026-11-27 | New Phase H: menu, in-game guide, riding along, police stations, junctions, sound, pedestrians, smarter cops, chaos points and mode, mode upgrades from ChatGPT's review | Bunny's request after Phase 5; friends need to understand the game and have more to do |
+| 2026-11-27 | Seats including the driver: bike 2, auto 3, car 4, lorry 3, bus 8; extra seats are for friends in the room (no computer passengers in your own vehicle) | Bunny's pick; a bus holds a full room |
+| 2026-11-27 | Riders in rounds: same team only; in Landmark hunt riders score with the driver | Bunny's pick; a chor in a police car would end the mode |
+| 2026-11-27 | Busted: on foot at the nearest OSM police station, vehicle taken, chaos points lost | Bunny's pick; being busted must cost something |
+| 2026-11-27 | Chaos points always count in free roam, plus a timed Chaos room mode; each player reports their own points | Bunny picked both; host-checked points would need synced cops and traffic |
+| 2026-11-27 | Menu screen (Esc / Menu button) holds Resume, Leave, Guide, Settings, Room, Stats, About; the room panel moves into it | Bunny's pick; clears the screen on phones |
+| 2026-11-27 | Guide and menu in English, place names also in Telugu | Bunny's pick |
+| 2026-11-27 | Pedestrians dodge and are never hurt | Bunny's pick; keeps it light for friends |
+| 2026-11-27 | Junctions: traffic lights at the busiest junctions, a traffic policeman at Raj Vihar and C-Camp | Bunny picked both; very Kurnool |
+| 2026-11-27 | Basic sound with Web Audio, generated (no sound files, no new dependency) | PRD has basic engine and beeps in scope; horns and sirens need sound |
+| 2026-11-27 | Vitest as a dev dependency for gameplay tests | Bunny approved with the review fixes |
 | 2026-11-27 | Vehicles collide as circles along the body (bus 4, lorry 3, others 2) with a per-type radius; weight decides who moves when you hit traffic or cops | Long buses need more than one circle; heavy vehicles should shove light ones |
 | 2026-11-27 | 14 shared parked vehicles: the first 8 are cars (rooms move them to the lobby, rounds use car = slot), then 2 autos, 2 bikes, a bus and a lorry near Raj Vihar | Everyone in a round gets the same kind; the other types are still near the start |
 | 2026-11-27 | Network `mode` is the vehicle type; `car` -2 for a vehicle taken from your own traffic (friends see it in your colour) | Traffic is local, so friends cannot know which one it was |

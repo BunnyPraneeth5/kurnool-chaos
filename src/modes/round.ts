@@ -35,7 +35,7 @@ function strRecord(v: unknown): Record<string, string> {
 }
 
 /** Validates a received round state; null if it is not one. */
-function parseRound(v: unknown, modes: Record<ModeId, GameMode>): RoundState | null {
+export function parseRound(v: unknown, modes: Record<ModeId, GameMode>): RoundState | null {
   if (!v || typeof v !== 'object') return null;
   const o = v as Record<string, unknown>;
   const num = (k: string): number => (typeof o[k] === 'number' && Number.isFinite(o[k]) ? (o[k] as number) : NaN);
@@ -67,6 +67,8 @@ export class RoundController {
   private phaseEndAt = 0; // local performance.now() when this phase ends
   private goAt = 0; // local performance.now() of Go
   private lastSent = -Infinity;
+  private hiddenWall = 0;
+  private hiddenPerf = 0;
 
   constructor(
     private readonly room: Room,
@@ -74,7 +76,30 @@ export class RoundController {
     readonly ctx: ModeCtx,
     readonly modes: Record<ModeId, GameMode>,
     private readonly lobbySpot: (id: string) => Spot,
-  ) {}
+  ) {
+    // Some phone browsers stop performance.now() while the phone sleeps, which would
+    // leave our round timers behind. On wake, move them on by the time that went missing
+    // and ask the host for the current state.
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.hiddenWall = Date.now();
+        this.hiddenPerf = performance.now();
+      } else if (this.hiddenWall) {
+        this.resume(Date.now() - this.hiddenWall - (performance.now() - this.hiddenPerf));
+        this.hiddenWall = 0;
+      }
+    });
+  }
+
+  /** Back from sleep: `lostMs` went by that performance.now() did not count. */
+  resume(lostMs: number): void {
+    if (lostMs > 250) {
+      this.phaseEndAt -= lostMs;
+      this.goAt -= lostMs;
+    }
+    if (this.isHost) this.broadcast();
+    else this.room.sendGame({ k: 'sync' });
+  }
 
   get mode(): GameMode {
     return this.modes[this.state.mode];
@@ -159,6 +184,8 @@ export class RoundController {
       const cur = this.state;
       if (s.round < cur.round || (s.round === cur.round && s.rev < cur.rev)) return;
       this.apply(s);
+    } else if (p.k === 'sync' && this.isHost) {
+      this.broadcast();
     } else if (p.k === 'ready' && this.isHost) {
       this.setReady(from, p.on === true);
     } else if (p.k === 'claim' && this.isHost && p.c && typeof p.c === 'object') {

@@ -3,6 +3,7 @@ import type { CollisionWorld } from '../map/collision';
 import type { Pt } from '../map/types';
 import { setPoliceLook } from '../modes/visuals';
 import { Agent, angDiff } from './agent';
+import { stats } from '../ui/stats';
 import type { RoadGraph } from './graph';
 
 // Cops and heat (TASKS 5.3), ported from the demo onto the road graph. Heat 1 to 3 brings
@@ -48,6 +49,7 @@ export class Cops {
   ) {}
 
   add(n: number, target: { x: number; z: number }): void {
+    stats.stars += Math.min(n, MAX_HEAT - this.heat);
     this.heat = Math.min(MAX_HEAT, this.heat + n);
     this.coolT = -SEARCH_S;
     for (let tries = 0; this.cops.length < this.heat && tries < 40; tries++) this.spawn(target);

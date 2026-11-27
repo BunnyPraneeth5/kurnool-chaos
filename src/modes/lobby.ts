@@ -4,6 +4,7 @@ import type { CollisionWorld } from '../map/collision';
 import { groundY } from '../map/terrain';
 import type { Vehicle } from '../vehicles/vehicle';
 import type { Spot } from './types';
+import { loadTeluguFont, TELUGU_FONT } from '../util/fonts';
 
 // The room lobby (TASKS G.1) on the real Jagannatha Gattu summit from the terrain
 // (task K.5): a paved plaza that follows the ground, a signboard in English and
@@ -32,6 +33,11 @@ function project(map: MapData, lat: number, lon: number): [number, number] {
   const mLat = 111132.92 - 559.82 * Math.cos(2 * phi) + 1.175 * Math.cos(4 * phi);
   const mLon = 111412.84 * Math.cos(phi) - 93.5 * Math.cos(3 * phi);
   return [(lon - map.center.lon) * mLon, (map.center.lat - lat) * mLat];
+}
+
+/** The lobby pin in map metres (no terrain needed). */
+export function lobbyPin(map: MapData): [number, number] {
+  return project(map, PIN.lat, PIN.lon);
 }
 
 /** The highest ground near the pin. Throws if the pin is off the terrain (no silent fallback). */
@@ -76,6 +82,19 @@ function signTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 512;
   c.height = 224;
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  drawSign(c);
+  // Redraw with the bundled Telugu font once it has loaded (phones without one showed boxes).
+  void loadTeluguFont().then((ok) => {
+    if (!ok) return;
+    drawSign(c);
+    t.needsUpdate = true;
+  });
+  return t;
+}
+
+function drawSign(c: HTMLCanvasElement): void {
   const g = c.getContext('2d');
   if (!g) throw new Error('2D canvas not available for the lobby signboard');
   g.fillStyle = '#1d5e3a';
@@ -86,14 +105,10 @@ function signTexture(): THREE.CanvasTexture {
   g.fillStyle = '#f4f1e6';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  // Telugu needs a Telugu font: phones have Noto Sans Telugu, Windows has Nirmala UI.
-  g.font = 'bold 64px "Noto Sans Telugu", "Nirmala UI", Gautami, sans-serif';
+  g.font = `bold 64px "${TELUGU_FONT}", "Nirmala UI", sans-serif`;
   g.fillText(LOBBY_NAME_TE, 256, 78);
   g.font = 'bold 50px system-ui, sans-serif';
   g.fillText(LOBBY_NAME_EN, 256, 158);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
 }
 
 /** Plaza disc following the ground, a low kerb and the signboard. */

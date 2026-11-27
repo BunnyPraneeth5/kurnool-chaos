@@ -2,6 +2,7 @@ import type * as THREE from 'three';
 import type { Game } from '../game';
 import type { MapData } from '../map/types';
 import { ChatUi } from '../ui/chat';
+import type { Menu } from '../ui/menu';
 import { RoomHud } from '../ui/roomHud';
 import { cleanNick, saveNick } from './ids';
 import { RemotePlayers } from './remotePlayers';
@@ -10,6 +11,7 @@ import { cssColour, playerColour, type PlayerInfo } from './roomTypes';
 import { buildLobby, findLobby, lobbySpot, parkLobbyCars } from '../modes/lobby';
 import { NetSync } from './sync';
 import { LOBBY_CARS } from '../vehicles/parked';
+import { VEHICLES } from '../vehicles/params';
 import { RoundController } from '../modes/round';
 import { GameUi } from '../modes/ui';
 import { Beacon, flashLightBars, setPoliceLook } from '../modes/visuals';
@@ -37,7 +39,7 @@ export function startRoomSession(
   map: MapData,
   scene: THREE.Scene,
   camera: THREE.Camera,
-  exits: { onLeave: () => void; onKicked: () => void },
+  exits: { onLeave: () => void; onKicked: () => void; menu: Menu },
 ): RoomSession {
   // Rooms gather on Jagannatha Gattu (G.1): plaza and sign, the shared cars parked
   // around it, and everyone spread over the plaza. Rounds start down in the city.
@@ -86,10 +88,14 @@ export function startRoomSession(
       if (ok) saveNick(cleanNick(nick));
       return ok;
     },
-    leave: () => void r.leave().then(exits.onLeave),
     openChat: () => chat.open(),
+    openRoom: () => exits.menu.open('room'),
     toast: (m) => game.toast(m),
   });
+
+  // The room page of the menu, and Leave in the menu.
+  exits.menu.add({ id: 'room', title: `Room ${r.code}`, render: () => hud.panel }, 'stats');
+  exits.menu.start({ label: 'Leave room', armed: 'Leave?', run: () => void r.leave().then(exits.onLeave) });
 
   // Game rounds (Phase G). Between rounds everyone is back on the Jagannatha Gattu plaza.
   // A player who drops out briefly (phone lock, reconnect) still counts as present for
@@ -118,6 +124,7 @@ export function startRoomSession(
     present: (id) => r.players.some((p) => p.id === id) || performance.now() - (lastSeen.get(id) ?? -Infinity) < PRESENT_GRACE_MS,
     slotOf: (id) => byId(id)?.slot ?? 0,
     nickOf: (id) => byId(id)?.nick ?? nicks.get(id) ?? 'Someone',
+    rideOf: (id) => (id === r.myId ? (game.ride?.driver ?? null) : (remotes.poseOf(id)?.ride ?? null)),
   };
   const rounds = new RoundController(r, game, ctx, { chor: chorPoliceMode, hunt: huntMode }, (id) => lobbySpot(lobby, ctx.slotOf(id)));
   const gameUi = new GameUi(rounds, r, camera);
@@ -147,6 +154,48 @@ export function startRoomSession(
     }
   };
   r.onGame = (p, from) => rounds.receive(p, from);
+
+  // Riding along (task H.4): seats, and same team only during a round.
+  const rideRule = (driver: string): string | null => {
+    const s = rounds.state;
+    const meIn = rounds.inRound;
+    const themIn = (s.phase === 'countdown' || s.phase === 'playing') && s.players.includes(driver);
+    if (meIn !== themIn) return meIn ? 'You are in a round' : 'They are in a round';
+    if (meIn && (s.roles[driver] ?? '') !== (s.roles[r.myId] ?? '')) return 'Only your own team';
+    return null;
+  };
+  const freeSeat = (driver: string, type: keyof typeof VEHICLES, skip: number[] = []): number => {
+    const taken = new Set([...remotes.seatsTaken(driver, r.myId), ...skip]);
+    for (let s = 1; s < VEHICLES[type].seats; s++) if (!taken.has(s)) return s;
+    return -1;
+  };
+  game.posePf = (id) => remotes.poseOf(id);
+  game.askRide = (driver) => {
+    const pose = remotes.poseOf(driver);
+    if (!pose || pose.mode === 'foot' || pose.mode === 'ride') return 'They are not driving';
+    const rule = rideRule(driver);
+    if (rule) return rule;
+    const seat = freeSeat(driver, pose.mode);
+    if (seat < 0) return `${VEHICLES[pose.mode].name} is full`;
+    chat.notice(`Riding with ${byId(driver)?.nick ?? 'a friend'}`);
+    return seat;
+  };
+  const checkRide = (): void => {
+    const ride = game.ride;
+    if (!ride) return;
+    const rule = rideRule(ride.driver);
+    if (rule) {
+      game.stopRiding(rule);
+      return;
+    }
+    // Two of us took the same seat: the earlier joiner keeps it, the other moves or gets out.
+    const mine = r.self.joinedAt;
+    const rival = remotes.seatRivals(ride.driver, ride.seat, r.myId).some((p) => p.joinedAt < mine || (p.joinedAt === mine && p.id < r.myId));
+    if (!rival) return;
+    const seat = freeSeat(ride.driver, ride.type, [ride.seat]);
+    if (seat < 0) game.stopRiding('Someone took that seat');
+    else ride.seat = seat;
+  };
 
   // Notices: compare each new member list with the last one.
   let known = new Map(r.players.map((p) => [p.id, p.nick] as const));
@@ -227,6 +276,7 @@ export function startRoomSession(
       }
       gameUi.update();
       remotes.update(dt, now, r.players.length);
+      checkRide();
       game.extraCars = remotes.carColliders;
     },
     after: () => sync.update(performance.now()),

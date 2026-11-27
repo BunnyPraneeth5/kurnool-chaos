@@ -56,6 +56,8 @@ export interface ModeCtx {
   present(id: string): boolean;
   slotOf(id: string): number;
   nickOf(id: string): string;
+  /** Riding in someone's vehicle: the driver's id (task H.4). */
+  rideOf?(id: string): string | null;
 }
 
 export interface Claim {

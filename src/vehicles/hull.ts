@@ -9,6 +9,8 @@ export interface Bumper {
   /** heading, forward = (sin a, cos a) */
   a: number;
   type: VehicleType;
+  /** A friend's vehicle: the driver's player id (you can ride along). */
+  id?: string;
   /** Local traffic and cops give way when hit; without this the vehicle does not move. */
   shove?(dx: number, dz: number): void;
 }

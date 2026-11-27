@@ -1,4 +1,5 @@
 import { spawnPoint } from '../net/spawn';
+import { shuffle } from '../util/rng';
 import type { Claim, GameMode, ModeCtx, RoundState, Target } from './types';
 
 // Chor–Police (TASKS G.3): one police (two with 5+ players) chases the chors.
@@ -47,7 +48,7 @@ export const chorPoliceMode: GameMode = {
   blurb: 'Police chase the chors. Touch a chor to catch them; they join the police.',
 
   setup(players) {
-    const shuffled = [...players].sort(() => Math.random() - 0.5);
+    const shuffled = shuffle(players);
     const nPolice = players.length >= 5 ? 2 : 1;
     const roles: Record<string, string> = {};
     const turnedAt: Record<string, number> = {};

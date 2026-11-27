@@ -46,6 +46,8 @@ export class NetSync {
       !l ||
       l.mode !== s.mode ||
       l.car !== s.car ||
+      l.ride?.seat !== s.ride?.seat ||
+      l.ride?.driver !== s.ride?.driver ||
       Math.hypot(s.x - l.x, s.z - l.z) > MOVE_EPS ||
       Math.abs(s.h - l.h) > TURN_EPS ||
       Math.abs(s.v - l.v) > SPEED_EPS;
@@ -67,6 +69,10 @@ export class NetSync {
       mode: s.mode,
       car: s.car,
     };
+    if (s.ride) {
+      msg.ride = s.ride.driver;
+      msg.seat = s.ride.seat;
+    }
     if (!this.room.send(msg)) return; // reconnecting: try again next frame
     this.sent++;
     this.force = false;

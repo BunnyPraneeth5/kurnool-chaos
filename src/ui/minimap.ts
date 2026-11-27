@@ -51,6 +51,11 @@ export class Minimap {
     });
   }
 
+  setVisible(on: boolean): void {
+    const box = el('mapbox');
+    if (box.classList.contains('nomap') === on) box.classList.toggle('nomap', !on);
+  }
+
   private drawCity(): HTMLCanvasElement {
     const b = this.map.bounds;
     const c = document.createElement('canvas');

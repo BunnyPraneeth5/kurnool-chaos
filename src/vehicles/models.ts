@@ -191,3 +191,47 @@ export function setRider(mesh: THREE.Object3D, shirt: number | null): void {
   rider.name = RIDER;
   mesh.add(rider);
 }
+
+/** Seat points on each model (seat 0 is the driver), in the model's own space. */
+export const SEATS: Record<VehicleType, readonly [number, number, number][]> = {
+  // Right-hand drive: the driver sits on the right (-x).
+  car: [[-0.42, 0.75, 0.2], [0.42, 0.75, 0.2], [-0.42, 0.75, -0.8], [0.42, 0.75, -0.8]],
+  auto: [[0, 0.75, 0.72], [-0.36, 0.95, -0.9], [0.36, 0.95, -0.9]],
+  bike: [[0, 0, 0], [0, 0.04, -0.48]],
+  bus: [[-0.8, 1.1, 3.9], [0.7, 1.1, 2.4], [-0.7, 1.1, 1.0], [0.7, 1.1, 1.0], [-0.7, 1.1, -0.6], [0.7, 1.1, -0.6], [-0.7, 1.1, -2.2], [0.7, 1.1, -2.2]],
+  lorry: [[-0.6, 1.25, 2.9], [0, 1.25, 2.9], [0.6, 1.25, 2.9]],
+};
+
+const seatedCache = new Map<string, THREE.BufferGeometry>();
+
+/**
+ * A friend sitting in seat `seat` of a vehicle model (task H.4), to add as a child of the
+ * vehicle mesh. On a bike the passenger sits astride behind the rider.
+ */
+export function seatedFigure(type: VehicleType, seat: number, shirt: number): THREE.Object3D {
+  const astride = type === 'bike';
+  const key = `${astride ? 'b' : 's'}:${shirt}`;
+  let geo = seatedCache.get(key);
+  if (!geo) {
+    const parts: Part[] = astride
+      ? [
+          [0.44, 0.6, 0.28, 0, 1.24, -0.2, shirt],
+          [0.3, 0.3, 0.3, 0, 1.7, -0.14, 0xd9a07c],
+          [0.32, 0.1, 0.32, 0, 1.9, -0.14, 0x241c2e],
+          ...pair(0.14, 0.18, 0.5, 0.18, 0.92, -0.05, 0x2b2a4a),
+          ...pair(0.14, 0.5, 0.16, 0.22, 0.65, 0.15, 0x2b2a4a),
+        ]
+      : [
+          [0.44, 0.6, 0.28, 0, 0.36, 0, shirt],
+          [0.32, 0.32, 0.32, 0, 0.86, 0, 0xd9a07c],
+          [0.34, 0.1, 0.34, 0, 1.06, 0, 0x241c2e],
+          ...pair(0.15, 0.16, 0.5, 0.12, 0.02, 0.22, 0x2b2a4a),
+        ];
+    seatedCache.set(key, (geo = mergeParts(parts)));
+  }
+  const m = new THREE.Mesh(geo, bodyMat);
+  const p = SEATS[type][seat] ?? SEATS[type][SEATS[type].length - 1];
+  m.position.set(p[0], p[1], p[2]);
+  m.name = 'seated';
+  return m;
+}

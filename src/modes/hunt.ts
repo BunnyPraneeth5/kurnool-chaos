@@ -1,4 +1,5 @@
 import { spawnPoint } from '../net/spawn';
+import { shuffle } from '../util/rng';
 import type { Claim, GameMode, RoundState, Target } from './types';
 
 // Landmark hunt (TASKS G.4): a list of landmarks, one at a time. The first player
@@ -34,12 +35,8 @@ export const huntMode: GameMode = {
   blurb: 'Race to Kurnool landmarks one by one. First to arrive scores.',
 
   setup(players, mins, ctx) {
-    const pool = ctx.map.landmarks.filter((l) => !SKIP.has(l.id));
-    // Shuffle, then order so consecutive targets are not right next to each other.
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
+    // Shuffle, then skip targets right next to the one before.
+    const pool = shuffle(ctx.map.landmarks.filter((l) => !SKIP.has(l.id)));
     const picked: Target[] = [];
     for (const l of pool) {
       if (picked.length >= targetCount(mins)) break;
@@ -83,7 +80,10 @@ export const huntMode: GameMode = {
     if (!t || c.idx !== d.idx) return false; // someone else got there first
     const p = ctx.posOf(from);
     if (!p || Math.hypot(p.x - t.x, p.z - t.z) > HOST_CHECK_M) return false;
-    s.scores[from] = (s.scores[from] ?? 0) + 1;
+    // Everyone in the same vehicle arrives together and scores (task H.4).
+    const driver = ctx.rideOf?.(from) ?? from;
+    const crew = s.players.filter((id) => id === driver || id === from || (ctx.rideOf?.(id) ?? null) === driver);
+    for (const id of crew) s.scores[id] = (s.scores[id] ?? 0) + 1;
     s.data = { ...d, idx: d.idx + 1, winners: [...d.winners, from] };
     return true;
   },

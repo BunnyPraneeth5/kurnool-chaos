@@ -30,7 +30,7 @@ Browser multiplayer open-city driving game, just for fun with friends. Map is re
 - No silent mocks or fallbacks. If data or a service is missing, show a clear error.
 - Never commit secrets. Only the public `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` go in `.env.local` (gitignored); `vite.config.ts` passes exactly those two into the game.
 - Keep the "© OpenStreetMap contributors" credit visible in-game.
-- Before saying a task is done: `npm run build` passes, `npm run typecheck` passes, and you ran the game and checked the task's acceptance criteria.
+- Before saying a task is done: `npm run build`, `npm run typecheck` and `npm test` pass, and you ran the game and checked the task's acceptance criteria.
 - Small commits, one per task. Branch per bigger feature.
 - At session end: update `PROGRESS.md`, tick `TASKS.md`, log choices in `DECISIONS.md`.
 - Ask Bunny when stuck or when a decision is not covered by the docs. Do not guess on scope.

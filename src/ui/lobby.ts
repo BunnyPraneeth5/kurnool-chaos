@@ -14,7 +14,7 @@ function make<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTML
   return Object.assign(document.createElement(tag), props);
 }
 
-export function runLobby(linkCode: string | null): Promise<LobbyChoice> {
+export function runLobby(linkCode: string | null, openGuide: () => void): Promise<LobbyChoice> {
   return new Promise((resolve) => {
     box.hidden = false;
     box.className = 'lobby';
@@ -52,6 +52,8 @@ export function runLobby(linkCode: string | null): Promise<LobbyChoice> {
     };
     const solo = make('button', { type: 'button', className: 'link', textContent: 'Play alone' });
     solo.addEventListener('click', () => done({ kind: 'solo' }));
+    const guide = make('button', { type: 'button', className: 'link', textContent: 'How to play (guide)' });
+    guide.addEventListener('click', openGuide);
 
     if (linkCode) {
       const sub = make('p', { textContent: `Join room ${linkCode}` });
@@ -61,7 +63,7 @@ export function runLobby(linkCode: string | null): Promise<LobbyChoice> {
         if (e.key === 'Enter') enterRoom(linkCode);
       });
       solo.textContent = 'Play alone instead';
-      box.replaceChildren(title, sub, nick, join, err, solo);
+      box.replaceChildren(title, sub, nick, join, err, solo, guide);
     } else {
       const create = make('button', { type: 'button', textContent: 'Create room' });
       create.addEventListener('click', () => enterRoom(newRoomCode()));
@@ -88,7 +90,7 @@ export function runLobby(linkCode: string | null): Promise<LobbyChoice> {
       });
       const row = make('div', { className: 'row' });
       row.append(code, join);
-      box.replaceChildren(title, nick, create, make('p', { className: 'or', textContent: 'or join a friend' }), row, err, solo);
+      box.replaceChildren(title, nick, create, make('p', { className: 'or', textContent: 'or join a friend' }), row, err, solo, guide);
     }
     // Phones pop the keyboard over the game; only autofocus where there is a real keyboard.
     if (!window.matchMedia?.('(pointer: coarse)').matches && !nick.value) nick.focus();

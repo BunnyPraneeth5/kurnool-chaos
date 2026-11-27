@@ -117,6 +117,8 @@ export interface MapData {
     runway: { x: number; z: number; len: number; w: number; heading: number };
     terminal: { pts: Pt[] };
   };
+  /** OSM police stations (task H.5) */
+  police?: { name: string; x: number; z: number; a: number }[];
   spawn: { x: number; z: number; heading: number };
   meta: { osmBase: string; overtureRelease?: string; credit: string };
 }

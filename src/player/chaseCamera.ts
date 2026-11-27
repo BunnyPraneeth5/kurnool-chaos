@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { CollisionWorld } from '../map/collision';
+import { CAMERA_SCALE, settings } from '../ui/settings';
 
 // Third-person chase camera ported from the demo's updCamera(): trails behind the
 // player's heading, stays out of buildings, and sits a little further back in portrait.
@@ -64,7 +65,7 @@ export class ChaseCamera {
   private place(t: Followable, world: CollisionWorld, inCar: boolean): void {
     const portrait = this.camera.aspect < 1;
     const sp = Math.abs(t.speed);
-    const dist = (inCar ? (t.camDist ?? CAR_DIST) + sp * 0.11 : FOOT_DIST) * (portrait ? 1.12 : 1);
+    const dist = (inCar ? (t.camDist ?? CAR_DIST) + sp * 0.11 : FOOT_DIST) * (portrait ? 1.12 : 1) * CAMERA_SCALE[settings().camera];
     const h = inCar ? (t.camHeight ?? CAR_HEIGHT) : FOOT_HEIGHT;
     const r = world.collide(t.x - Math.sin(this.camA) * dist, t.z - Math.cos(this.camA) * dist, 1.2);
     // Never inside a hill behind the player.

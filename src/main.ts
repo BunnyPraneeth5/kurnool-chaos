@@ -9,6 +9,7 @@ import { buildParks } from './map/parks';
 import { buildProps } from './map/props';
 import { buildRail } from './map/rail';
 import { buildWaterways } from './map/waterways';
+import { buildPoliceStations } from './map/police';
 import { createSky } from './world/sky';
 import { detectQuality } from './world/quality';
 import { Game } from './game';
@@ -20,7 +21,10 @@ import { RoomError, playerColour } from './net/roomTypes';
 import type { Room } from './net/room';
 import { startRoomSession } from './net/roomSession';
 import { runLobby } from './ui/lobby';
-import { addSoloExit } from './ui/roomHud';
+import { Menu } from './ui/menu';
+import { guidePage } from './ui/guide';
+import { aboutPage, settingsPage, statsPage } from './ui/menuPages';
+import type { MapData } from './map/types';
 
 // Boot: renderer, sky, map meshes, then the game loop (see game.ts).
 
@@ -87,6 +91,13 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   const devMap = import.meta.env.DEV ? new URLSearchParams(location.search).get('map') : null;
   const mapUrl = devMap ?? `${import.meta.env.BASE_URL}map/kurnool.json`;
 
+  // The menu exists from the start screen on (Guide, About); the game adds the rest.
+  let mapForGuide: MapData | null = null;
+  let showPlace: ((x: number, z: number) => void) | null = null;
+  const menu = new Menu();
+  menu.add(guidePage({ map: () => mapForGuide, renderer, get showPlace() { return showPlace; } }));
+  menu.add(aboutPage());
+
   // Download the map while the player types a nickname.
   let lobbyOpen = true;
   let lastBytes = 0;
@@ -94,11 +105,15 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     lastBytes = bytes;
     if (!lobbyOpen) showLoading(`Loading Kurnool… ${(bytes / 1e6).toFixed(1)} MB`);
   }).then(
-    (m) => ({ ok: true as const, m }),
+    (m) => {
+      mapForGuide = m;
+      return { ok: true as const, m };
+    },
     (e: unknown) => ({ ok: false as const, e }),
   );
 
-  const choice = await runLobby(linkCode);
+  const choice = await runLobby(linkCode, () => menu.open('guide'));
+  menu.close();
   lobbyOpen = false;
   let joinP: Promise<Room> | null = null;
   let roomCode = '';
@@ -152,6 +167,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   const anisotropy = quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1;
   scene.add(buildBuildings(map, quality, anisotropy));
   scene.add(buildProps(map, quality, anisotropy));
+  scene.add(buildPoliceStations(map));
 
   let room: Room | null = null;
   let beforeUpdate: (dt: number) => void = () => {};
@@ -172,21 +188,39 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   }
 
   const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined, { traffic: quality.traffic, shadows: quality.vehicleShadows });
+  menu.add(settingsPage(quality.level), 'about');
+  menu.add(statsPage(), 'about');
+  showPlace = (x, z) => {
+    menu.close();
+    game.viewPlace(x, z);
+  };
   if (room) {
     const code = room.code;
     const session = startRoomSession(room, game, map, scene, camera, {
       onLeave: goToStart,
       onKicked: () =>
         showError('You were removed from the room', `The host removed you from room ${code}.`, [{ label: 'Back to start', run: goToStart }]),
+      menu,
     });
     beforeUpdate = session.before;
     afterUpdate = session.after;
   } else {
-    addSoloExit(goToStart);
+    menu.start({ label: 'Exit', armed: 'Exit?', run: goToStart });
   }
+  // Solo play pauses while the menu is open; in a room the world goes on but you stand still.
+  const solo = !room;
+  menu.onToggle = (open) => (game.held = open);
   hideStatus();
 
-  if (import.meta.env.DEV) Object.assign(window, { __three: { renderer, scene, camera }, __game: game, __room: room });
+  if (import.meta.env.DEV) {
+    // __frame(dt) runs one game step by hand (background tabs get no animation frames in tests).
+    const frame = (dt: number): void => {
+      beforeUpdate(dt);
+      game.update(dt);
+      afterUpdate();
+    };
+    Object.assign(window, { __three: { renderer, scene, camera }, __game: game, __room: room, __menu: menu, __frame: frame });
+  }
 
   const fps = createFpsMeter(quality.level);
   const timer = new THREE.Timer();
@@ -195,7 +229,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     // Capped so a stalled frame never teleports anything; vehicles also sub-step.
     const dt = Math.min(timer.getDelta(), 1 / 30);
     beforeUpdate(dt);
-    game.update(dt);
+    if (!(solo && menu.isOpen)) game.update(dt);
     afterUpdate();
     sky.update(camera);
     renderer.render(scene, camera);
