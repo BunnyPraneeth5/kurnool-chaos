@@ -31,7 +31,8 @@ export function interpDelayMs(players: number): number {
   return 1000 / hz + JITTER_MS;
 }
 
-export type Mode = 'foot' | VehicleType;
+/** On foot, driving a vehicle type, or riding in a friend's vehicle (task H.4). */
+export type Mode = 'foot' | VehicleType | 'ride';
 
 /** Broadcast event `s`. t is the sender's own clock in ms; only differences matter. */
 export interface NetState {
@@ -48,6 +49,9 @@ export interface NetState {
    * other vehicle (one taken from your own traffic), -1 on foot
    */
   car: number;
+  /** riding: the driver's player id and the seat (1 and up) */
+  ride?: string;
+  seat?: number;
 }
 
 export interface Pose {
@@ -58,6 +62,8 @@ export interface Pose {
   v: number;
   mode: Mode;
   car: number;
+  ride?: string;
+  seat?: number;
 }
 
 function angLerp(a: number, b: number, f: number): number {
@@ -124,6 +130,8 @@ export class SnapshotBuffer {
         v: last.v,
         mode: last.mode,
         car: last.car,
+        ride: last.ride,
+        seat: last.seat,
       };
     }
     let i = n - 2;
@@ -131,7 +139,7 @@ export class SnapshotBuffer {
     const a = this.snaps[i];
     const b = this.snaps[i + 1];
     const f = (target - a.t) / (b.t - a.t);
-    if (Math.hypot(b.x - a.x, b.z - a.z) > TELEPORT_M || a.mode !== b.mode || a.car !== b.car) {
+    if (Math.hypot(b.x - a.x, b.z - a.z) > TELEPORT_M || a.mode !== b.mode || a.car !== b.car || a.ride !== b.ride || a.seat !== b.seat) {
       return { ...(f < 0.5 ? a : b) };
     }
     return {
@@ -142,6 +150,8 @@ export class SnapshotBuffer {
       v: a.v + (b.v - a.v) * f,
       mode: a.mode,
       car: a.car,
+      ride: a.ride,
+      seat: a.seat,
     };
   }
 }
@@ -153,8 +163,14 @@ export function parseState(p: unknown): NetState | null {
   const num = (k: string): number | null => (typeof o[k] === 'number' && Number.isFinite(o[k]) ? (o[k] as number) : null);
   const t = num('t'), x = num('x'), z = num('z'), y = num('y'), h = num('h'), v = num('v');
   if (typeof o.id !== 'string' || t === null || x === null || z === null || y === null || h === null || v === null) return null;
-  const mode = o.mode === 'foot' ? 'foot' : VEHICLE_TYPES.find((t) => t === o.mode);
+  const mode = o.mode === 'foot' || o.mode === 'ride' ? o.mode : VEHICLE_TYPES.find((t) => t === o.mode);
   if (!mode) return null;
+  if (mode === 'ride') {
+    const seat = o.seat;
+    if (typeof o.ride !== 'string' || typeof seat !== 'number' || !Number.isInteger(seat) || seat < 1 || seat > 7) return null;
+    if (Math.abs(x) > 1e5 || Math.abs(z) > 1e5 || Math.abs(y) > 1e3 || Math.abs(v) > 200) return null;
+    return { id: o.id.slice(0, 32), t, x, z, y, h, v, mode, car: -1, ride: o.ride.slice(0, 32), seat };
+  }
   if (Math.abs(x) > 1e5 || Math.abs(z) > 1e5 || Math.abs(y) > 1e3 || Math.abs(v) > 200) return null;
   const car = typeof o.car === 'number' && Number.isInteger(o.car) && o.car >= 0 && o.car < 64 ? o.car : -2;
   return { id: o.id.slice(0, 32), t, x, z, y, h, v, mode, car: mode === 'foot' ? -1 : car };

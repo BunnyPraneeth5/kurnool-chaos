@@ -210,7 +210,15 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   menu.onToggle = (open) => (game.held = open);
   hideStatus();
 
-  if (import.meta.env.DEV) Object.assign(window, { __three: { renderer, scene, camera }, __game: game, __room: room });
+  if (import.meta.env.DEV) {
+    // __frame(dt) runs one game step by hand (background tabs get no animation frames in tests).
+    const frame = (dt: number): void => {
+      beforeUpdate(dt);
+      game.update(dt);
+      afterUpdate();
+    };
+    Object.assign(window, { __three: { renderer, scene, camera }, __game: game, __room: room, __menu: menu, __frame: frame });
+  }
 
   const fps = createFpsMeter(quality.level);
   const timer = new THREE.Timer();

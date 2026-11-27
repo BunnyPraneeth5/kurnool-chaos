@@ -80,7 +80,10 @@ export const huntMode: GameMode = {
     if (!t || c.idx !== d.idx) return false; // someone else got there first
     const p = ctx.posOf(from);
     if (!p || Math.hypot(p.x - t.x, p.z - t.z) > HOST_CHECK_M) return false;
-    s.scores[from] = (s.scores[from] ?? 0) + 1;
+    // Everyone in the same vehicle arrives together and scores (task H.4).
+    const driver = ctx.rideOf?.(from) ?? from;
+    const crew = s.players.filter((id) => id === driver || id === from || (ctx.rideOf?.(id) ?? null) === driver);
+    for (const id of crew) s.scores[id] = (s.scores[id] ?? 0) + 1;
     s.data = { ...d, idx: d.idx + 1, winners: [...d.winners, from] };
     return true;
   },

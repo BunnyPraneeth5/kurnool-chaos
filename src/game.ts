@@ -10,7 +10,8 @@ import { Vehicle } from './vehicles/vehicle';
 import { spawnParkedVehicles } from './vehicles/parked';
 import { setRider } from './vehicles/models';
 import { hullDistance, type Bumper } from './vehicles/hull';
-import type { VehicleType } from './vehicles/params';
+import { VEHICLES, type VehicleType } from './vehicles/params';
+import type { Pose } from './net/interp';
 import { Life } from './ai/life';
 import type { TrafficCar } from './ai/traffic';
 import { Minimap } from './ui/minimap';
@@ -41,6 +42,14 @@ export class Game {
   locked = false;
   /** The menu is open: stand still and ignore the controls (rooms keep running). */
   held = false;
+  /** Riding in a friend's vehicle (task H.4). */
+  ride: { driver: string; seat: number; type: VehicleType } | null = null;
+  /** Where a friend is drawn (set by the room code). */
+  posePf: (id: string) => Pose | null = () => null;
+  /** Ask for a seat in a friend's vehicle: the seat number, or why not (set by the room code). */
+  askRide: (driver: string) => number | string = () => 'Riding along works in rooms';
+  private rideLast: Pose | null = null;
+  private nearFriend: Bumper | null = null;
   /** Traffic, cops and heat (local to this screen). */
   readonly life: Life;
   readonly minimap: Minimap;
@@ -104,10 +113,12 @@ export class Game {
     const act = this.keys.consume('KeyE') || this.touch.consumeAction();
     const unstuck = this.keys.consume('KeyR') || this.touch.consumeUnstuck();
     if (act && !still) this.action();
-    if (unstuck && !still) this.unstuck();
+    if (unstuck && !still && !this.ride) this.unstuck();
     const bx = (this.car ?? this.player).x, bz = (this.car ?? this.player).z;
 
-    if (this.car) {
+    if (this.ride) {
+      this.rideUpdate(dt);
+    } else if (this.car) {
       const crash = this.car.drive(dt, inp, this.world, this.solidCars());
       if (crash > 0) {
         this.chase.shake(crash);
@@ -172,6 +183,7 @@ export class Game {
   driveCar(index: number, x: number, z: number, heading: number): void {
     const c = this.shared[index];
     if (!c) return;
+    this.endRide();
     this.life.traffic.clearNear(x, z, 25);
     if (this.car && this.car !== c) this.leave(this.car);
     c.mesh.visible = true;
@@ -183,6 +195,7 @@ export class Game {
 
   /** Put the player on foot at a spot; a car they were in stays parked where it is. */
   toFoot(x: number, z: number, heading: number): void {
+    this.endRide();
     if (this.car) {
       this.leave(this.car);
       this.car = null;
@@ -219,6 +232,26 @@ export class Game {
   }
 
   private action(): void {
+    if (this.ride) {
+      this.leaveRide();
+      return;
+    }
+    if (!this.car && this.nearFriend?.id && this.nearFriendIsClosest()) {
+      const id = this.nearFriend.id;
+      const seat = this.askRide(id);
+      if (typeof seat === 'string') {
+        this.hud.toast(seat);
+        return;
+      }
+      this.ride = { driver: id, seat, type: this.nearFriend.type };
+      this.rideLast = this.posePf(id);
+      this.player.figure.visible = false;
+      this.nearFriend = null;
+      this.nearCar = null;
+      stats.rides++;
+      this.refreshLabels();
+      return;
+    }
     if (this.car) {
       const c = this.car;
       if (Math.abs(c.speed) > MAX_EXIT_SPEED) {
@@ -260,6 +293,70 @@ export class Game {
     this.refreshLabels();
   }
 
+  /** Riding: follow the friend's vehicle; get out when they do or when they are gone. */
+  private rideUpdate(dt: number): void {
+    const r = this.ride!;
+    const pose = this.posePf(r.driver);
+    if (!pose || pose.mode === 'foot' || pose.mode === 'ride') {
+      // Out next to where the driver now stands (the vehicle is beside them).
+      if (pose) this.rideLast = { ...pose, v: 0 };
+      this.leaveRide(pose ? 'Your driver got out' : 'Your driver is gone');
+      return;
+    }
+    if (pose.mode !== r.type) r.type = pose.mode; // they changed vehicle
+    this.rideLast = pose;
+    const p = this.player;
+    p.x = pose.x;
+    p.z = pose.z;
+    p.y = pose.y;
+    p.a = pose.h;
+    const t = VEHICLES[r.type];
+    this.chase.update(dt, { x: pose.x, y: pose.y, z: pose.z, a: pose.h, speed: pose.v, camDist: t.camDist, camHeight: t.camHeight }, this.world, true);
+  }
+
+  /** Get out of a friend's vehicle, on foot beside it. */
+  private leaveRide(why?: string): void {
+    const last = this.rideLast;
+    const r = this.ride;
+    if (!r) return;
+    if (!why && last && Math.abs(last.v) > MAX_EXIT_SPEED) {
+      this.hud.toast('Wait till it slows down');
+      return;
+    }
+    this.ride = null;
+    this.rideLast = null;
+    this.player.figure.visible = true;
+    if (last) {
+      // Out on the side of the seat (left seats to the left).
+      const seat = r.seat;
+      const left = seat % 2 === 1;
+      const side = (VEHICLES[r.type].w / 2 + 1.2) * (left ? 1 : -1);
+      this.placeAt(last.x + Math.cos(last.h) * side, last.z - Math.sin(last.h) * side, last.h);
+    }
+    if (why) this.hud.toast(why);
+    this.refreshLabels();
+  }
+
+  /** Get out of a friend's vehicle because of a rule (seat taken, team changed). */
+  stopRiding(why: string): void {
+    this.leaveRide(why);
+  }
+
+  /** Stop riding without a message (teleports, round starts). */
+  private endRide(): void {
+    if (!this.ride) return;
+    this.ride = null;
+    this.rideLast = null;
+    this.player.figure.visible = true;
+  }
+
+  private nearFriendIsClosest(): boolean {
+    const f = this.nearFriend;
+    if (!f) return false;
+    const df = hullDistance(f, this.player.x, this.player.z).d;
+    return !this.nearCar || df <= hullDistance(this.nearCar, this.player.x, this.player.z).d;
+  }
+
   /** Get into a vehicle (on a bike you can be seen riding it). */
   private sit(c: Vehicle): void {
     c.kind = 'player';
@@ -290,6 +387,7 @@ export class Game {
   /** Move the player, or their car with them in it, stopped, pushed clear of walls. */
   teleport(x: number, z: number, heading: number): void {
     if (this.mapView) this.toggleMapView();
+    this.endRide();
     const c = this.car;
     if (!c) {
       this.placeAt(x, z, heading);
@@ -308,7 +406,13 @@ export class Game {
   }
 
   /** Where this player is, for the network (ARCHITECTURE: broadcast event `s`). */
-  netState(): { x: number; z: number; y: number; h: number; v: number; mode: 'foot' | VehicleType; car: number } {
+  netState(): { x: number; z: number; y: number; h: number; v: number; mode: 'foot' | VehicleType | 'ride'; car: number; ride?: { driver: string; seat: number } } {
+    const r = this.ride;
+    if (r) {
+      const q = this.rideLast ?? this.player;
+      const at = 'h' in q ? { x: q.x, z: q.z, y: q.y, h: q.h, v: q.v } : { x: q.x, z: q.z, y: q.y, h: q.a, v: 0 };
+      return { ...at, mode: 'ride', car: -1, ride: { driver: r.driver, seat: r.seat } };
+    }
     const c = this.car;
     if (c) {
       const i = this.shared.indexOf(c);
@@ -350,26 +454,42 @@ export class Game {
         best = c;
       }
     }
-    if (best !== this.nearCar) {
+    // Friends' vehicles: ride along.
+    let friend: Bumper | null = null;
+    let fd = ENTER_RANGE;
+    for (const c of this.extraCars) {
+      if (!c.id) continue;
+      const d = hullDistance(c, this.player.x, this.player.z).d;
+      if (d < fd) {
+        fd = d;
+        friend = c;
+      }
+    }
+    if (best !== this.nearCar || !!friend !== !!this.nearFriend) {
       this.nearCar = best;
+      this.nearFriend = friend;
       this.refreshLabels();
     }
+    this.nearFriend = friend;
   }
 
   private refreshLabels(): void {
-    const inCar = !!this.car;
-    this.touch.bAct.textContent = inCar ? 'Get out' : 'Get in';
-    this.touch.bAct.classList.toggle('ready', !inCar && !!this.nearCar);
+    const inCar = !!this.car || !!this.ride;
+    const near = !inCar && (!!this.nearCar || !!this.nearFriend);
+    this.touch.bAct.textContent = inCar ? 'Get out' : this.nearFriend && this.nearFriendIsClosest() ? 'Ride' : 'Get in';
+    this.touch.bAct.classList.toggle('ready', near);
     this.touch.bHand.textContent = inCar ? 'Drift' : 'Run';
     if (!this.hint) return;
     this.hint.hidden = false;
     if (this.mapView) {
       this.hint.textContent = 'Map view: drag to move · right-drag to turn · scroll to zoom · C to go back';
+    } else if (this.ride) {
+      this.hint.textContent = 'Riding with a friend · E get out · C map view · Esc menu · G guide';
     } else if (inCar) {
       this.hint.textContent = 'W/S gas and brake · A/D steer · Space drift · E get out · R unstuck · C map view · Esc menu · G guide';
     } else {
-      const near = this.nearCar ? 'E get in · ' : '';
-      this.hint.textContent = `W/S walk · A/D turn · Shift run · ${near}R unstuck · C map view · Esc menu · G guide`;
+      const hint = this.nearFriend && this.nearFriendIsClosest() ? 'E ride along · ' : this.nearCar ? 'E get in · ' : '';
+      this.hint.textContent = `W/S walk · A/D turn · Shift run · ${hint}R unstuck · C map view · Esc menu · G guide`;
     }
   }
 }

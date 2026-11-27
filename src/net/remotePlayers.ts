@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OnFootPlayer } from '../player/onFoot';
-import { buildVehicleMesh, setRider } from '../vehicles/models';
+import { buildVehicleMesh, seatedFigure, setRider } from '../vehicles/models';
 import { VEHICLES, vehicleColour, type VehicleType } from '../vehicles/params';
 import type { Bumper } from '../vehicles/hull';
 import type { Vehicle } from '../vehicles/vehicle';
@@ -39,6 +39,8 @@ interface View {
   blocked: boolean;
   police: boolean;
   last: Pose | null;
+  /** Riding: the seated figure in the driver's vehicle. */
+  seated: { obj: THREE.Object3D; host: THREE.Object3D; type: VehicleType; seat: number } | null;
 }
 
 export class RemotePlayers {
@@ -144,6 +146,20 @@ export class RemotePlayers {
         this.hide(v);
         continue;
       }
+      if (pose.mode === 'ride') {
+        // Sitting in a friend's vehicle (or ours): drawn in its seat, tag above it.
+        this.setCar(v, -1, null);
+        v.figure.figure.visible = false;
+        const host = this.vehicleOf(pose.ride ?? '');
+        this.sit(v, host, pose.seat ?? 1);
+        v.last = pose;
+        if (host) {
+          host.mesh.getWorldPosition(this.v3);
+          this.placeTag(v, { ...pose, x: this.v3.x, y: this.v3.y, z: this.v3.z }, w, h, VEHICLES[host.type].roof + TAG_ABOVE_ROOF + 0.4);
+        } else v.tag.hidden = true;
+        continue;
+      }
+      this.sit(v, null, 0);
       // -1 on foot, k = our parked vehicle k, -2 = some other vehicle.
       this.setCar(v, pose.mode === 'foot' ? -1 : pose.car >= 0 ? pose.car : -2, pose);
       if (pose.mode !== 'foot' && v.car) {
@@ -151,7 +167,7 @@ export class RemotePlayers {
         v.car.visible = true;
         v.car.position.set(pose.x, pose.y, pose.z);
         v.car.rotation.y = pose.h;
-        this.carColliders.push({ x: pose.x, z: pose.z, a: pose.h, type: pose.mode });
+        this.carColliders.push({ x: pose.x, z: pose.z, a: pose.h, type: pose.mode, id: v.info.id });
       } else {
         if (v.car) v.car.visible = false;
         const f = v.figure;
@@ -169,6 +185,50 @@ export class RemotePlayers {
   }
 
   // --- internals ---
+
+  /** The vehicle a player is driving as drawn here: our own, or a friend's model. */
+  private vehicleOf(id: string): { mesh: THREE.Object3D; type: VehicleType } | null {
+    if (id === this.myId) {
+      const c = this.myCar();
+      return c ? { mesh: c.mesh, type: c.type } : null;
+    }
+    const d = this.views.get(id);
+    return d && d.car && d.carType && d.car.visible ? { mesh: d.car, type: d.carType } : null;
+  }
+
+  /** Put a riding friend's figure in their seat (or take it out with host null). */
+  private sit(v: View, host: { mesh: THREE.Object3D; type: VehicleType } | null, seat: number): void {
+    const s = v.seated;
+    if (s && host && s.host === host.mesh && s.type === host.type && s.seat === seat && s.obj.parent === host.mesh) return;
+    if (s) {
+      s.obj.removeFromParent();
+      v.seated = null;
+    }
+    if (!host) return;
+    const obj = seatedFigure(host.type, seat, playerColour(v.info.slot));
+    host.mesh.add(obj);
+    v.seated = { obj, host: host.mesh, type: host.type, seat };
+  }
+
+  /** Riders in a player's vehicle as seen here (seat numbers). */
+  seatsTaken(driver: string, except: string): number[] {
+    const out: number[] = [];
+    for (const v of this.views.values()) {
+      if (v.info.id === except || !v.last || v.last.mode !== 'ride' || v.last.ride !== driver) continue;
+      if (performance.now() - v.buf.lastRecv > STALE_MS) continue;
+      out.push(v.last.seat ?? 1);
+    }
+    return out;
+  }
+
+  /** Who else claims this seat, and when they joined (the earlier joiner keeps it). */
+  seatRivals(driver: string, seat: number, except: string): PlayerInfo[] {
+    const out: PlayerInfo[] = [];
+    for (const v of this.views.values()) {
+      if (v.info.id !== except && v.last?.mode === 'ride' && v.last.ride === driver && v.last.seat === seat && performance.now() - v.buf.lastRecv < STALE_MS) out.push(v.info);
+    }
+    return out;
+  }
 
   private makeView(p: PlayerInfo): View {
     const figure = new OnFootPlayer(0, 0, 0, playerColour(p.slot));
@@ -188,12 +248,12 @@ export class RemotePlayers {
     document.body.append(tag);
     const buf = this.early.get(p.id) ?? new SnapshotBuffer();
     this.early.delete(p.id);
-    return { info: p, buf, figure, car: null, carIndex: -1, carType: null, tag, nick, bubble, bubbleUntil: 0, blocked: false, police: false, last: null };
+    return { info: p, buf, figure, car: null, carIndex: -1, carType: null, tag, nick, bubble, bubbleUntil: 0, blocked: false, police: false, last: null, seated: null };
   }
 
   /** Switch which parked car (if any) this friend is driving. */
   private setCar(v: View, index: number, pose: Pose | null): void {
-    const type = index === -1 || !pose || pose.mode === 'foot' ? null : pose.mode;
+    const type = index === -1 || !pose || pose.mode === 'foot' || pose.mode === 'ride' ? null : pose.mode;
     if (index === v.carIndex && type === v.carType) return;
     // Leaving car k: our copy of it now stands where they left it.
     const old = this.parked[v.carIndex];
@@ -224,20 +284,23 @@ export class RemotePlayers {
   }
 
   private hide(v: View): void {
+    this.sit(v, null, 0);
     v.figure.figure.visible = false;
     if (v.car) v.car.visible = false;
     v.tag.hidden = true;
   }
 
   private remove(id: string, v: View): void {
+    this.sit(v, null, 0);
     this.setCar(v, -1, null);
     this.scene.remove(v.figure.figure);
     v.tag.remove();
     this.views.delete(id);
   }
 
-  private placeTag(v: View, pose: Pose, w: number, h: number): void {
-    const p = this.v3.set(pose.x, pose.y + (pose.mode === 'foot' ? TAG_HEIGHT_FOOT : VEHICLES[pose.mode].roof + TAG_ABOVE_ROOF), pose.z);
+  private placeTag(v: View, pose: Pose, w: number, h: number, above?: number): void {
+    const lift = above ?? (pose.mode === 'foot' || pose.mode === 'ride' ? TAG_HEIGHT_FOOT : VEHICLES[pose.mode].roof + TAG_ABOVE_ROOF);
+    const p = this.v3.set(pose.x, pose.y + lift, pose.z);
     const dist = p.distanceTo(this.camera.position);
     p.project(this.camera);
     if (p.z > 1 || dist > TAG_RANGE || Math.abs(p.x) > 1.2 || Math.abs(p.y) > 1.2) {

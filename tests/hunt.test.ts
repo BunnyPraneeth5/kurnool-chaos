@@ -24,6 +24,13 @@ describe('Landmark hunt', () => {
     expect((s.data as { idx: number }).idx).toBe(1);
   });
 
+  it('riders in the same vehicle score with the driver', () => {
+    const s = state({ mode: 'hunt', players: ['p', 'q', 'r'], scores: { p: 0, q: 0, r: 0 }, data: { targets: [{ x: 0, z: 0, label: 'A' }, { x: 900, z: 0, label: 'B' }], idx: 0, winners: [] } });
+    const c = { ...ctx({ p: { x: 10, z: 0 }, q: { x: 10, z: 0 }, r: { x: 500, z: 0 } }), rideOf: (id: string) => (id === 'q' ? 'p' : null) };
+    expect(m.claim(s, 'q', { kind: 'reach', idx: 0 }, c)).toBe(true);
+    expect(s.scores).toEqual({ p: 1, q: 1, r: 0 });
+  });
+
   it('refuses an arrival the host sees far away, and ends after the last target', () => {
     const s = state({ mode: 'hunt', players: ['p'], scores: { p: 0 }, data: { targets: [{ x: 0, z: 0, label: 'A' }], idx: 0, winners: [] } });
     expect(m.claim(s, 'p', { kind: 'reach', idx: 0 }, ctx({ p: { x: 200, z: 0 } }))).toBe(false);
