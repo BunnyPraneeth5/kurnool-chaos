@@ -2,6 +2,15 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-27 | Vehicles collide as circles along the body (bus 4, lorry 3, others 2) with a per-type radius; weight decides who moves when you hit traffic or cops | Long buses need more than one circle; heavy vehicles should shove light ones |
+| 2026-11-27 | 14 shared parked vehicles: the first 8 are cars (rooms move them to the lobby, rounds use car = slot), then 2 autos, 2 bikes, a bus and a lorry near Raj Vihar | Everyone in a round gets the same kind; the other types are still near the start |
+| 2026-11-27 | Network `mode` is the vehicle type; `car` -2 for a vehicle taken from your own traffic (friends see it in your colour) | Traffic is local, so friends cannot know which one it was |
+| 2026-11-27 | Traffic and cops move along road polylines (no wall physics); a knock pushes them up to 2.5 m aside and they drift back | Cheap on phones, and they never get caught on walls |
+| 2026-11-27 | Traffic 20 on low, 32 on high, kept 120 to 300 m around you; 30% autos, 32% bikes, 28% cars, 5% buses, 5% lorries | Kurnool street mix; acceptance asks for 20 to 40 |
+| 2026-11-27 | Cops may drive against one-way roads (30% extra cost in the path search); new heat gives cops 20 s before it can cool | Without it they took long detours; with the demo's rule they gave up before arriving |
+| 2026-11-27 | Busted = heat and cops cleared, vehicle stopped, nothing else | No money or score system in this game yet |
+| 2026-11-27 | No local cops during a game round you are in | Chor–Police has its own police; cops would confuse rounds |
+| 2026-11-27 | Minimap top right, turning with the camera, tap for the whole city; room panel moved under it | Demo layout; the whole-city view helps find landmarks on phones |
 | 2026-11-10 | Name: Kurnool Chaos (was Port Meridian) | Bunny's pick |
 | 2026-11-10 | Just for fun with friends, but touch frontend, realtime, database and deploy in a simple way | Bunny's goal |
 | 2026-11-10 | Real Kurnool roads from OSM, stylized low-poly look, not identical | Recognizable but buildable |

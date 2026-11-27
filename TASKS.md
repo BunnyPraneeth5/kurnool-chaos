@@ -77,12 +77,14 @@ Goal: rooms gather in a lobby, the host picks a game mode, everyone plays a time
 ## Phase 5: Vehicles and life
 - [ ] **5.1 Vehicle types.** Auto and bike/scooter models with params (bike lean, auto body roll). Bus and lorry as simple box shapes with their own params.
   - Accept: each type feels different. All can be entered and driven.
-- [ ] **5.2 Traffic.** Road-graph traffic, left lane, mixed types, density by quality setting.
+  - **Bunny check:** do the five feel different on phone and laptop?
+- [x] **5.2 Traffic.** Road-graph traffic, left lane, mixed types, density by quality setting.
   - Accept: 20 to 40 traffic vehicles moving without piling up for 5 minutes.
-- [ ] **5.3 Cops and heat.** Port from demo onto the road graph. Cops path along roads with a shortest-path search.
+- [x] **5.3 Cops and heat.** Port from demo onto the road graph. Cops path along roads with a shortest-path search.
   - Accept: stealing from traffic gives heat, cops chase without getting stuck at dead ends, bust and escape both work.
 - [ ] **5.4 HUD and minimap.** Port from demo. Minimap draws real roads and landmarks.
   - Accept: full game playable on phone with thumbs only.
+  - **Bunny check:** play on the phone with thumbs only.
 
 ## Phase 6: Races (secondary)
 - [ ] **6.1 Pick race routes.** Propose 2 or 3 preset routes from the built map.

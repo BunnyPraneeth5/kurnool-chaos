@@ -171,7 +171,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     }
   }
 
-  const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined);
+  const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined, { traffic: quality.traffic, shadows: quality.vehicleShadows });
   if (room) {
     const code = room.code;
     const session = startRoomSession(room, game, map, scene, camera, {

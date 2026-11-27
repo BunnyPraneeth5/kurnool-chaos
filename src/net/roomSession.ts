@@ -9,6 +9,7 @@ import type { Room } from './room';
 import { cssColour, playerColour, type PlayerInfo } from './roomTypes';
 import { buildLobby, findLobby, lobbySpot, parkLobbyCars } from '../modes/lobby';
 import { NetSync } from './sync';
+import { LOBBY_CARS } from '../vehicles/parked';
 import { RoundController } from '../modes/round';
 import { GameUi } from '../modes/ui';
 import { Beacon, flashLightBars, setPoliceLook } from '../modes/visuals';
@@ -42,11 +43,11 @@ export function startRoomSession(
   // around it, and everyone spread over the plaza. Rounds start down in the city.
   const lobby = findLobby(map);
   scene.add(buildLobby(lobby));
-  parkLobbyCars(lobby, game.vehicles, game.world);
+  parkLobbyCars(lobby, game.vehicles.slice(0, LOBBY_CARS), game.world);
   const sp = lobbySpot(lobby, r.self.slot);
   game.placeAt(sp.x, sp.z, sp.heading);
 
-  const remotes = new RemotePlayers(scene, camera, r.myId, game.vehicles, () => game.car);
+  const remotes = new RemotePlayers(scene, camera, r.myId, game.shared, () => game.car);
   const sync = new NetSync(r, game);
   const byId = (id: string): PlayerInfo | undefined => r.players.find((p) => p.id === id);
   const colourOf = (p: PlayerInfo): string => cssColour(playerColour(p.slot));
@@ -213,7 +214,17 @@ export function startRoomSession(
         lookCar = mesh;
       }
       flashLightBars(now);
-      beacon.set(gameUi.beaconTarget(), now);
+      const target = gameUi.beaconTarget();
+      beacon.set(target, now);
+      // Rounds have their own police: no local cops while one runs for us.
+      game.life.calm = (s.phase === 'countdown' || s.phase === 'playing') && s.players.includes(r.myId);
+      game.minimap.target = target;
+      game.minimap.friends = [];
+      for (const p of r.players) {
+        if (p.id === r.myId) continue;
+        const pose = remotes.poseOf(p.id);
+        if (pose) game.minimap.friends.push({ x: pose.x, z: pose.z, colour: colourOf(p) });
+      }
       gameUi.update();
       remotes.update(dt, now, r.players.length);
       game.extraCars = remotes.carColliders;

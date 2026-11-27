@@ -1,19 +1,24 @@
 import type { CollisionWorld } from '../map/collision';
 import type { RoadIndex } from '../map/roadIndex';
 import { Vehicle } from './vehicle';
-import { CAR_COLOURS } from './params';
+import { VEHICLES, vehicleColour, type VehicleType } from './params';
 
-// Parked cars near the start point (PRD: parked vehicles near the start), on the
-// left edge of nearby roads (India drives on the left), facing along the road.
-// Placement is deterministic, so every player sees the same spots.
+// Parked vehicles near the start point (PRD), on the left edge of nearby roads (India
+// drives on the left), facing along the road. Placement is deterministic, so every player
+// sees the same spots and the same number means the same vehicle on every screen.
 
-const COUNT = 8;
-const SEARCH_RADIUS = 150;
-const SPACING = 7; // m between parked cars
+// The first 8 are cars: game rounds put player slot k in vehicle k, so everyone gets the
+// same kind, and rooms move these 8 to the lobby. The rest stay in the city.
+export const LOBBY_CARS = 8;
+const LIST: VehicleType[] = [...Array<VehicleType>(LOBBY_CARS).fill('car'), 'auto', 'bike', 'auto', 'bike', 'bus', 'lorry'];
+const SEARCH_RADIUS = 220;
+const STEP = 7; // m between candidate spots
+const GAP = 2.5; // m of clear road between two parked vehicles
 const KEEP_CLEAR = 12; // m around the spawn point and road ends (junctions)
+const WIDE_HW = 4.5; // buses and lorries only park on roads at least this wide each side
 
-export function spawnParkedCars(spawnX: number, spawnZ: number, roads: RoadIndex, world: CollisionWorld): Vehicle[] {
-  type Spot = { x: number; z: number; a: number; d: number };
+export function spawnParkedVehicles(spawnX: number, spawnZ: number, roads: RoadIndex, world: CollisionWorld): Vehicle[] {
+  type Spot = { x: number; z: number; ux: number; uz: number; hw: number; d: number };
   const spots: Spot[] = [];
   for (const s of roads.segs) {
     const len = Math.hypot(s.bx - s.ax, s.bz - s.az);
@@ -23,29 +28,38 @@ export function spawnParkedCars(spawnX: number, spawnZ: number, roads: RoadIndex
     if (Math.hypot(mx - spawnX, mz - spawnZ) > SEARCH_RADIUS + len / 2) continue;
     const ux = (s.bx - s.ax) / len;
     const uz = (s.bz - s.az) / len;
-    // Left of travel direction for forward = (ux, uz) is (uz, -ux).
-    const off = s.hw - 1.2;
-    for (let along = KEEP_CLEAR; along <= len - KEEP_CLEAR; along += SPACING) {
-      const x = s.ax + ux * along + uz * off;
-      const z = s.az + uz * along - ux * off;
+    for (let along = KEEP_CLEAR; along <= len - KEEP_CLEAR; along += STEP) {
+      const x = s.ax + ux * along;
+      const z = s.az + uz * along;
       const d = Math.hypot(x - spawnX, z - spawnZ);
       if (d < KEEP_CLEAR || d > SEARCH_RADIUS) continue;
-      spots.push({ x, z, a: Math.atan2(ux, uz), d });
+      spots.push({ x, z, ux, uz, hw: s.hw, d });
     }
   }
   spots.sort((p, q) => p.d - q.d || p.x - q.x);
 
-  const cars: Vehicle[] = [];
-  for (const sp of spots) {
-    if (cars.length >= COUNT) break;
-    if (cars.some((c) => Math.hypot(c.x - sp.x, c.z - sp.z) < SPACING)) continue;
-    const car = new Vehicle('car', CAR_COLOURS[cars.length % CAR_COLOURS.length], sp.x, sp.z, sp.a);
-    // Skip spots where the car would touch a wall.
-    const bx = car.x, bz = car.z;
-    if (car.pushOut(world) || Math.hypot(car.x - bx, car.z - bz) > 0.01) continue;
-    car.settle(world);
-    car.sync();
-    cars.push(car);
+  const out: Vehicle[] = [];
+  const counts = new Map<VehicleType, number>();
+  for (const type of LIST) {
+    const t = VEHICLES[type];
+    const n = counts.get(type) ?? 0;
+    for (const sp of spots) {
+      if (t.len > 6 && sp.hw < WIDE_HW) continue;
+      // Left of travel direction for forward = (ux, uz) is (uz, -ux).
+      const off = sp.hw - t.w / 2 - 0.25;
+      const x = sp.x + sp.uz * off;
+      const z = sp.z - sp.ux * off;
+      if (out.some((c) => Math.hypot(c.x - x, c.z - z) < (c.t.len + t.len) / 2 + GAP)) continue;
+      const v = new Vehicle(type, vehicleColour(type, type === 'car' ? out.length : n), x, z, Math.atan2(sp.ux, sp.uz));
+      // Skip spots where it would touch a wall.
+      if (v.pushOut(world) || Math.hypot(v.x - x, v.z - z) > 0.01) continue;
+      v.settle(world);
+      v.sync();
+      out.push(v);
+      counts.set(type, n + 1);
+      break;
+    }
   }
-  return cars;
+  if (out.length < LIST.length) console.warn(`Only ${out.length} of ${LIST.length} parked vehicles fit near the start`);
+  return out;
 }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VEHICLES, type VehicleType } from '../vehicles/params';
 
 // World pieces for game rounds: a light pillar over the current hunt target
 // (seen over the buildings and through the fog) and a police light bar.
@@ -55,7 +56,7 @@ function policeSign(): THREE.MeshBasicMaterial {
 
 const BAR = 'policebar';
 
-function makeBar(): THREE.Group {
+function makeBar(type: VehicleType): THREE.Group {
   const g = new THREE.Group();
   g.name = BAR;
   const l = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.3), red);
@@ -64,7 +65,10 @@ function makeBar(): THREE.Group {
   r.position.x = -0.42;
   const sign = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.2, 0.32), policeSign());
   g.add(l, r, sign);
-  g.position.set(0, 1.78, -0.2); // on the roof of the sedan model
+  // On the roof (above the rider's head on a bike), narrower on small vehicles.
+  const t = VEHICLES[type];
+  g.position.set(0, type === 'bike' ? 2.15 : t.roof + 0.1, type === 'car' ? -0.2 : type === 'lorry' ? 2.75 : 0);
+  g.scale.x = Math.min(1, t.w / 1.5);
   return g;
 }
 
@@ -72,7 +76,7 @@ function makeBar(): THREE.Group {
 export function setPoliceLook(car: THREE.Object3D | null | undefined, on: boolean): void {
   if (!car) return;
   const bar = car.getObjectByName(BAR);
-  if (on && !bar) car.add(makeBar());
+  if (on && !bar) car.add(makeBar((car.userData.vehicle as VehicleType | undefined) ?? 'car'));
   else if (!on && bar) car.remove(bar);
 }
 

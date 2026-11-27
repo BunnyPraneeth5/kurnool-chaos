@@ -89,6 +89,9 @@ body {
   text-shadow: 0 2px 0 rgba(28, 26, 58, 0.85), 0 0 18px rgba(28, 26, 58, 0.6);
   pointer-events: none;
 }
+#toast.bad {
+  color: #ff5d4d;
+}
 #toast[hidden],
 #spd[hidden] {
   display: none;
@@ -269,7 +272,7 @@ body.touch #hint {
 
 #room {
   position: fixed;
-  top: max(6px, env(safe-area-inset-top));
+  top: calc(max(6px, env(safe-area-inset-top)) + 142px); /* under the minimap */
   right: max(8px, env(safe-area-inset-right));
   max-width: 46vw;
   padding: 6px 8px;
@@ -699,4 +702,70 @@ body.touch #credit {
   font-size: 9px;
   line-height: 1;
   text-align: right;
+}
+
+/* Minimap and heat stars (task 5.4), top right; the room panel sits under them. */
+#mapbox {
+  position: fixed;
+  top: max(6px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-direction: row-reverse;
+}
+#minimap {
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 243, 224, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  touch-action: none;
+  cursor: pointer;
+}
+#minimap.whole {
+  border-color: #ffc247;
+}
+#heat {
+  display: flex;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(24, 20, 48, 0.55);
+  visibility: hidden;
+}
+#heat.hot {
+  visibility: visible;
+}
+#heat i {
+  width: 11px;
+  height: 11px;
+  transform: rotate(45deg);
+  border: 1.5px solid #d3c8dc;
+  border-radius: 2px;
+}
+#heat i.on {
+  background: #ff5d4d;
+  border-color: #ff5d4d;
+}
+#heat.bust {
+  animation: bustpulse 0.4s infinite alternate;
+}
+@keyframes bustpulse {
+  to {
+    background: rgba(228, 87, 61, 0.8);
+  }
+}
+body.mapview #mapbox,
+#mapbox[hidden] {
+  display: none;
+}
+@media (max-height: 480px) {
+  #minimap {
+    width: 104px;
+    height: 104px;
+  }
+  #room {
+    top: calc(max(6px, env(safe-area-inset-top)) + 114px);
+  }
 }

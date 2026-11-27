@@ -15,6 +15,9 @@ export interface Followable {
   z: number;
   a: number;
   speed: number;
+  /** vehicles set their own camera distance and height */
+  camDist?: number;
+  camHeight?: number;
 }
 
 function angDiff(a: number, b: number): number {
@@ -61,8 +64,8 @@ export class ChaseCamera {
   private place(t: Followable, world: CollisionWorld, inCar: boolean): void {
     const portrait = this.camera.aspect < 1;
     const sp = Math.abs(t.speed);
-    const dist = (inCar ? CAR_DIST + sp * 0.11 : FOOT_DIST) * (portrait ? 1.12 : 1);
-    const h = inCar ? CAR_HEIGHT : FOOT_HEIGHT;
+    const dist = (inCar ? (t.camDist ?? CAR_DIST) + sp * 0.11 : FOOT_DIST) * (portrait ? 1.12 : 1);
+    const h = inCar ? (t.camHeight ?? CAR_HEIGHT) : FOOT_HEIGHT;
     const r = world.collide(t.x - Math.sin(this.camA) * dist, t.z - Math.cos(this.camA) * dist, 1.2);
     // Never inside a hill behind the player.
     this.target.set(r.x, Math.max(t.y + h, world.heightAt(r.x, r.z) + 1.5), r.z);
