@@ -6,6 +6,10 @@ export const VEHICLE_TYPES: readonly VehicleType[] = ['car', 'auto', 'bike', 'bu
 
 export interface VehicleParams {
   name: string;
+  /** seats including the driver (friends ride in the others, task H.4) */
+  seats: number;
+  /** for the guide */
+  about: string;
   /** top speed, m/s */
   top: number;
   /** acceleration, m/s^2 at standstill */
@@ -36,15 +40,15 @@ export interface VehicleParams {
 // The car is the demo sedan, retuned for narrow streets: two 1.0 m circles instead of one
 // 1.6 m circle, so it fits lanes about 2.5 m wide and does not catch on walls with its corners.
 export const VEHICLES: Record<VehicleType, VehicleParams> = {
-  car: { name: 'Car', top: 34, acc: 15, grip: 7, turn: 2.3, radius: 1.0, circles: [1.2, -1.2], len: 4.3, w: 1.9, roll: -0.07, rollRate: 8, mass: 1, camDist: 9.5, camHeight: 4.4, roof: 1.68 },
+  car: { seats: 4, about: 'The all-rounder: quick, grippy and fits most lanes.', name: 'Car', top: 34, acc: 15, grip: 7, turn: 2.3, radius: 1.0, circles: [1.2, -1.2], len: 4.3, w: 1.9, roll: -0.07, rollRate: 8, mass: 1, camDist: 9.5, camHeight: 4.4, roof: 1.68 },
   // Slow, slides about and rolls a lot.
-  auto: { name: 'Auto', top: 18, acc: 9, grip: 3.5, turn: 2.8, radius: 0.75, circles: [0.65, -0.65], len: 2.8, w: 1.45, roll: -0.18, rollRate: 4.5, mass: 0.6, camDist: 8, camHeight: 3.9, roof: 1.92 },
+  auto: { seats: 3, about: 'Slow and tippy: slides in corners and rolls a lot. Squeezes into gaps cars cannot.', name: 'Auto', top: 18, acc: 9, grip: 3.5, turn: 2.8, radius: 0.75, circles: [0.65, -0.65], len: 2.8, w: 1.45, roll: -0.18, rollRate: 4.5, mass: 0.6, camDist: 8, camHeight: 3.9, roof: 1.92 },
   // Quick off the line, leans into turns and fits through gaps.
-  bike: { name: 'Bike', top: 30, acc: 20, grip: 5, turn: 2.9, radius: 0.45, circles: [0.55, -0.55], len: 2.0, w: 0.7, roll: 0.5, rollRate: 7, mass: 0.3, camDist: 7, camHeight: 3.2, roof: 1.75 },
+  bike: { seats: 2, about: 'Fastest off the line, leans into turns and slips between traffic. Easy to knock about.', name: 'Bike', top: 30, acc: 20, grip: 5, turn: 2.9, radius: 0.45, circles: [0.55, -0.55], len: 2.0, w: 0.7, roll: 0.5, rollRate: 7, mass: 0.3, camDist: 7, camHeight: 3.2, roof: 1.75 },
   // Long and slow to turn.
-  bus: { name: 'Bus', top: 20, acc: 6, grip: 8, turn: 1.25, radius: 1.25, circles: [3.55, 1.2, -1.2, -3.55], len: 9.6, w: 2.6, roll: -0.035, rollRate: 3, mass: 4, camDist: 17, camHeight: 7.2, roof: 3.15 },
+  bus: { seats: 8, about: 'Long, slow to turn and heavy. Carries a full room of friends.', name: 'Bus', top: 20, acc: 6, grip: 8, turn: 1.25, radius: 1.25, circles: [3.55, 1.2, -1.2, -3.55], len: 9.6, w: 2.6, roll: -0.035, rollRate: 3, mass: 4, camDist: 17, camHeight: 7.2, roof: 3.15 },
   // Heavy: shoves lighter vehicles aside.
-  lorry: { name: 'Lorry', top: 22, acc: 7, grip: 6, turn: 1.45, radius: 1.25, circles: [2.6, 0, -2.6], len: 7.6, w: 2.5, roll: -0.045, rollRate: 3, mass: 4.5, camDist: 15, camHeight: 6.6, roof: 3.0 },
+  lorry: { seats: 3, about: 'Heavy: shoves smaller vehicles out of the way. Slow to turn.', name: 'Lorry', top: 22, acc: 7, grip: 6, turn: 1.45, radius: 1.25, circles: [2.6, 0, -2.6], len: 7.6, w: 2.5, roll: -0.045, rollRate: 3, mass: 4.5, camDist: 15, camHeight: 6.6, roof: 3.0 },
 };
 
 export const CAR_COLOURS = [0xe4573d, 0xf2b33d, 0x3d8fd6, 0xeae3d6, 0x34304a, 0x49b08c, 0xb25fc4, 0xf08a5d];

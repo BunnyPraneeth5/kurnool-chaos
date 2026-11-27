@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig, loadEnv } from 'vite';
 
 // Supabase settings without the VITE_ prefix: Vercel will not save a key-like
@@ -10,5 +11,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const define: Record<string, string> = {};
   for (const k of PUBLIC_VARS) define[`__${k}__`] = JSON.stringify((process.env[k] ?? env[k] ?? '').trim());
+  // The game's version for the About page (not an env var).
+  define.__APP_VERSION__ = JSON.stringify((JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version);
   return { define };
 });

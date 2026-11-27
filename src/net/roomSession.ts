@@ -2,6 +2,7 @@ import type * as THREE from 'three';
 import type { Game } from '../game';
 import type { MapData } from '../map/types';
 import { ChatUi } from '../ui/chat';
+import type { Menu } from '../ui/menu';
 import { RoomHud } from '../ui/roomHud';
 import { cleanNick, saveNick } from './ids';
 import { RemotePlayers } from './remotePlayers';
@@ -37,7 +38,7 @@ export function startRoomSession(
   map: MapData,
   scene: THREE.Scene,
   camera: THREE.Camera,
-  exits: { onLeave: () => void; onKicked: () => void },
+  exits: { onLeave: () => void; onKicked: () => void; menu: Menu },
 ): RoomSession {
   // Rooms gather on Jagannatha Gattu (G.1): plaza and sign, the shared cars parked
   // around it, and everyone spread over the plaza. Rounds start down in the city.
@@ -86,10 +87,14 @@ export function startRoomSession(
       if (ok) saveNick(cleanNick(nick));
       return ok;
     },
-    leave: () => void r.leave().then(exits.onLeave),
     openChat: () => chat.open(),
+    openRoom: () => exits.menu.open('room'),
     toast: (m) => game.toast(m),
   });
+
+  // The room page of the menu, and Leave in the menu.
+  exits.menu.add({ id: 'room', title: `Room ${r.code}`, render: () => hud.panel }, 'stats');
+  exits.menu.start({ label: 'Leave room', armed: 'Leave?', run: () => void r.leave().then(exits.onLeave) });
 
   // Game rounds (Phase G). Between rounds everyone is back on the Jagannatha Gattu plaza.
   // A player who drops out briefly (phone lock, reconnect) still counts as present for

@@ -1,9 +1,9 @@
 import { NICK_MAX, roomLink } from '../net/ids';
 import { cssColour, playerColour, type PlayerInfo, type RoomStatus } from '../net/roomTypes';
 
-// In-room HUD: room code, Share, chat and Leave buttons, the player list with a
-// menu per player (go to, block, kick for the host, rename yourself), and the
-// "Reconnecting" banner. All player text is set with textContent.
+// In-room HUD: the room page of the menu (room code, Share, chat, the player list with a
+// menu per player: go to, block, kick for the host, rename yourself), a small pill on screen
+// (player count and Chat), and the "Reconnecting" banner. All player text is set with textContent.
 
 export interface RoomHudActions {
   hostId(): string;
@@ -11,9 +11,14 @@ export interface RoomHudActions {
   setBlocked(id: string, blocked: boolean): void;
   kick(id: string): void;
   rename(nick: string): Promise<boolean>;
-  leave(): void;
   openChat(): void;
+  /** Open the menu at the room page. */
+  openRoom(): void;
   toast(msg: string): void;
+}
+
+function h3(text: string): HTMLParagraphElement {
+  return Object.assign(document.createElement('p'), { className: 'hint', textContent: text });
 }
 
 function button(text: string, cls = ''): HTMLButtonElement {
@@ -42,20 +47,11 @@ export function confirmButton(label: string, armedLabel: string, onConfirm: () =
   return b;
 }
 
-/** Exit button for solo play (back to the start screen). */
-export function addSoloExit(onExit: () => void): void {
-  const bar = document.createElement('div');
-  bar.id = 'room';
-  bar.className = 'solo';
-  const head = document.createElement('div');
-  head.className = 'head';
-  head.append(Object.assign(document.createElement('span'), { textContent: 'Playing alone' }), confirmButton('Exit', 'Exit?', onExit, 'leave'));
-  bar.append(head);
-  document.body.append(bar);
-}
-
 export class RoomHud {
-  private readonly panel = document.createElement('div');
+  /** The room page (shown inside the menu). */
+  readonly panel = document.createElement('div');
+  private readonly pill = document.createElement('div');
+  private readonly pillCount = document.createElement('button');
   private readonly list = document.createElement('ul');
   private readonly banner = document.createElement('div');
   private players: PlayerInfo[] = [];
@@ -81,13 +77,19 @@ export class RoomHud {
     const chat = button('Chat');
     chat.title = 'Chat (T or Enter)';
     chat.addEventListener('click', () => act.openChat());
-    const leave = confirmButton('Leave', 'Leave?', () => act.leave(), 'leave');
-    head.append(label, share, chat, leave);
-    this.panel.append(head, this.list);
+    head.append(label, share, chat);
+    this.panel.append(head, h3('Tap a player for Go to, Block or Kick; tap yourself to rename.'), this.list);
+    // On screen: room code and player count (opens the room page) and a Chat button.
+    this.pill.id = 'roompill';
+    this.pillCount.type = 'button';
+    this.pillCount.addEventListener('click', () => act.openRoom());
+    const pillChat = button('Chat');
+    pillChat.addEventListener('click', () => act.openChat());
+    this.pill.append(this.pillCount, pillChat);
     this.banner.id = 'netbanner';
     this.banner.hidden = true;
     this.banner.textContent = 'Reconnecting…';
-    document.body.append(this.panel, this.banner);
+    document.body.append(this.pill, this.banner);
     // Tap anywhere else closes a player menu.
     document.addEventListener('pointerdown', (e) => {
       if (this.menuFor && !(e.target instanceof Node && this.list.contains(e.target))) {
@@ -103,6 +105,7 @@ export class RoomHud {
 
   setPlayers(players: PlayerInfo[]): void {
     this.players = players;
+    this.pillCount.textContent = `Room ${this.code} · ${players.length} 👥`;
     if (this.menuFor && !players.some((p) => p.id === this.menuFor)) this.menuFor = null;
     this.render();
   }

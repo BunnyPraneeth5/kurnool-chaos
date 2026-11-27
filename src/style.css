@@ -271,14 +271,12 @@ body.touch #hint {
 }
 
 #room {
-  position: fixed;
-  top: calc(max(6px, env(safe-area-inset-top)) + 142px); /* under the minimap */
-  right: max(8px, env(safe-area-inset-right));
-  max-width: 46vw;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: rgba(24, 20, 48, 0.55);
   color: #fff3e0;
+  font-size: 14px;
+}
+#room p.hint {
+  margin: 6px 0;
+  opacity: 0.75;
   font-size: 12px;
 }
 #room .head {
@@ -425,7 +423,7 @@ body.mapview #room {
 /* Chat feed (top left) and chat bar (top centre). */
 #chatfeed {
   position: fixed;
-  top: max(26px, calc(env(safe-area-inset-top) + 20px));
+  top: max(50px, calc(env(safe-area-inset-top) + 44px));
   left: max(8px, env(safe-area-inset-left));
   max-width: min(46vw, 360px);
   display: flex;
@@ -765,7 +763,235 @@ body.mapview #mapbox,
     width: 104px;
     height: 104px;
   }
-  #room {
+  #roompill {
     top: calc(max(6px, env(safe-area-inset-top)) + 114px);
+  }
+}
+
+/* Menu screen and guide (tasks H.2, H.3). */
+#menubtn {
+  position: fixed;
+  top: max(6px, env(safe-area-inset-top));
+  left: max(8px, env(safe-area-inset-left));
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 243, 224, 0.3);
+  border-radius: 8px;
+  background: rgba(24, 20, 48, 0.66);
+  color: #fff3e0;
+  font: 700 14px system-ui, sans-serif;
+}
+#menubtn[hidden],
+#menu[hidden],
+body.menuopen #menubtn,
+body.mapview #menubtn,
+body.mapview #roompill {
+  display: none;
+}
+body.touch #fps {
+  top: max(44px, calc(env(safe-area-inset-top) + 38px));
+}
+#roompill {
+  position: fixed;
+  top: calc(max(6px, env(safe-area-inset-top)) + 142px); /* under the minimap */
+  right: max(8px, env(safe-area-inset-right));
+  display: flex;
+  gap: 6px;
+}
+#roompill button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(24, 20, 48, 0.66);
+  color: #fff3e0;
+  font: 700 12px system-ui, sans-serif;
+}
+#mapbox.nomap #minimap {
+  display: none;
+}
+#menu {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  box-sizing: border-box;
+  background: rgba(20, 17, 42, 0.94);
+  color: #fff3e0;
+  font-size: 15px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+#menu .mhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 18px;
+  color: #ffc247;
+}
+#menu button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 243, 224, 0.14);
+  color: #fff3e0;
+  font: 600 14px system-ui, sans-serif;
+}
+#menu button.on {
+  background: #ffc247;
+  color: #1c1a3a;
+}
+#menu button.resume {
+  background: #49b08c;
+  color: #fff;
+}
+#menu button.leave {
+  margin-left: auto;
+  background: rgba(228, 87, 61, 0.35);
+}
+#menu button.armed {
+  background: #e4573d;
+}
+#menu .tabs,
+#menu .gtabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 10px 0 8px;
+  flex: none;
+}
+#menu .tabs button,
+#menu .gtabs button {
+  white-space: nowrap;
+}
+#menu .gtabs {
+  padding-top: 0;
+}
+#menu .gtabs button {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+#menu .mbody {
+  flex: 1;
+  overflow-y: auto;
+  max-width: 760px;
+  width: 100%;
+  align-self: center;
+  line-height: 1.45;
+}
+#menu h2 {
+  margin: 4px 0 8px;
+  color: #ffc247;
+  font-size: 20px;
+}
+#menu h3 {
+  margin: 14px 0 4px;
+  font-size: 16px;
+}
+#menu ul {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+#menu li {
+  margin: 4px 0;
+}
+#menu .note,
+#menu small {
+  opacity: 0.75;
+  font-size: 13px;
+}
+#menu .setting {
+  margin: 12px 0;
+}
+#menu .setting .label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+#menu .choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#menu table {
+  border-collapse: collapse;
+}
+#menu th,
+#menu td {
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  vertical-align: top;
+}
+#menu th {
+  font-weight: 500;
+  opacity: 0.85;
+}
+#menu kbd {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid rgba(255, 243, 224, 0.4);
+  border-bottom-width: 3px;
+  border-radius: 5px;
+  font: 600 13px ui-monospace, monospace;
+  white-space: nowrap;
+}
+#menu .vcard {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 10px 0;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 243, 224, 0.06);
+}
+#menu .vcard img {
+  width: 160px;
+  height: 100px;
+  border-radius: 8px;
+  flex: none;
+}
+#menu .vcard b {
+  display: block;
+  font-size: 17px;
+}
+#menu .vcard p {
+  margin: 4px 0 0;
+}
+#menu .places {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+#menu .place {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 243, 224, 0.06);
+  text-align: left;
+  font-weight: 400;
+}
+#menu .place .te {
+  font-family: 'Noto Sans Telugu', 'Nirmala UI', sans-serif;
+  color: #ffc247;
+}
+#menu #room {
+  max-width: none;
+}
+#menu #room .head span {
+  margin-right: auto;
+  font-size: 16px;
+}
+#menu #room button.prow {
+  padding: 8px 6px;
+  font-size: 15px;
+  background: rgba(255, 243, 224, 0.06);
+  margin: 3px 0;
+}
+@media (max-width: 480px) {
+  #menu .vcard {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

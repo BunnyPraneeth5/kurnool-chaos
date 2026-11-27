@@ -14,6 +14,8 @@ import type { VehicleType } from './vehicles/params';
 import { Life } from './ai/life';
 import type { TrafficCar } from './ai/traffic';
 import { Minimap } from './ui/minimap';
+import { settings, STEER_SCALE } from './ui/settings';
+import { stats } from './ui/stats';
 import { TouchControls } from './ui/touch';
 import { Hud } from './ui/hud';
 
@@ -37,6 +39,8 @@ export class Game {
   extraCars: readonly Bumper[] = [];
   /** Held still (game-round countdown): no driving, getting in or out, or unstuck. */
   locked = false;
+  /** The menu is open: stand still and ignore the controls (rooms keep running). */
+  held = false;
   /** Traffic, cops and heat (local to this screen). */
   readonly life: Life;
   readonly minimap: Minimap;
@@ -94,15 +98,21 @@ export class Game {
     }
 
     const raw: MoveInput = this.touch.merge(this.keys.move());
-    const inp: MoveInput = this.locked ? { thr: 0, steer: 0, hand: true } : raw;
+    raw.steer *= STEER_SCALE[settings().steering];
+    const still = this.locked || this.held;
+    const inp: MoveInput = still ? { thr: 0, steer: 0, hand: true } : raw;
     const act = this.keys.consume('KeyE') || this.touch.consumeAction();
     const unstuck = this.keys.consume('KeyR') || this.touch.consumeUnstuck();
-    if (act && !this.locked) this.action();
-    if (unstuck && !this.locked) this.unstuck();
+    if (act && !still) this.action();
+    if (unstuck && !still) this.unstuck();
+    const bx = (this.car ?? this.player).x, bz = (this.car ?? this.player).z;
 
     if (this.car) {
       const crash = this.car.drive(dt, inp, this.world, this.solidCars());
-      if (crash > 0) this.chase.shake(crash);
+      if (crash > 0) {
+        this.chase.shake(crash);
+        stats.crashes++;
+      }
       const hit = this.car.bumped;
       if (hit && (this.life.isCop(hit) || this.life.isTraffic(hit))) {
         if (this.life.crime(1, this.car)) this.hud.toast(this.life.isCop(hit) ? 'You hit a cop car' : 'Hit and run');
@@ -117,6 +127,11 @@ export class Game {
       this.chase.update(dt, this.player, this.world);
       this.findNearCar();
     }
+    // Stats: distance (teleports do not count) and top speed.
+    const me = this.car ?? this.player;
+    const moved = Math.hypot(me.x - bx, me.z - bz);
+    if (moved < 5) stats.distance[this.car ? this.car.type : 'foot'] += moved;
+    if (this.car) stats.topSpeed = Math.max(stats.topSpeed, Math.abs(this.car.speed));
     this.updateLife(dt);
     this.hud.speed(!!this.car, this.car ? this.car.speed : 0);
     this.hud.update(dt);
@@ -129,6 +144,8 @@ export class Game {
     const parked = this.vehicles.filter((v) => v !== this.car && v.mesh.visible);
     const moving: Bumper[] = [...this.extraCars, this.car ?? this.onFootBody];
     const ev = this.life.update(dt, focus, parked, moving);
+    if (ev === 'busted') stats.busted++;
+    if (ev === 'lost' || ev === 'cooler') stats.copsEscaped++;
     if (ev === 'busted') {
       if (this.car) this.car.speed = 0;
       this.hud.toast('Busted! Heat cleared', 'bad');
@@ -143,7 +160,8 @@ export class Game {
         this.vehicles.splice(i, 1);
       }
     }
-    this.minimap.draw(me.x, me.z, this.life.cops.cops);
+    if (settings().minimap) this.minimap.draw(me.x, me.z, this.life.cops.cops);
+    this.minimap.setVisible(settings().minimap);
   }
 
   toast(msg: string): void {
@@ -182,6 +200,12 @@ export class Game {
     this.player.a = heading;
     this.player.update(0, { thr: 0, steer: 0, hand: false }, this.world);
     this.chase.snap(this.player, this.world);
+  }
+
+  /** Show a place in map view (guide: tap a place). */
+  viewPlace(x: number, z: number): void {
+    if (!this.mapView) this.toggleMapView();
+    this.free.lookAt(x, z, 350, 0);
   }
 
   private toggleMapView(): void {
@@ -226,6 +250,7 @@ export class Game {
         this.life.traffic.remove(near);
         this.vehicles.push(c);
         this.scene.add(c.mesh);
+        stats.borrowed++;
         this.life.crime(1, c);
         this.hud.toast(this.life.calm ? `${c.t.name} borrowed` : `${c.t.name} borrowed. Cops noticed`, this.life.calm ? undefined : 'bad');
       }
@@ -341,10 +366,10 @@ export class Game {
     if (this.mapView) {
       this.hint.textContent = 'Map view: drag to move · right-drag to turn · scroll to zoom · C to go back';
     } else if (inCar) {
-      this.hint.textContent = 'W/S gas and brake · A/D steer · Space drift · E get out · R unstuck · C map view';
+      this.hint.textContent = 'W/S gas and brake · A/D steer · Space drift · E get out · R unstuck · C map view · Esc menu · G guide';
     } else {
       const near = this.nearCar ? 'E get in · ' : '';
-      this.hint.textContent = `W/S walk · A/D turn · Shift run · ${near}R unstuck · C map view`;
+      this.hint.textContent = `W/S walk · A/D turn · Shift run · ${near}R unstuck · C map view · Esc menu · G guide`;
     }
   }
 }

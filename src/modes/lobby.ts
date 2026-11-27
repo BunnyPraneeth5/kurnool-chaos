@@ -35,6 +35,11 @@ function project(map: MapData, lat: number, lon: number): [number, number] {
   return [(lon - map.center.lon) * mLon, (map.center.lat - lat) * mLat];
 }
 
+/** The lobby pin in map metres (no terrain needed). */
+export function lobbyPin(map: MapData): [number, number] {
+  return project(map, PIN.lat, PIN.lon);
+}
+
 /** The highest ground near the pin. Throws if the pin is off the terrain (no silent fallback). */
 export function findLobby(map: MapData): Lobby {
   const [px, pz] = project(map, PIN.lat, PIN.lon);
