@@ -173,6 +173,7 @@ const SECTIONS: Section[] = [
       h('h3', '', 'Heat and cops'),
       LIST([
         'Stars (next to the minimap) show police heat, up to 3; one cop per star.',
+        'At 2 stars cops try to cut you off and ram you; at 3 stars they also block the road ahead with two cars. In narrow old-city lanes some come on bikes.',
         'You get a star for taking a vehicle from traffic, crashing hard into traffic, hitting a cop, racing right past people on the roadside, or running a red light where the police can see.',
         'Stop within 7 m of a cop for 1.3 s and you are busted: the stars go, and you are taken on foot to the nearest police station (5 in the city, under Places). Your vehicle stays where you were caught; one borrowed from traffic is taken away. The stars pulse while a bust is building.',
         'Stay more than 58 m from every cop for 10 s to drop a star (new cops get 20 s to reach you first).',
