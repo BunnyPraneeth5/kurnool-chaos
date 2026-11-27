@@ -157,10 +157,14 @@ body {
   text-transform: uppercase;
   touch-action: none;
 }
-#bUnstuck {
+#bUnstuck,
+#bHorn {
   width: 58px;
   height: 58px;
   font-size: 10px !important;
+}
+body:not(.driving) #bHorn {
+  display: none;
 }
 #bHand {
   width: 68px;

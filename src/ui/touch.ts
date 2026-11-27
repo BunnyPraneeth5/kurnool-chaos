@@ -23,6 +23,9 @@ export class TouchControls {
   readonly bAct = el<HTMLButtonElement>('bAct');
   readonly bHand = el<HTMLButtonElement>('bHand');
   readonly bUnstuck = el<HTMLButtonElement>('bUnstuck');
+  readonly bHorn = el<HTMLButtonElement>('bHorn');
+  /** Horn held down. */
+  hornDown = false;
 
   constructor() {
     const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
@@ -67,6 +70,17 @@ export class TouchControls {
       e.preventDefault();
       this.actionTaps++;
     });
+    this.bHorn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.hornDown = true;
+      this.bHorn.classList.add('down');
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave'] as const) {
+      this.bHorn.addEventListener(ev, () => {
+        this.hornDown = false;
+        this.bHorn.classList.remove('down');
+      });
+    }
     this.bUnstuck.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       this.unstuckTaps++;

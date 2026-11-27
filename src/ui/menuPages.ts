@@ -42,7 +42,9 @@ export function settingsPage(qualityNow: 'low' | 'high'): MenuPage {
         choice('Camera distance', 'camera', [['near', 'Near'], ['normal', 'Normal'], ['far', 'Far']]),
         choice('Steering', 'steering', [['low', 'Gentle'], ['normal', 'Normal'], ['high', 'Quick']], 'How fast vehicles and you turn for the same stick or key.'),
         choice('Minimap', 'minimap', [[true, 'Show'], [false, 'Hide']]),
-        h('p', 'note', 'Settings are saved on this device. Sound settings arrive with sound (task H.7).'),
+        choice('Sound', 'sound', [[true, 'On'], [false, 'Off']], 'Engine, horns, sirens and beeps. Starts after your first tap or key press.'),
+        choice('Volume', 'volume', [['low', 'Low'], ['normal', 'Normal'], ['high', 'High']]),
+        h('p', 'note', 'Settings are saved on this device.'),
       ];
     },
   };

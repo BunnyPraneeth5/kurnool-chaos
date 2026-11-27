@@ -18,6 +18,7 @@ import { Minimap } from './ui/minimap';
 import { nearestStation } from './map/police';
 import { settings, STEER_SCALE } from './ui/settings';
 import { stats } from './ui/stats';
+import { sound } from './audio/sound';
 import { TouchControls } from './ui/touch';
 import { Hud } from './ui/hud';
 
@@ -65,6 +66,7 @@ export class Game {
   private readonly hint = document.getElementById('hint');
   private nearCar: Vehicle | TrafficCar | null = null;
   private readonly shirt: number;
+  private readonly camera: THREE.PerspectiveCamera;
   private readonly onFootBody: Bumper;
 
   constructor(
@@ -83,11 +85,13 @@ export class Game {
     this.vehicles = spawnParkedVehicles(map.spawn.x, map.spawn.z, this.roads, this.world);
     this.shared = this.vehicles.slice();
     for (const v of this.vehicles) scene.add(v.mesh);
+    this.camera = camera;
     this.chase = new ChaseCamera(camera);
     this.chase.snap(this.player, this.world);
     this.free = new FreeCamera(camera, canvas);
     this.free.enabled = false;
     this.life = new Life(map, scene, this.world, opts.traffic, opts.shadows);
+    this.life.traffic.onHonk = (c) => sound.honkAt(c.x, c.z, c.type);
     this.minimap = new Minimap(map, camera);
     // Traffic stops for you when you walk in front of it.
     const p = this.player;
@@ -126,6 +130,7 @@ export class Game {
       if (crash > 0) {
         this.chase.shake(crash);
         stats.crashes++;
+        sound.thud(crash * 2);
       }
       const hit = this.car.bumped;
       if (hit && (this.life.isCop(hit) || this.life.isTraffic(hit))) {
@@ -147,9 +152,25 @@ export class Game {
     if (moved < 5) stats.distance[this.car ? this.car.type : 'foot'] += moved;
     if (this.car) stats.topSpeed = Math.max(stats.topSpeed, Math.abs(this.car.speed));
     this.updateLife(dt);
+    this.updateSound(inp, still);
     this.hud.speed(!!this.car, this.car ? this.car.speed : 0);
     this.hud.update(dt);
     this.keys.endFrame();
+  }
+
+  private updateSound(inp: MoveInput, still: boolean): void {
+    const cam = this.camera;
+    const m = cam.matrixWorld.elements; // the camera looks down its -z axis
+    const fx = -m[8], fz = -m[10];
+    sound.setListener(cam.position.x, cam.position.z, Math.atan2(fx, fz));
+    const c = this.car;
+    sound.engine(c ? c.type : null, c ? c.speed : 0, c ? inp.thr : 0);
+    sound.horn(!!c && !still && (this.keys.isDown('KeyH') || this.touch.hornDown), c ? c.type : null);
+    const me = c ?? this.player;
+    let near = Infinity;
+    for (const cop of this.life.cops.cops) near = Math.min(near, Math.hypot(cop.x - me.x, cop.z - me.z));
+    sound.siren(near);
+    document.body.classList.toggle('driving', !!c);
   }
 
   private updateLife(dt: number): void {
@@ -160,7 +181,10 @@ export class Game {
     const ev = this.life.update(dt, focus, parked, moving);
     if (ev === 'busted') stats.busted++;
     if (ev === 'lost' || ev === 'cooler') stats.copsEscaped++;
-    if (ev === 'busted') this.busted();
+    if (ev === 'busted') {
+      sound.beep(160, 0.6, 'sawtooth');
+      this.busted();
+    }
     const red = this.life.ranRed;
     if (red) {
       if (red.seen && this.life.crime(1, me)) this.hud.toast('Ran a red light: the police saw you', 'bad');
@@ -386,6 +410,7 @@ export class Game {
 
   /** Get into a vehicle (on a bike you can be seen riding it). */
   private sit(c: Vehicle): void {
+    sound.beep(420, 0.08);
     c.kind = 'player';
     this.car = c;
     this.player.figure.visible = false;
@@ -395,6 +420,7 @@ export class Game {
 
   /** Leave a vehicle parked where it is. */
   private leave(c: Vehicle): void {
+    sound.beep(300, 0.08);
     setRider(c.mesh, null);
     c.park();
   }
@@ -513,7 +539,7 @@ export class Game {
     } else if (this.ride) {
       this.hint.textContent = 'Riding with a friend · E get out · C map view · Esc menu · G guide';
     } else if (inCar) {
-      this.hint.textContent = 'W/S gas and brake · A/D steer · Space drift · E get out · R unstuck · C map view · Esc menu · G guide';
+      this.hint.textContent = 'W/S gas and brake · A/D steer · Space drift · H horn · E get out · R unstuck · C map view · Esc menu · G guide';
     } else {
       const hint = this.nearFriend && this.nearFriendIsClosest() ? 'E ride along · ' : this.nearCar ? 'E get in · ' : '';
       this.hint.textContent = `W/S walk · A/D turn · Shift run · ${hint}R unstuck · C map view · Esc menu · G guide`;
