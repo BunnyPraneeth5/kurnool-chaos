@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseRound, RoundController } from '../src/modes/round';
 import { huntMode } from '../src/modes/hunt';
 import { chorPoliceMode } from '../src/modes/chorPolice';
+import { chaosMode } from '../src/modes/chaos';
 import type { Room } from '../src/net/room';
 import type { Game } from '../src/game';
 import { ctx } from './helpers';
 
-const modes = { chor: chorPoliceMode, hunt: huntMode };
+const modes = { chor: chorPoliceMode, hunt: huntMode, chaos: chaosMode };
 
 function fakeRoom(myId: string, host: string) {
   const sent: Record<string, unknown>[] = [];
@@ -21,7 +22,7 @@ function fakeRoom(myId: string, host: string) {
   };
   return { room, sent };
 }
-const fakeGame = () => ({ locked: false, driveCar: vi.fn(), toFoot: vi.fn() });
+const fakeGame = () => ({ locked: false, driveCar: vi.fn(), toFoot: vi.fn(), startRound: vi.fn() });
 const spot = () => ({ x: 0, z: 0, heading: 0 });
 const make = (room: unknown, game: unknown, myId: string) =>
   new RoundController(room as Room, game as Game, ctx({ a: { x: 0, z: 0 }, b: { x: 0, z: 0 } }, myId), modes, spot);

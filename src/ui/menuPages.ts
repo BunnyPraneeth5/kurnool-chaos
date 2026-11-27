@@ -54,7 +54,7 @@ function km(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
-export function statsPage(): MenuPage {
+export function statsPage(chaosNow: () => { total: number; best: number }): MenuPage {
   return {
     id: 'stats',
     title: 'Stats',
@@ -62,6 +62,8 @@ export function statsPage(): MenuPage {
       const mins = Math.floor((performance.now() - stats.startedAt) / 60000);
       const rows: [string, string][] = [
         ['Playing for', `${mins} min`],
+        ['Chaos points', String(chaosNow().total)],
+        ['Best chaos round', String(chaosNow().best)],
         ['On foot', km(stats.distance.foot)],
         ...VEHICLE_TYPES.map((t): [string, string] => [`By ${VEHICLES[t].name.toLowerCase()}`, km(stats.distance[t])]),
         ['Top speed', `${Math.round(stats.topSpeed * 3.6)} km/h`],

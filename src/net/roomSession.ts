@@ -17,6 +17,7 @@ import { GameUi } from '../modes/ui';
 import { Beacon, flashLightBars, setPoliceLook } from '../modes/visuals';
 import { huntMode } from '../modes/hunt';
 import { chorPoliceMode } from '../modes/chorPolice';
+import { chaosMode } from '../modes/chaos';
 import type { ModeCtx, RoundState } from '../modes/types';
 
 // Everything that runs while you are in a room: spawn point, friends' models,
@@ -124,9 +125,10 @@ export function startRoomSession(
     present: (id) => r.players.some((p) => p.id === id) || performance.now() - (lastSeen.get(id) ?? -Infinity) < PRESENT_GRACE_MS,
     slotOf: (id) => byId(id)?.slot ?? 0,
     nickOf: (id) => byId(id)?.nick ?? nicks.get(id) ?? 'Someone',
+    chaos: () => game.chaos.round,
     rideOf: (id) => (id === r.myId ? (game.ride?.driver ?? null) : (remotes.poseOf(id)?.ride ?? null)),
   };
-  const rounds = new RoundController(r, game, ctx, { chor: chorPoliceMode, hunt: huntMode }, (id) => lobbySpot(lobby, ctx.slotOf(id)));
+  const rounds = new RoundController(r, game, ctx, { chor: chorPoliceMode, hunt: huntMode, chaos: chaosMode }, (id) => lobbySpot(lobby, ctx.slotOf(id)));
   const gameUi = new GameUi(rounds, r, camera);
   const beacon = new Beacon(scene);
   let lastPhase = rounds.state.phase;
@@ -266,7 +268,7 @@ export function startRoomSession(
       const target = gameUi.beaconTarget();
       beacon.set(target, now);
       // Rounds have their own police: no local cops while one runs for us.
-      game.life.calm = (s.phase === 'countdown' || s.phase === 'playing') && s.players.includes(r.myId);
+      game.life.calm = (s.phase === 'countdown' || s.phase === 'playing') && s.players.includes(r.myId) && s.mode !== 'chaos';
       game.minimap.target = target;
       game.minimap.friends = [];
       for (const p of r.players) {

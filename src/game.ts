@@ -19,6 +19,8 @@ import { nearestStation } from './map/police';
 import { settings, STEER_SCALE } from './ui/settings';
 import { stats } from './ui/stats';
 import { sound } from './audio/sound';
+import { ChaosPoints, CHAOS } from './modes/chaosPoints';
+import type { ModeId } from './modes/types';
 import { TouchControls } from './ui/touch';
 import { Hud } from './ui/hud';
 
@@ -53,6 +55,11 @@ export class Game {
   private rideLast: Pose | null = null;
   /** Chaos points hook (H.10). */
   onRanRed: ((seen: boolean) => void) | null = null;
+  /** Chaos points (H.10). */
+  readonly chaos = new ChaosPoints();
+  private readonly nearMiss = new Map<TrafficCar, number>();
+  private driftT = 0;
+  private notDriftT = 0;
   private nearFriend: Bumper | null = null;
   /** Traffic, cops and heat (local to this screen). */
   readonly life: Life;
@@ -92,6 +99,8 @@ export class Game {
     this.free.enabled = false;
     this.life = new Life(map, scene, this.world, opts.traffic, opts.shadows, opts.pedestrians);
     this.life.traffic.onHonk = (c) => sound.honkAt(c.x, c.z, c.type);
+    this.chaos.onChange = (d, label) => this.hud.chaosPop(d, label);
+    this.onRanRed = () => this.chaos.add(CHAOS.redLight, 'Red light');
     this.minimap = new Minimap(map, camera);
     // Traffic stops for you when you walk in front of it.
     const p = this.player;
@@ -135,7 +144,10 @@ export class Game {
       const hit = this.car.bumped;
       if (hit && (this.life.isCop(hit) || this.life.isTraffic(hit))) {
         if (this.life.crime(1, this.car)) this.hud.toast(this.life.isCop(hit) ? 'You hit a cop car' : 'Hit and run');
+        // The crash halved our speed; points for how fast we hit.
+        this.chaos.add(CHAOS.crash + Math.abs(this.car.speed) / 0.45, this.life.isCop(hit) ? 'Cop crash' : 'Crash');
       }
+      this.chaosDriving(dt, inp);
       this.player.x = this.car.x;
       this.player.z = this.car.z;
       this.player.a = this.car.a;
@@ -180,9 +192,15 @@ export class Game {
     const moving: Bumper[] = [...this.extraCars, this.car ?? this.onFootBody];
     const ev = this.life.update(dt, focus, parked, moving);
     if (ev === 'busted') stats.busted++;
-    if (ev === 'lost' || ev === 'cooler') stats.copsEscaped++;
+    if (ev === 'lost' || ev === 'cooler') {
+      stats.copsEscaped++;
+      this.chaos.add(CHAOS.escapePerStar, ev === 'lost' ? 'Cops lost' : 'Escaped a star');
+    }
+    this.chaos.heat(dt, this.life.cops.heat);
+    this.hud.chaos(this.chaos.total);
     if (ev === 'busted') {
       sound.beep(160, 0.6, 'sawtooth');
+      this.chaos.busted();
       this.busted();
     }
     if (this.life.peds.scared && this.life.crime(1, me)) this.hud.toast('Mind the people!', 'bad');
@@ -407,6 +425,46 @@ export class Game {
     if (!f) return false;
     const df = hullDistance(f, this.player.x, this.player.z).d;
     return !this.nearCar || df <= hullDistance(this.nearCar, this.player.x, this.player.z).d;
+  }
+
+  /** Near misses with traffic at speed, and drifting (chaos points). */
+  private chaosDriving(dt: number, inp: MoveInput): void {
+    const c = this.car;
+    if (!c) return;
+    const fast = Math.abs(c.speed) > 15;
+    const sa = Math.sin(c.a), ca = Math.cos(c.a);
+    for (const t of this.life.traffic.cars) {
+      const dx = t.x - c.x, dz = t.z - c.z;
+      if (Math.abs(dx) > 12 || Math.abs(dz) > 12) {
+        this.nearMiss.delete(t);
+        continue;
+      }
+      const d = hullDistance(t, c.x, c.z).d - c.t.w / 2;
+      const seen = this.nearMiss.get(t);
+      if (fast && d < 1.2) this.nearMiss.set(t, Math.min(seen ?? Infinity, d));
+      // Passed it: the closest we came counts if we never touched.
+      if (seen !== undefined && dx * sa + dz * ca < -(c.t.len + VEHICLES[t.type].len) / 2) {
+        this.nearMiss.delete(t);
+        if (seen > 0.05 && !this.car?.bumped) this.chaos.add(CHAOS.nearMiss, 'Near miss');
+      }
+    }
+    const slide = Math.abs(Math.atan2(Math.sin(c.a - c.va), Math.cos(c.a - c.va)));
+    if (inp.hand && Math.abs(c.speed) > 10 && slide > 0.3) {
+      this.driftT += dt;
+      this.notDriftT = 0;
+    } else if (this.driftT > 0) {
+      this.notDriftT += dt;
+      if (this.notDriftT > 0.3) {
+        if (this.driftT > 0.6) this.chaos.add(this.driftT * CHAOS.driftPerS, 'Drift');
+        this.driftT = 0;
+      }
+    }
+  }
+
+  /** A game round starts for us (chaos round points start from 0). */
+  startRound(mode: ModeId): void {
+    this.chaos.startRound();
+    void mode;
   }
 
   /** Get into a vehicle (on a bike you can be seen riding it). */

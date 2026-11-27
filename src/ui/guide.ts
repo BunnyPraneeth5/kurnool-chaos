@@ -158,6 +158,11 @@ const SECTIONS: Section[] = [
         'Chors score 1 point a second while free, plus 60 if never caught. Police score 30 per catch.',
         'The round ends when everyone is caught or time runs out.',
       ]),
+      h('h3', '', 'Chaos'),
+      LIST([
+        'A timed round of free roam with the cops switched on. Earn chaos points (see Other); being busted costs points.',
+        'Your points and the leader show at the top; most points when time runs out wins.',
+      ]),
       h('h3', '', 'Landmark hunt'),
       LIST([
         '3, 4 or 5 Kurnool landmarks, one after another.',
@@ -178,6 +183,12 @@ const SECTIONS: Section[] = [
         'Stop within 7 m of a cop for 1.3 s and you are busted: the stars go, and you are taken on foot to the nearest police station (5 in the city, under Places). Your vehicle stays where you were caught; one borrowed from traffic is taken away. The stars pulse while a bust is building.',
         'Stay more than 58 m from every cop for 10 s to drop a star (new cops get 20 s to reach you first).',
         'No cops chase you while you play a game round.',
+      ]),
+      h('h3', '', 'Chaos points'),
+      LIST([
+        'Always counting (💥 next to the stars), in free roam and in Chaos rounds.',
+        'Crash into traffic or a cop: 10 plus your speed. Near miss at speed: 15. Drift (Space while turning fast): 10 a second. Every second with stars: 2 per star. Losing a star: 50. Red light: 10.',
+        'Busted: you lose a quarter of your points (at least 50).',
       ]),
       h('h3', '', 'Junctions'),
       LIST([

@@ -235,7 +235,14 @@ export class RoundController {
     const s = this.state;
     if (s.phase !== 'playing' || !s.players.includes(from) || typeof c.kind !== 'string') return;
     const next: RoundState = { ...s, scores: { ...s.scores }, roles: { ...s.roles }, data: structuredClone(s.data), elapsedMs: this.elapsedMs() };
-    if (!this.mode.claim(next, from, c, this.ctx)) return;
+    const changed = this.mode.claim(next, from, c, this.ctx);
+    if (!changed) return;
+    if (changed === 'quiet') {
+      // Kept here and sent with the next keep-alive (every 4 s).
+      this.state = next;
+      this.onChange();
+      return;
+    }
     this.commit(next);
   }
 
@@ -286,6 +293,7 @@ export class RoundController {
     if (mine && next.phase === 'countdown' && (newRound || prev.phase !== 'countdown')) {
       const spot = this.modes[next.mode].startSpot(me, next, this.ctx);
       this.game.driveCar(this.ctx.slotOf(me), spot.x, spot.z, spot.heading);
+      this.game.startRound(next.mode);
     }
     if (next.phase === 'results' && prev.phase !== 'results') {
       this.game.locked = false;
