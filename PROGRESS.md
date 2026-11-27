@@ -2,6 +2,17 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-28: Real sound recordings (branch `claude/real-sounds`)
+- The generated Web Audio sounds are replaced by 15 CC0 recordings from Freesound in `public/sounds/` (296,940 bytes in total): engine loops for car, auto, bike, bus and lorry, a horn for each, police siren, crash, beeps for getting in, a star and busted. Getting out plays the get-in beep lower; boost plays the star beep higher. Bunny approved each download; the first lorry horn (637923, two short blips over traffic) was swapped for 667749, also approved, and is not shipped.
+- The files are Freesound's public high-quality MP3 previews (originals need a login), cut to mono 32 kHz 80 kb/s MP3, level-matched, with seamless loops. Pixabay was not used: its licence is not CC0.
+- `src/audio/clips.ts`: every file's use, source, loop points, engine pitch range and honk length. The About page lists each sound with its title, author and link. `sound.beep()` is now `sound.cue(name)`.
+- A file that fails to download or decode is named in a box at the top (Retry, Close) and stays silent; the others play. No generated fallback.
+- Sound also starts on the finger lifting (`pointerup`), because phones may not count touching down as the tap that allows audio.
+- Checked in the browser (solo, laptop): 15 files fetched at boot and decoded after a click; each of the five types played its engine (pitch rising with speed) and its horn, stopping on release; a car horn held 2.5 s kept sounding; traffic honks came only from the right or left channel for a source on that side, none at 500 m; siren and star beep when cops came, siren stopped when cleared; crash, busted, get-in and boost cues made output; Sound off gave silence, Volume low / normal / high changed the level; a moved-away file and a damaged file showed the error, Retry recovered the moved one; About list at 375x812. Levels measured close to the old ones. No console errors. 45 tests (6 new in `tests/sounds.test.ts`), typecheck and build pass.
+- Not checked: nobody has listened to it yet (the checks measured the output only), sound on a real phone (including iPhone), friends in a room.
+- Merged into `main` and pushed at Bunny's request, before anyone had listened.
+- Next: Bunny listens on laptop and phone on the live site (engine pitch ranges and volumes are in `clips.ts` and `sound.ts`).
+
 ## 2026-11-28: Phase R roads and borders (tasks R.1 to R.6, branch `claude/phase-r`)
 - `src/map/borders.ts` works out every border from the map once (cached), shared by the collision world and the meshes (`src/map/bordersMesh.ts`), so every screen has the same pieces and ids.
 - R.1: breakable pieces (railings, fence panels, barricades, cones) in the collision world: a hit faster than 30 km/h (buses and lorries 15 km/h) goes through and breaks it (5 chaos points, a thud, a little lost speed), slower stops you. Broken pieces lie on the ground; shared with friends (room event `b`), the host sends open gaps to anyone who joins, fixed 2 minutes after breaking.

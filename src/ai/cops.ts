@@ -70,7 +70,7 @@ export class Cops {
 
   add(n: number, target: { x: number; z: number }): void {
     stats.stars += Math.min(n, MAX_HEAT - this.heat);
-    if (this.heat < MAX_HEAT) sound.beep(520, 0.25, 'square');
+    if (this.heat < MAX_HEAT) sound.cue('star');
     this.heat = Math.min(MAX_HEAT, this.heat + n);
     this.coolT = -SEARCH_S;
     for (let tries = 0; this.chasers() < this.heat && tries < 40; tries++) this.spawn(target);

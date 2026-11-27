@@ -2,6 +2,11 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-28 | Sounds are CC0 recordings from Freesound (replaces the generated Web Audio sounds of H.7), all listed on the About page; Pixabay not used | Bunny's request; the Pixabay licence is not CC0 |
+| 2026-11-28 | Built from Freesound's public high-quality MP3 previews, not the original files | Originals need a login; the previews are plenty for 32 kHz mono output. Bunny approved each file |
+| 2026-11-28 | Mono 32 kHz 80 kb/s MP3, 297 KB for 15 files; loops are padded with 0.1 s of themselves and loop points set inside | MP3 plays on every phone; the padding keeps decoder silence away from the seam |
+| 2026-11-28 | A sound that fails to load shows a box with Retry and stays silent; the game and the other sounds go on | A full error screen would stop a multiplayer game over one sound; no generated fallback |
+| 2026-11-28 | Auto and bike traffic honks play their recording once (it is a beep-beep); holding the bike horn repeats the pair | Real autos and bikes already sound like that |
 | 2026-11-28 | Borders worked out in the game from the map (borders.ts, cached), not in the build; only speed-breaker spots come from the build (OSM schools/hospitals) | The map file is at 5.96 of 6 MB; the game has the shapes already |
 | 2026-11-28 | Dividers with a railing (trunk and primary) have a mountable concrete base, so a broken railing opens a way across at speed; other dividers are solid planters | A breakable railing on a solid base would never open a gap |
 | 2026-11-28 | Kerbs mountable above 25 km/h, gaps 5 m past the widest road at junctions | Slow turns caught kerb ends with 2.5 m gaps |

@@ -33,6 +33,26 @@ export function showError(title: string, detail: string, actions?: StatusAction[
   box.replaceChildren(h, p, row);
 }
 
+/** A problem that does not stop the game: a box at the top, over every screen, until a
+ * button is tapped. A newer notice replaces the one showing. */
+export function showNotice(title: string, detail: string, actions: StatusAction[]): void {
+  document.getElementById('notice')?.remove();
+  const note = Object.assign(document.createElement('div'), { id: 'notice' });
+  note.setAttribute('role', 'alert');
+  const row = document.createElement('div');
+  row.className = 'actions';
+  for (const a of actions) {
+    const btn = Object.assign(document.createElement('button'), { type: 'button', textContent: a.label });
+    btn.addEventListener('click', () => {
+      note.remove();
+      a.run();
+    });
+    row.append(btn);
+  }
+  note.append(Object.assign(document.createElement('b'), { textContent: title }), Object.assign(document.createElement('p'), { textContent: detail }), row);
+  document.body.append(note);
+}
+
 export function hideStatus(): void {
   box.hidden = true;
   box.replaceChildren();

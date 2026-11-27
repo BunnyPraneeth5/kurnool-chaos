@@ -2,6 +2,7 @@ import { btn, h, type MenuPage } from './menu';
 import { saveSettings, settings, type Settings } from './settings';
 import { stats } from './stats';
 import { VEHICLES, VEHICLE_TYPES } from '../vehicles/params';
+import { CLIP_NAMES, clipInfo, sourceUrl } from '../audio/clips';
 
 declare const __APP_VERSION__: string;
 
@@ -85,6 +86,22 @@ export function statsPage(chaosNow: () => { total: number; best: number }): Menu
   };
 }
 
+/** Every recording with what it is used for, its name, author and page. */
+function soundList(): HTMLUListElement {
+  const list = h('ul', 'sounds');
+  for (const name of CLIP_NAMES) {
+    const clip = clipInfo(name);
+    const link = h('a', '', `freesound.org/s/${clip.source.id}`);
+    link.href = sourceUrl(clip);
+    link.target = '_blank';
+    link.rel = 'noopener';
+    const item = h('li', '', `${clip.use}: “${clip.source.title}” by ${clip.source.author}, `);
+    item.append(link);
+    list.append(item);
+  }
+  return list;
+}
+
 export function aboutPage(): MenuPage {
   return {
     id: 'about',
@@ -99,6 +116,9 @@ export function aboutPage(): MenuPage {
         p('Map © OpenStreetMap contributors (ODbL). Buildings: Overture Maps Foundation (ODbL), Google Open Buildings (CC BY 4.0). Water: Dynamic World (CC BY 4.0). Ground heights: Copernicus DEM, produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA.'),
         p('Telugu text: Noto Sans Telugu by the Noto Project Authors, SIL Open Font License 1.1. 3D: three.js (MIT). Realtime: Supabase.'),
         p('Source code: github.com/BunnyPraneeth5/kurnool-chaos'),
+        h('h3', '', 'Sounds'),
+        p('Recordings from Freesound, all CC0 1.0 (public domain), cut short and made smaller for the game.'),
+        soundList(),
       ];
     },
   };
