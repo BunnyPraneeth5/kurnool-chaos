@@ -50,6 +50,8 @@ export class Game {
   /** Ask for a seat in a friend's vehicle: the seat number, or why not (set by the room code). */
   askRide: (driver: string) => number | string = () => 'Riding along works in rooms';
   private rideLast: Pose | null = null;
+  /** Chaos points hook (H.10). */
+  onRanRed: ((seen: boolean) => void) | null = null;
   private nearFriend: Bumper | null = null;
   /** Traffic, cops and heat (local to this screen). */
   readonly life: Life;
@@ -152,13 +154,18 @@ export class Game {
 
   private updateLife(dt: number): void {
     const me = this.car ?? this.player;
-    const focus = { x: me.x, z: me.z, speed: this.car ? this.car.speed : 0 };
+    const focus = { x: me.x, z: me.z, a: me.a, speed: this.car ? this.car.speed : 0, driving: !!this.car };
     const parked = this.vehicles.filter((v) => v !== this.car && v.mesh.visible);
     const moving: Bumper[] = [...this.extraCars, this.car ?? this.onFootBody];
     const ev = this.life.update(dt, focus, parked, moving);
     if (ev === 'busted') stats.busted++;
     if (ev === 'lost' || ev === 'cooler') stats.copsEscaped++;
-    if (ev === 'busted') this.busted(); else if (ev === 'lost') this.hud.toast('Cops lost');
+    if (ev === 'busted') this.busted();
+    const red = this.life.ranRed;
+    if (red) {
+      if (red.seen && this.life.crime(1, me)) this.hud.toast('Ran a red light: the police saw you', 'bad');
+      this.onRanRed?.(red.seen);
+    } else if (ev === 'lost') this.hud.toast('Cops lost');
     else if (ev === 'cooler') this.hud.toast('Heat dropping');
     this.hud.heat(this.life.cops.heat, this.life.cops.bustLevel);
     // Vehicles taken from traffic and left far behind.

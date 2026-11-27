@@ -4,6 +4,7 @@ import { VEHICLES, vehicleColour, type VehicleType } from '../vehicles/params';
 import { overlap, type Bumper } from '../vehicles/hull';
 import { Agent, angDiff } from './agent';
 import type { Arc, RoadGraph } from './graph';
+import { junctionsOf, lightFor } from './junctions';
 
 // Local traffic (TASKS 5.2): vehicles on the road graph around the player, keeping left,
 // stopping for whatever is ahead and squeezing through after 5 s stuck (the demo's rule).
@@ -34,12 +35,15 @@ export class TrafficCar extends Agent {
   stuck = 0;
   /** seconds left of squeezing past (not solid, ignores what is ahead) */
   ghost = 0;
+  /** stopped for a red light, or queued behind someone who is (does not count as stuck) */
+  waiting = false;
 }
 
 export class Traffic {
   readonly cars: TrafficCar[] = [];
   private first = true;
   private spawnWait = 0;
+  readonly junctions;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -47,7 +51,9 @@ export class Traffic {
     private readonly world: CollisionWorld,
     private readonly count: number,
     private readonly shadows: boolean,
-  ) {}
+  ) {
+    this.junctions = junctionsOf(graph.map, graph);
+  }
 
   /** Vehicles you collide with (not the ones squeezing past). */
   solid(): TrafficCar[] {
@@ -98,6 +104,7 @@ export class Traffic {
     const ca = Math.cos(c.a);
     let gap = Infinity;
     let swerve = 0;
+    let blocker = null as Bumper | null;
     if (c.ghost <= 0) {
       const look = (o: Bumper, still: boolean): void => {
         const dx = o.x - c.x;
@@ -114,15 +121,37 @@ export class Traffic {
           // A parked vehicle in our lane: steer right, round it.
           if (still && fw < 22 && Math.abs(left - c.side) < clear) swerve = SWERVE_M;
           if (Math.abs(left) >= clear) continue;
-          gap = Math.min(gap, fw - t.len / 2 - ot.radius);
+          const g = fw - t.len / 2 - ot.radius;
+          if (g < gap) {
+            gap = g;
+            blocker = o;
+          }
         }
       };
       for (const o of this.cars) if (o !== c && o.ghost <= 0) look(o, false);
       for (const o of others) look(o.body, !!o.still);
     }
     c.side += Math.max(-2.5 * dt, Math.min(2.5 * dt, swerve - c.side));
+    // Junction lights and traffic police (H.6): stop at the end of the lane unless green
+    // (on amber, carry on if too close to stop).
+    let atRed = false;
+    const ctl = this.junctions.approachOf(c.arc);
+    if (ctl) {
+      const light = lightFor(ctl.j, ctl.a.group, Date.now());
+      if (light !== 'green') {
+        const left = c.left();
+        if (light === 'red' || left > 9) {
+          if (left + 1 < gap) {
+            gap = left + 1;
+            blocker = null;
+            atRed = left < 12;
+          }
+        }
+      }
+    }
     if (gap < Infinity) target = Math.min(target, Math.max(0, (gap - 1.5) * 1.1));
-    if (target < 0.5 && gap < 4) {
+    c.waiting = atRed || (blocker instanceof TrafficCar && blocker.waiting && gap < 6);
+    if (target < 0.5 && gap < 4 && !c.waiting) {
       c.stuck += dt;
       if (c.stuck > STUCK_S) {
         c.ghost = GHOST_S;

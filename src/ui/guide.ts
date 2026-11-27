@@ -135,6 +135,7 @@ const SECTIONS: Section[] = [
         'The host: the first to join a room (badge in the player list). Picks and starts game modes and can remove a player. If the host leaves, the next one takes over.',
         'Traffic drivers: autos, bikes, cars, buses and lorries on the left of the road. They stop for whatever is in front and squeeze past after a while. Walk up and take their vehicle.',
         'Cops: white cars with a flashing light bar and POLICE sign. They come when you have stars, follow the roads to you and bust you if you stop near them. Busted players end up at a police station.',
+        'Traffic police: at Raj Vihar and C-Camp, on a stand under an umbrella. They see red-light runners.',
         'Police and chors (Chor–Police rounds): police have a light bar and a blue name tag.',
         'Your traffic and cops are your own: friends have their own traffic and cops.',
       ]),
@@ -174,6 +175,12 @@ const SECTIONS: Section[] = [
         'Stop within 7 m of a cop for 1.3 s and you are busted: the stars go, and you are taken on foot to the nearest police station (5 in the city, under Places). Your vehicle stays where you were caught; one borrowed from traffic is taken away. The stars pulse while a bust is building.',
         'Stay more than 58 m from every cop for 10 s to drop a star (new cops get 20 s to reach you first).',
         'No cops chase you while you play a game round.',
+      ]),
+      h('h3', '', 'Junctions'),
+      LIST([
+        'The busiest junctions have traffic lights; traffic stops on red and waits its turn.',
+        'At Raj Vihar and C-Camp a traffic policeman on a stand waves each direction through.',
+        'Drive through a red light near a cop or the traffic policeman and you get a star.',
       ]),
       h('h3', '', 'Getting about'),
       LIST([

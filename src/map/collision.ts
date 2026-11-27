@@ -5,6 +5,7 @@ import { pointInRing } from '../util/rng';
 import { compoundWall } from './buildingStyle';
 import { propWalls } from './props';
 import { railWalls } from './rail';
+import { junctionWalls } from '../ai/junctions';
 
 // Collision world (ARCHITECTURE: Collision): a uniform 32 m hash grid of wall
 // segments. Players and vehicles are circles pushed out of walls.
@@ -112,7 +113,7 @@ export class CollisionWorld {
     }
 
     // Solid street details (task K.3): poles, tree trunks, hoarding posts, temples, mosques, churches, autos, dividers.
-    for (const line of [...propWalls(map), ...railWalls(map)]) for (let i = 1; i < line.length; i++) addWall(line[i - 1][0], line[i - 1][1], line[i][0], line[i][1]);
+    for (const line of [...propWalls(map), ...railWalls(map), ...junctionWalls(map)]) for (let i = 1; i < line.length; i++) addWall(line[i - 1][0], line[i - 1][1], line[i][0], line[i][1]);
 
     // Road segments, for carving bank gaps and placing railings.
     const roadSegs = new ItemGrid<Seg>(CELL);
