@@ -98,6 +98,22 @@ export class GameUi {
     }
   }
 
+  /** The target to ring on the minimap (any mode), or null. */
+  mapTarget(): { x: number; z: number } | null {
+    const c = this.ctrl;
+    const s = c.state;
+    if (s.phase !== 'playing' || !s.players.includes(this.room.myId)) return null;
+    return c.mode.hud(s, this.room.myId, c.ctx, c.elapsedMs()).target ?? null;
+  }
+
+  /** A second marker in the world (a challenge's bonus gate), or null. */
+  marker(): { x: number; z: number } | null {
+    const c = this.ctrl;
+    const s = c.state;
+    if (s.phase !== 'playing' || !s.players.includes(this.room.myId)) return null;
+    return c.mode.hud(s, this.room.myId, c.ctx, c.elapsedMs()).marker ?? null;
+  }
+
   /** What the world should show this frame (beacon target). */
   beaconTarget(): { x: number; z: number } | null {
     const c = this.ctrl;
@@ -126,6 +142,10 @@ export class GameUi {
         for (const m of Object.values(c.modes)) {
           const b = el('button', m.id === s.mode ? 'on' : '', m.name);
           b.type = 'button';
+          if (m.available === false) {
+            b.disabled = true;
+            b.title = m.blurb;
+          }
           b.addEventListener('click', () => c.setMode(m.id as ModeId));
           modes.append(b);
         }

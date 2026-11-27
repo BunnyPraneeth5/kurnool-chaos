@@ -21,6 +21,7 @@ import { stats } from './ui/stats';
 import { sound } from './audio/sound';
 import { ChaosPoints, CHAOS } from './modes/chaosPoints';
 import type { ModeId } from './modes/types';
+import { BOOSTS } from './modes/chorPolice';
 import { TouchControls } from './ui/touch';
 import { Hud } from './ui/hud';
 
@@ -60,6 +61,8 @@ export class Game {
   private readonly nearMiss = new Map<TrafficCar, number>();
   private driftT = 0;
   private notDriftT = 0;
+  /** Boosts left this round (Chor–Police). */
+  boostsLeft = 0;
   private nearFriend: Bumper | null = null;
   /** Traffic, cops and heat (local to this screen). */
   readonly life: Life;
@@ -130,6 +133,14 @@ export class Game {
     const unstuck = this.keys.consume('KeyR') || this.touch.consumeUnstuck();
     if (act && !still) this.action();
     if (unstuck && !still && !this.ride) this.unstuck();
+    const boost = this.keys.consume('KeyB') || this.touch.consumeBoost();
+    if (boost && !still && this.car && this.boostsLeft > 0 && this.car.boostT <= 0) {
+      this.boostsLeft--;
+      this.car.boostT = 3;
+      sound.beep(880, 0.3, 'sawtooth');
+      this.hud.toast(`BOOST! (${this.boostsLeft} left)`);
+      this.refreshLabels();
+    }
     const bx = (this.car ?? this.player).x, bz = (this.car ?? this.player).z;
 
     if (this.ride) {
@@ -266,6 +277,7 @@ export class Game {
   /** Put the player on foot at a spot; a car they were in stays parked where it is. */
   toFoot(x: number, z: number, heading: number): void {
     this.endRide();
+    this.boostsLeft = 0;
     if (this.car) {
       this.leave(this.car);
       this.car = null;
@@ -464,7 +476,8 @@ export class Game {
   /** A game round starts for us (chaos round points start from 0). */
   startRound(mode: ModeId): void {
     this.chaos.startRound();
-    void mode;
+    this.boostsLeft = mode === 'chor' ? BOOSTS : 0;
+    this.refreshLabels();
   }
 
   /** Get into a vehicle (on a bike you can be seen riding it). */
@@ -591,6 +604,8 @@ export class Game {
     this.touch.bAct.textContent = inCar ? 'Get out' : this.nearFriend && this.nearFriendIsClosest() ? 'Ride' : 'Get in';
     this.touch.bAct.classList.toggle('ready', near);
     this.touch.bHand.textContent = inCar ? 'Drift' : 'Run';
+    this.touch.bBoost.textContent = `Boost ${this.boostsLeft}`;
+    document.body.classList.toggle('boosts', this.boostsLeft > 0 && !!this.car);
     if (!this.hint) return;
     this.hint.hidden = false;
     if (this.mapView) {
@@ -598,7 +613,7 @@ export class Game {
     } else if (this.ride) {
       this.hint.textContent = 'Riding with a friend · E get out · C map view · Esc menu · G guide';
     } else if (inCar) {
-      this.hint.textContent = 'W/S gas and brake · A/D steer · Space drift · H horn · E get out · R unstuck · C map view · Esc menu · G guide';
+      this.hint.textContent = `W/S gas and brake · A/D steer · Space drift · H horn · ${this.boostsLeft > 0 ? `B boost (${this.boostsLeft}) · ` : ''}E get out · R unstuck · C map view · Esc menu · G guide`;
     } else {
       const hint = this.nearFriend && this.nearFriendIsClosest() ? 'E ride along · ' : this.nearCar ? 'E get in · ' : '';
       this.hint.textContent = `W/S walk · A/D turn · Shift run · ${hint}R unstuck · C map view · Esc menu · G guide`;

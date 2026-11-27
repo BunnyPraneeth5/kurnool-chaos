@@ -3,11 +3,12 @@ import { parseRound, RoundController } from '../src/modes/round';
 import { huntMode } from '../src/modes/hunt';
 import { chorPoliceMode } from '../src/modes/chorPolice';
 import { chaosMode } from '../src/modes/chaos';
+import { climbMode } from '../src/modes/climb';
 import type { Room } from '../src/net/room';
 import type { Game } from '../src/game';
 import { ctx } from './helpers';
 
-const modes = { chor: chorPoliceMode, hunt: huntMode, chaos: chaosMode };
+const modes = { chor: chorPoliceMode, hunt: huntMode, chaos: chaosMode, climb: climbMode(null) };
 
 function fakeRoom(myId: string, host: string) {
   const sent: Record<string, unknown>[] = [];

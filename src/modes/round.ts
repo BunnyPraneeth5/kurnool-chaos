@@ -126,7 +126,7 @@ export class RoundController {
   // --- host actions ---
 
   setMode(mode: ModeId): void {
-    if (!this.isHost || this.state.phase !== 'lobby' || !(mode in this.modes)) return;
+    if (!this.isHost || this.state.phase !== 'lobby' || !(mode in this.modes) || this.modes[mode].available === false) return;
     this.commit({ ...this.state, mode });
   }
 

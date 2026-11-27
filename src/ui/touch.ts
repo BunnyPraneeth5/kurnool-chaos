@@ -24,6 +24,8 @@ export class TouchControls {
   readonly bHand = el<HTMLButtonElement>('bHand');
   readonly bUnstuck = el<HTMLButtonElement>('bUnstuck');
   readonly bHorn = el<HTMLButtonElement>('bHorn');
+  readonly bBoost = el<HTMLButtonElement>('bBoost');
+  private boostTaps = 0;
   /** Horn held down. */
   hornDown = false;
 
@@ -81,6 +83,10 @@ export class TouchControls {
         this.bHorn.classList.remove('down');
       });
     }
+    this.bBoost.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.boostTaps++;
+    });
     this.bUnstuck.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       this.unstuckTaps++;
@@ -117,6 +123,12 @@ export class TouchControls {
   consumeAction(): boolean {
     const hit = this.actionTaps > 0;
     this.actionTaps = 0;
+    return hit;
+  }
+
+  consumeBoost(): boolean {
+    const hit = this.boostTaps > 0;
+    this.boostTaps = 0;
     return hit;
   }
 

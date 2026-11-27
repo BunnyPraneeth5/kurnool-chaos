@@ -158,13 +158,18 @@ body {
   touch-action: none;
 }
 #bUnstuck,
-#bHorn {
+#bHorn,
+#bBoost {
   width: 58px;
   height: 58px;
   font-size: 10px !important;
 }
-body:not(.driving) #bHorn {
+body:not(.driving) #bHorn,
+body:not(.boosts) #bBoost {
   display: none;
+}
+#bBoost {
+  background: rgba(228, 87, 61, 0.7) !important;
 }
 #bHand {
   width: 68px;

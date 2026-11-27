@@ -1,15 +1,18 @@
 import * as THREE from 'three';
 import { VEHICLES, type VehicleType } from '../vehicles/params';
+import { groundY } from '../map/terrain';
 
 // World pieces for game rounds: a light pillar over the current hunt target
 // (seen over the buildings and through the fog) and a police light bar.
 
 export class Beacon {
   private readonly group = new THREE.Group();
-  private readonly pillarMat = new THREE.MeshBasicMaterial({ color: 0xffc247, transparent: true, opacity: 0.35, depthWrite: false, fog: false });
-  private readonly ringMat = new THREE.MeshBasicMaterial({ color: 0xffc247, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  private readonly pillarMat: THREE.MeshBasicMaterial;
+  private readonly ringMat: THREE.MeshBasicMaterial;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, colour = 0xffc247) {
+    this.pillarMat = new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.35, depthWrite: false, fog: false });
+    this.ringMat = new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide, fog: false });
     const pillar = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 220, 12, 1, true), this.pillarMat);
     pillar.position.y = 110;
     const ring = new THREE.Mesh(new THREE.RingGeometry(26, 30, 40).rotateX(-Math.PI / 2), this.ringMat);
@@ -23,7 +26,7 @@ export class Beacon {
   set(target: { x: number; z: number } | null, timeMs: number): void {
     this.group.visible = !!target;
     if (!target) return;
-    this.group.position.set(target.x, 0, target.z);
+    this.group.position.set(target.x, groundY(target.x, target.z), target.z); // on hills too
     this.pillarMat.opacity = 0.28 + 0.12 * Math.sin(timeMs / 300);
   }
 }
