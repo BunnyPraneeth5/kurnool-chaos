@@ -119,7 +119,7 @@ const SECTIONS: Section[] = [
       place(LOBBY_NAME_EN, LOBBY_NAME_TE, 'The hill where rooms meet, 153 m above Raj Vihar. Drive down the IIITDM road into the city.', ...lobbyPin(map));
       const rw = map.airport.runway;
       place('Kurnool Airport', 'కర్నూలు విమానాశ్రయం', 'Pulled in close to the city and linked by a highway from NH40 in the south-east. Drive down the runway; planes are coming later.', rw.x, rw.z);
-      for (const s of map.police ?? []) place(s.name, 'పోలీస్ స్టేషన్', 'Police station: you end up here when you are busted.', s.x, s.z);
+      for (const s of map.police ?? []) place(s.name, 'పోలీస్ స్టేషన్', 'Police station: busted players are brought here.', s.x, s.z);
       out.push(list);
       return out;
     },
@@ -134,7 +134,7 @@ const SECTIONS: Section[] = [
         'Friends: name tags over their heads or vehicles and dots on the minimap, each in their colour. Chat and emotes show as speech bubbles.',
         'The host: the first to join a room (badge in the player list). Picks and starts game modes and can remove a player. If the host leaves, the next one takes over.',
         'Traffic drivers: autos, bikes, cars, buses and lorries on the left of the road. They stop for whatever is in front and squeeze past after a while. Walk up and take their vehicle.',
-        'Cops: white cars with a flashing light bar and POLICE sign. They come when you have stars, follow the roads to you and bust you if you stop near them.',
+        'Cops: white cars with a flashing light bar and POLICE sign. They come when you have stars, follow the roads to you and bust you if you stop near them. Busted players end up at a police station.',
         'Police and chors (Chor–Police rounds): police have a light bar and a blue name tag.',
         'Your traffic and cops are your own: friends have their own traffic and cops.',
       ]),
@@ -171,7 +171,7 @@ const SECTIONS: Section[] = [
       LIST([
         'Stars (next to the minimap) show police heat, up to 3; one cop per star.',
         'You get a star for taking a vehicle from traffic, crashing hard into traffic, or hitting a cop.',
-        'Stop within 7 m of a cop for 1.3 s and you are busted: the stars go and the cops leave. The stars pulse while a bust is building.',
+        'Stop within 7 m of a cop for 1.3 s and you are busted: the stars go, and you are taken on foot to the nearest police station (5 in the city, under Places). Your vehicle stays where you were caught; one borrowed from traffic is taken away. The stars pulse while a bust is building.',
         'Stay more than 58 m from every cop for 10 s to drop a star (new cops get 20 s to reach you first).',
         'No cops chase you while you play a game round.',
       ]),

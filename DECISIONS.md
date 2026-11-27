@@ -2,6 +2,14 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-27 | Police stations keep their real OSM buildings; a signboard at the road in front instead of a separate model | A model would sit on top of the real building |
+| 2026-11-27 | Busted in a shared vehicle: it stays where you were caught (for everyone); a borrowed traffic vehicle is taken away | Sending a shared vehicle home for friends would need a new network message; leaving it is already how getting out works |
+| 2026-11-27 | Police quarters and the radio receiving station are left out of police stations (5 of 7 kept) | Busted players should land at a station |
+| 2026-11-27 | Riders send `mode: 'ride'` with the driver id and seat; their figure is drawn inside the driver's vehicle on every screen; no rider physics | Cheap, and the vehicle is already synced |
+| 2026-11-27 | Seated friends are hidden behind the glass in cars, buses and lorries; seen on bikes and autos | The low-poly glass is opaque; name tags still show who rides |
+| 2026-11-27 | Menu pauses solo play; in rooms the world goes on and you stand still | Rooms cannot pause for everyone |
+| 2026-11-27 | No sound settings yet; they come with sound in H.7 | No setting that does nothing |
+| 2026-11-27 | Telugu font: Noto Sans Telugu Bold TTF from Google's notofonts repo, OFL, 243 KB | Bunny approved; only one weight is needed |
 | 2026-11-27 | New Phase H: menu, in-game guide, riding along, police stations, junctions, sound, pedestrians, smarter cops, chaos points and mode, mode upgrades from ChatGPT's review | Bunny's request after Phase 5; friends need to understand the game and have more to do |
 | 2026-11-27 | Seats including the driver: bike 2, auto 3, car 4, lorry 3, bus 8; extra seats are for friends in the room (no computer passengers in your own vehicle) | Bunny's pick; a bus holds a full room |
 | 2026-11-27 | Riders in rounds: same team only; in Landmark hunt riders score with the driver | Bunny's pick; a chor in a police car would end the mode |

@@ -15,6 +15,7 @@ import type { Pose } from './net/interp';
 import { Life } from './ai/life';
 import type { TrafficCar } from './ai/traffic';
 import { Minimap } from './ui/minimap';
+import { nearestStation } from './map/police';
 import { settings, STEER_SCALE } from './ui/settings';
 import { stats } from './ui/stats';
 import { TouchControls } from './ui/touch';
@@ -157,10 +158,7 @@ export class Game {
     const ev = this.life.update(dt, focus, parked, moving);
     if (ev === 'busted') stats.busted++;
     if (ev === 'lost' || ev === 'cooler') stats.copsEscaped++;
-    if (ev === 'busted') {
-      if (this.car) this.car.speed = 0;
-      this.hud.toast('Busted! Heat cleared', 'bad');
-    } else if (ev === 'lost') this.hud.toast('Cops lost');
+    if (ev === 'busted') this.busted(); else if (ev === 'lost') this.hud.toast('Cops lost');
     else if (ev === 'cooler') this.hud.toast('Heat dropping');
     this.hud.heat(this.life.cops.heat, this.life.cops.bustLevel);
     // Vehicles taken from traffic and left far behind.
@@ -173,6 +171,28 @@ export class Game {
     }
     if (settings().minimap) this.minimap.draw(me.x, me.z, this.life.cops.cops);
     this.minimap.setVisible(settings().minimap);
+  }
+
+  /**
+   * Busted (task H.5): on foot outside the nearest police station. The vehicle stays where
+   * you were caught (on friends' screens too); one borrowed from traffic is taken away.
+   */
+  private busted(): void {
+    const me = this.car ?? this.player;
+    const st = nearestStation(this.map, me.x, me.z);
+    const c = this.car;
+    if (!st) {
+      // A map without police stations: just stop.
+      if (c) c.speed = 0;
+      this.hud.toast('Busted! Heat cleared', 'bad');
+      return;
+    }
+    this.toFoot(st.x, st.z, st.a);
+    if (c && !this.shared.includes(c)) {
+      this.scene.remove(c.mesh);
+      this.vehicles.splice(this.vehicles.indexOf(c), 1);
+    }
+    this.hud.toast(`Busted! Taken to ${st.name}`, 'bad');
   }
 
   toast(msg: string): void {

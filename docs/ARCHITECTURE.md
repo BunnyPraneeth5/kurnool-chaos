@@ -14,7 +14,8 @@
 ```
 kurnool-chaos/
   public/map/kurnool.json      built map, committed
-  public/fonts/                Noto Sans Telugu (if self-hosted)
+  public/fonts/                Noto Sans Telugu Bold (OFL, licence in OFL.txt), loaded by src/util/fonts.ts
+  tests/                       Vitest tests (npm test)
   scripts/osm/fetch.mjs        Overpass API -> scripts/osm/raw.json (gitignored)
   scripts/osm/build.mjs        raw.json -> public/map/kurnool.json
   src/main.ts                  boot, game loop
@@ -78,6 +79,7 @@ type MapData = {
   }
   terrain: { file: 'terrain.bin'; x0: number; z0: number; cell: number; w: number; h: number; ref: number } // ref = metres above sea level of height 0
   airport: { runway: { x: number; z: number; len: number; w: number; heading: number }; terminal: { pts: [number, number][] } }
+  police: { name: string; x: number; z: number; a: number }[] // OSM police stations: spot at the road in front, a = way the sign faces
   spawn: { x: number; z: number; heading: number }
   meta: { osmBase: string; overtureRelease: string; credit: string }
 }
@@ -149,6 +151,8 @@ Real numbers in `src/vehicles/params.ts` (also turn rate, roll, weight, camera).
 - Parked cars are on the same spots on every screen, so when a friend drives parked car k, your copy of car k is hidden, theirs is drawn in its colour, and it stays where they leave it.
 - Remote vehicles are solid for you: you bounce off them like a wall. You cannot push them.
 - Phone lock or app switch (`visibilitychange`): on return, cap the time step, rejoin presence, show "Reconnecting" until the channel is back.
+- Riding along (H.4): seats per vehicle in `params.ts` (bike 2, auto 3, car 4, lorry 3, bus 8). A rider sends state `s` with `mode: 'ride'`, `ride` (driver id) and `seat` (1 and up) and the driver's position; every screen draws a seated figure in that seat of the driver's vehicle (`models.ts` SEATS). Seats are taken from what each rider sees; two on one seat: the earlier joiner keeps it. During a round only the same team may ride together; in Landmark hunt the whole vehicle scores.
+- Round timers: on waking from sleep, timers move on by the time `performance.now()` missed (Date.now() difference), and a guest sends `g` `{ k: 'sync' }` so the host resends the state.
 - Room controls: the host is the earliest `joinedAt` in presence (passes on automatically). Broadcast `c` `{ id, text }` or `{ id, e }` is chat or an emote (8 fixed emotes, text up to 80 chars, at most one message per 0.8 s per player). Broadcast `k` `{ by, target }` is a kick; clients accept it only if `by` is the host in their own presence list, then hide and ignore the target. The kicked client leaves, shows "You were removed", and remembers the room in localStorage for 10 min. If the target's client ignores it, the host repeats the kick whenever presence changes so newcomers hide them too. Block is local only (hide the player, ignore their chat). Go to puts you 7 m behind the friend, on the nearest road if within 15 m.
 - Lobby (G.1, `src/modes/lobby.ts`): rooms gather on the real Jagannatha Gattu summit, found as the highest terrain point within 150 m of a pin (15.76463 N, 78.03279 E). A paved plaza (24 m, follows the ground) with a black-and-yellow kerb and an English + Telugu signboard facing Raj Vihar; the 8 shared parked cars stand in a ring on it, players spawn on a 9 m ring. Round start spots stay in the city around Raj Vihar; after results everyone goes back to the plaza. Solo play is unchanged (Raj Vihar).
 - Game rounds (Phase G, `src/modes/`): broadcast `g` carries `{ k: 'state', s }` from the host (whole round state: round, rev, phase lobby/countdown/playing/results, mode, mins, ready, players, scores, roles, mode data, `leftMs` and `elapsedMs` as durations at send time), `{ k: 'ready', on }` and `{ k: 'claim', c }` from anyone. The host is the referee: it starts rounds, checks claims against its own view of positions (a catch within 15 m, a landmark within 90 m), keeps scores, and resends the state every 4 s and when someone joins. Everyone moves themselves to their start spot in parked car = their slot, held during the 3.5 s countdown (and police for 10 s more). A player who drops out briefly still counts as present for 15 s. If the host leaves, the next host carries on from its last state.
@@ -180,6 +184,10 @@ create policy "anyone can insert" on race_results for insert with check (true);
 create index on race_results (room, race_id, time_ms);
 ```
 No update or delete policies, so results cannot be edited from the client. Anyone with the publishable key can insert fake times: accepted risk for a friends game.
+
+## Menu and guide
+- `src/ui/menu.ts`: Menu button (top left), Esc, G for the guide. Pages: Guide (`guide.ts`), Settings (`settings.ts`, saved in localStorage `kc.settings`: quality, camera distance, steering, minimap), Room (the room panel from `roomHud.ts`), Stats (`stats.ts`, this session), About (version from package.json, credits). Leave room / Exit at the end. Solo play pauses while it is open; in rooms the player stands still.
+- The guide reads vehicle numbers from `params.ts` and places from the map, so it stays true; vehicle pictures are drawn once with the game's renderer.
 
 ## Errors
 No blank screens. Each failure shows a plain message with a Retry button:

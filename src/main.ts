@@ -9,6 +9,7 @@ import { buildParks } from './map/parks';
 import { buildProps } from './map/props';
 import { buildRail } from './map/rail';
 import { buildWaterways } from './map/waterways';
+import { buildPoliceStations } from './map/police';
 import { createSky } from './world/sky';
 import { detectQuality } from './world/quality';
 import { Game } from './game';
@@ -166,6 +167,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   const anisotropy = quality.level === 'high' ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1;
   scene.add(buildBuildings(map, quality, anisotropy));
   scene.add(buildProps(map, quality, anisotropy));
+  scene.add(buildPoliceStations(map));
 
   let room: Room | null = null;
   let beforeUpdate: (dt: number) => void = () => {};

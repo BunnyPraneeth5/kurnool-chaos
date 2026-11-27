@@ -1877,6 +1877,36 @@ for (let k = 0; k < terW * terH; k++) {
 }
 const terrain = { file: 'terrain.bin', x0: terX0, z0: terZ0, cell: TER_CELL, w: terW, h: terH, ref: terrainRef };
 
+// Police stations (task H.5): OSM amenity=police. Each gets a spot at the edge of the nearest
+// road in front of it (busted players are put there) and the way a signboard there faces.
+const police = [];
+const seenPolice = [];
+for (const el of [...detailEls, ...main].filter((e) => e.tags?.amenity === 'police')) {
+  // Housing and radio masts are police places but not stations.
+  if (/quart|quater|receiving/i.test(el.tags.name || '')) continue;
+  const c = centreOf(el);
+  if (!c || !inPA(c[0], c[1])) continue;
+  if (seenPolice.some((p) => Math.hypot(p[0] - c[0], p[1] - c[1]) < 40)) continue;
+  seenPolice.push(c);
+  let best = null;
+  for (const sg of segGrid.query(c[0] - 120, c[1] - 120, c[0] + 120, c[1] + 120)) {
+    const d = segDist(c[0], c[1], sg.a[0], sg.a[1], sg.b[0], sg.b[1]);
+    if (!best || d < best.d) best = { d, sg };
+  }
+  if (!best || best.d > 120) continue;
+  const { a, b, hw } = best.sg;
+  const dx = b[0] - a[0], dz = b[1] - a[1];
+  const L2 = dx * dx + dz * dz || 1;
+  const t = Math.max(0, Math.min(1, ((c[0] - a[0]) * dx + (c[1] - a[1]) * dz) / L2));
+  const px = a[0] + dx * t, pz = a[1] + dz * t;
+  // From the road centre towards the station, just past the road edge.
+  const ox = c[0] - px, oz = c[1] - pz;
+  const ol = Math.hypot(ox, oz) || 1;
+  const k = Math.min(hw + 1.5, ol);
+  police.push({ name: el.tags.name || 'Police Station', x: r1(px + (ox / ol) * k), z: r1(pz + (oz / ol) * k), a: Math.round(Math.atan2(-ox, -oz) * 1000) / 1000 });
+}
+police.sort((p, q) => p.x - q.x || p.z - q.z);
+
 const map = {
   version: 2,
   center: { lat: CENTER.lat, lon: CENTER.lon },
@@ -1893,6 +1923,7 @@ const map = {
   props,
   airport: { runway, terminal },
   terrain,
+  police,
   spawn,
   meta: { osmBase: raw.osmBase, overtureRelease: overture.release, credit: '© OpenStreetMap contributors, Overture Maps Foundation, Google Open Buildings, Dynamic World, Copernicus DEM' },
 };
@@ -2001,6 +2032,7 @@ const sha = createHash('sha256').update(json).digest('hex').slice(0, 16);
 /* ================= REPORT ================= */
 console.log('\n================ Kurnool map build ================');
 console.log(`Wrote public/map/kurnool.json: ${(json.length / 1e6).toFixed(2)} MB (gzip ${(gzBytes / 1e6).toFixed(2)} MB), sha256 ${sha}`);
+console.log(`Police stations (H.5): ${police.length} (${police.map((p) => p.name).join(', ')})`);
 console.log(`Roads: ${roads.length - 1} from OSM + 1 airport link, graph ${nodes.length} nodes / ${edges.length} edges`);
 console.log(
   `Buildings: ${bStats.kept} from OSM (${bStats.shrunk} shrunk off roads) + ${fillerBuildings} filler = ${buildings.length}. ` +
