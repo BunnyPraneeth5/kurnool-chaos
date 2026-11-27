@@ -1,4 +1,5 @@
 import { spawnPoint } from '../net/spawn';
+import { shuffle } from '../util/rng';
 import type { Claim, GameMode, RoundState, Target } from './types';
 
 // Landmark hunt (TASKS G.4): a list of landmarks, one at a time. The first player
@@ -34,12 +35,8 @@ export const huntMode: GameMode = {
   blurb: 'Race to Kurnool landmarks one by one. First to arrive scores.',
 
   setup(players, mins, ctx) {
-    const pool = ctx.map.landmarks.filter((l) => !SKIP.has(l.id));
-    // Shuffle, then order so consecutive targets are not right next to each other.
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
+    // Shuffle, then skip targets right next to the one before.
+    const pool = shuffle(ctx.map.landmarks.filter((l) => !SKIP.has(l.id)));
     const picked: Target[] = [];
     for (const l of pool) {
       if (picked.length >= targetCount(mins)) break;

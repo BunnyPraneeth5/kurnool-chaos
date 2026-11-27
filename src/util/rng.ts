@@ -20,3 +20,13 @@ export function pointInRing(x: number, z: number, r: [number, number][]): boolea
   }
   return inside;
 }
+
+/** Fisher–Yates shuffle of a copy: every order equally likely. */
+export function shuffle<T>(items: readonly T[], rand: () => number = Math.random): T[] {
+  const a = items.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
