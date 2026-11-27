@@ -773,7 +773,10 @@ body.mapview #mapbox,
     height: 104px;
   }
   #roompill {
-    top: calc(max(6px, env(safe-area-inset-top)) + 114px);
+    /* beside the Menu button, clear of the buttons on the right */
+    top: max(6px, env(safe-area-inset-top));
+    right: auto;
+    left: calc(max(8px, env(safe-area-inset-left)) + 84px);
   }
 }
 
@@ -1045,5 +1048,21 @@ body.touch #fps {
   to {
     transform: translateY(-30px);
     opacity: 0;
+  }
+}
+
+/* Short screens (phones in landscape): the five buttons in two columns so they fit. */
+@media (max-height: 480px) {
+  #btns {
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-auto-flow: row;
+    align-items: end;
+    justify-items: end;
+    gap: 8px;
+  }
+  #bAct {
+    grid-column: 2;
+    grid-row: 2 / span 2;
   }
 }
