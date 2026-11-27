@@ -214,7 +214,17 @@ export function startRoomSession(
         lookCar = mesh;
       }
       flashLightBars(now);
-      beacon.set(gameUi.beaconTarget(), now);
+      const target = gameUi.beaconTarget();
+      beacon.set(target, now);
+      // Rounds have their own police: no local cops while one runs for us.
+      game.life.calm = (s.phase === 'countdown' || s.phase === 'playing') && s.players.includes(r.myId);
+      game.minimap.target = target;
+      game.minimap.friends = [];
+      for (const p of r.players) {
+        if (p.id === r.myId) continue;
+        const pose = remotes.poseOf(p.id);
+        if (pose) game.minimap.friends.push({ x: pose.x, z: pose.z, colour: colourOf(p) });
+      }
       gameUi.update();
       remotes.update(dt, now, r.players.length);
       game.extraCars = remotes.carColliders;

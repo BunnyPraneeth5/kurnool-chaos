@@ -114,13 +114,13 @@ One arcade model (from the demo) with a params table:
 
 | Type | Top speed (m/s) | Accel | Grip | Radius | Notes |
 |---|---|---|---|---|---|
-| car | 34 | 15 | high | 1.6 | sedans, hatchbacks |
-| auto | 18 | 9 | low | 1.2 | tippy, body rolls a lot |
-| bike | 30 | 20 | medium | 0.7 | leans into turns, fits through gaps |
-| bus | 20 | 6 | high | 2.4 | slow turning, long |
-| lorry | 22 | 7 | medium | 2.4 | heavy, pushes cars |
+| car | 34 | 15 | high | 2 x 1.0 | sedans, hatchbacks |
+| auto | 18 | 9 | low | 2 x 0.75 | tippy, body rolls a lot |
+| bike | 30 | 20 | medium | 2 x 0.45 | leans into turns, fits through gaps |
+| bus | 20 | 6 | high | 4 x 1.25 | slow turning, long |
+| lorry | 22 | 7 | medium | 3 x 1.25 | heavy, pushes cars |
 
-Numbers are starting points. Tune in play-tests.
+Real numbers in `src/vehicles/params.ts` (also turn rate, roll, weight, camera). Collision is a row of circles along the body (`hull.ts`); in a crash with traffic or a cop, weight decides who moves. Tune in play-tests.
 
 - Car, auto and bike get low-poly models. Bus and lorry are simple box shapes.
 - Vehicle-to-vehicle collision uses each type's radius.
@@ -128,13 +128,15 @@ Numbers are starting points. Tune in play-tests.
 
 ## Player
 - Spawn: players start spread out on a ring of road points around Rajvihar, not on one spot.
-- Parked vehicles: about 8 mixed vehicles parked near spawn. Local to each player.
+- Parked vehicles: 14 near spawn on the same spots on every screen (8 cars, then 2 autos, 2 bikes, a bus, a lorry). Rooms move the 8 cars to the lobby; rounds put player slot k in car k.
 - Unstuck: R key or a touch button moves you to the nearest road point, facing along the road, speed zero.
 
 ## Traffic and cops (local only)
-- Traffic follows the road graph on the left lane: offset to the left of the edge direction. Picks a random next edge at nodes. Stops when blocked, ghosts through after 5 s stuck (demo logic).
-- Cops spawn on graph nodes 140 to 320 m away when heat rises. Chase along the graph using a shortest-path search to the player's nearest node, recomputed about once a second (greedy steps get stuck at dead ends). Switch to direct pursuit with line of sight under 30 m. Busted after 1.3 s stopped near a cop.
-- Heat triggers: taking a vehicle out of traffic, hitting another vehicle hard, hitting a cop.
+- Code: `src/ai/graph.ts` (road graph, lanes, A*), `agent.ts`, `traffic.ts`, `cops.ts`, `life.ts`. Computer vehicles move along road polylines, not wall physics; a knock pushes them up to 2.5 m aside and they drift back.
+- Traffic follows the road graph on the left lane: offset to the left of the edge direction, ends trimmed so they curve through junctions. Picks a random legal next edge at nodes (bigger roads more often; buses and lorries keep to roads 9 m+). Slows for bends, stops for vehicles and people ahead, steers round parked vehicles, ghosts through after 5 s stuck (demo logic). 20 on low, 32 on high, spawned 120 to 300 m away and removed past 360 m. Walk up to one and get in to take it.
+- Cops spawn on graph nodes 140 to 320 m away when heat rises. Chase along the graph using A* to the player's nearest road point, recomputed about once a second (greedy steps get stuck at dead ends); they may drive against one-way roads. Switch to direct pursuit with line of sight under 30 m. Busted after 1.3 s stopped within 7 m. 10 s more than 58 m from every cop drops a star; new heat first gives them 20 s to arrive. No local cops during a game round you are in.
+- Heat triggers: taking a vehicle out of traffic, hitting another vehicle hard, hitting a cop (at most once every 3 s). Up to 3 stars, one cop per star.
+- HUD (`src/ui/minimap.ts`, `hud.ts`): minimap top right (roads, water, parks, runway and landmarks drawn once at 6 m per pixel; turns with the camera; cops, friends, game target; tap for the whole city), heat stars beside it.
 - Police vehicles say "POLICE" only. No real department logos.
 
 ## Multiplayer (Supabase Realtime)
@@ -142,7 +144,7 @@ Numbers are starting points. Tune in play-tests.
 - Channel: `room:ABC123` with `config: { broadcast: { self: false }, presence: { key: playerId } }`.
 - Start screen without a room link: nickname + Create room / Join with code / Play alone. A room link goes straight to the nickname box.
 - Presence payload: `{ id, nick, slot, joinedAt }`. Each player takes the lowest free slot 0..7; the slot sets their colour and their spawn point on the ring around Raj Vihar.
-- Broadcast event `s`: `{ id, t, x, z, y, h, v, mode, car }` where `t` is the sender's `Date.now()`, `mode` is the vehicle type or `foot`, `h` is heading in radians and `car` is the index of the parked car being driven (-1 on foot). Keep it small. Rate adapts to the room: 5 Hz up to 4 players, then 80 / N² Hz (1.25 Hz with 8), nothing when alone. While standing still, send only a heartbeat every 2 s.
+- Broadcast event `s`: `{ id, t, x, z, y, h, v, mode, car }` where `t` is the sender's `Date.now()`, `mode` is the vehicle type (car, auto, bike, bus, lorry) or `foot`, `h` is heading in radians and `car` is the index of the shared parked vehicle being driven (-1 on foot, -2 for one taken from your own traffic). Keep it small. Rate adapts to the room: 5 Hz up to 4 players, then 80 / N² Hz (1.25 Hz with 8), nothing when alone. While standing still, send only a heartbeat every 2 s.
 - Remote players: buffer snapshots, map sender `t` onto the local clock using local receive times (fastest message seen), render one send interval + 100 ms in the past (300 ms at 5 Hz), interpolate position and heading. Hide players missing for 5 s.
 - Parked cars are on the same spots on every screen, so when a friend drives parked car k, your copy of car k is hidden, theirs is drawn in its colour, and it stays where they leave it.
 - Remote vehicles are solid for you: you bounce off them like a wall. You cannot push them.

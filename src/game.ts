@@ -11,6 +11,9 @@ import { spawnParkedVehicles } from './vehicles/parked';
 import { setRider } from './vehicles/models';
 import { hullDistance, type Bumper } from './vehicles/hull';
 import type { VehicleType } from './vehicles/params';
+import { Life } from './ai/life';
+import type { TrafficCar } from './ai/traffic';
+import { Minimap } from './ui/minimap';
 import { TouchControls } from './ui/touch';
 import { Hud } from './ui/hud';
 
@@ -19,6 +22,7 @@ import { Hud } from './ui/hud';
 const ENTER_RANGE = 3.2; // m from a vehicle's side to get in
 const MAX_EXIT_SPEED = 4; // m/s
 const PLAYER_GAP = 0.7; // m; on foot, you cannot walk into a vehicle
+const ABANDON_M = 400; // vehicles taken from traffic and left this far behind are tidied away
 
 export class Game {
   readonly world: CollisionWorld;
@@ -33,6 +37,9 @@ export class Game {
   extraCars: readonly Bumper[] = [];
   /** Held still (game-round countdown): no driving, getting in or out, or unstuck. */
   locked = false;
+  /** Traffic, cops and heat (local to this screen). */
+  readonly life: Life;
+  readonly minimap: Minimap;
   private mapView = false;
   private readonly keys = new Keyboard();
   private readonly touch = new TouchControls();
@@ -40,15 +47,17 @@ export class Game {
   private readonly chase: ChaseCamera;
   private readonly free: FreeCamera;
   private readonly hint = document.getElementById('hint');
-  private nearCar: Vehicle | null = null;
+  private nearCar: Vehicle | TrafficCar | null = null;
   private readonly shirt: number;
+  private readonly onFootBody: Bumper;
 
   constructor(
     readonly map: MapData,
-    scene: THREE.Scene,
+    private readonly scene: THREE.Scene,
     camera: THREE.PerspectiveCamera,
     canvas: HTMLCanvasElement,
-    shirt?: number,
+    shirt: number | undefined,
+    opts: { traffic: number; shadows: boolean },
   ) {
     this.world = new CollisionWorld(map);
     this.roads = new RoadIndex(map);
@@ -62,6 +71,16 @@ export class Game {
     this.chase.snap(this.player, this.world);
     this.free = new FreeCamera(camera, canvas);
     this.free.enabled = false;
+    this.life = new Life(map, scene, this.world, opts.traffic, opts.shadows);
+    this.minimap = new Minimap(map, camera);
+    // Traffic stops for you when you walk in front of it.
+    const p = this.player;
+    this.onFootBody = {
+      get x() { return p.x; },
+      get z() { return p.z; },
+      get a() { return p.a; },
+      type: 'bike',
+    };
     this.refreshLabels();
   }
 
@@ -84,6 +103,10 @@ export class Game {
     if (this.car) {
       const crash = this.car.drive(dt, inp, this.world, this.solidCars());
       if (crash > 0) this.chase.shake(crash);
+      const hit = this.car.bumped;
+      if (hit && (this.life.isCop(hit) || this.life.isTraffic(hit))) {
+        if (this.life.crime(1, this.car)) this.hud.toast(this.life.isCop(hit) ? 'You hit a cop car' : 'Hit and run');
+      }
       this.player.x = this.car.x;
       this.player.z = this.car.z;
       this.player.a = this.car.a;
@@ -94,9 +117,33 @@ export class Game {
       this.chase.update(dt, this.player, this.world);
       this.findNearCar();
     }
+    this.updateLife(dt);
     this.hud.speed(!!this.car, this.car ? this.car.speed : 0);
     this.hud.update(dt);
     this.keys.endFrame();
+  }
+
+  private updateLife(dt: number): void {
+    const me = this.car ?? this.player;
+    const focus = { x: me.x, z: me.z, speed: this.car ? this.car.speed : 0 };
+    const parked = this.vehicles.filter((v) => v !== this.car && v.mesh.visible);
+    const moving: Bumper[] = [...this.extraCars, this.car ?? this.onFootBody];
+    const ev = this.life.update(dt, focus, parked, moving);
+    if (ev === 'busted') {
+      if (this.car) this.car.speed = 0;
+      this.hud.toast('Busted! Heat cleared', 'bad');
+    } else if (ev === 'lost') this.hud.toast('Cops lost');
+    else if (ev === 'cooler') this.hud.toast('Heat dropping');
+    this.hud.heat(this.life.cops.heat, this.life.cops.bustLevel);
+    // Vehicles taken from traffic and left far behind.
+    for (let i = this.vehicles.length - 1; i >= this.shared.length; i--) {
+      const v = this.vehicles[i];
+      if (v !== this.car && Math.hypot(v.x - me.x, v.z - me.z) > ABANDON_M) {
+        this.scene.remove(v.mesh);
+        this.vehicles.splice(i, 1);
+      }
+    }
+    this.minimap.draw(me.x, me.z, this.life.cops.cops);
   }
 
   toast(msg: string): void {
@@ -105,8 +152,9 @@ export class Game {
 
   /** Put the player in parked car `index` at a spot, stopped (game-round start). */
   driveCar(index: number, x: number, z: number, heading: number): void {
-    const c = this.vehicles[index];
+    const c = this.shared[index];
     if (!c) return;
+    this.life.traffic.clearNear(x, z, 25);
     if (this.car && this.car !== c) this.leave(this.car);
     c.mesh.visible = true;
     this.sit(c);
@@ -165,8 +213,22 @@ export class Game {
       this.chase.snap(this.player, this.world);
     } else {
       this.findNearCar();
-      const c = this.nearCar;
-      if (!c) return;
+      const near = this.nearCar;
+      if (!near) return;
+      let c: Vehicle;
+      if (near instanceof Vehicle) c = near;
+      else {
+        // Taking a vehicle out of traffic: the cops notice.
+        c = new Vehicle(near.type, near.colour, near.x, near.z, near.a);
+        c.y = near.y;
+        c.settle(this.world);
+        c.sync();
+        this.life.traffic.remove(near);
+        this.vehicles.push(c);
+        this.scene.add(c.mesh);
+        this.life.crime(1, c);
+        this.hud.toast(this.life.calm ? `${c.t.name} borrowed` : `${c.t.name} borrowed. Cops noticed`, this.life.calm ? undefined : 'bad');
+      }
       c.va = c.a;
       this.sit(c);
     }
@@ -234,7 +296,7 @@ export class Game {
   /** Visible parked cars (a friend may be driving our copy of one) and friends' cars. */
   private solidCars(): Bumper[] {
     const list: Bumper[] = this.vehicles.filter((v) => v !== this.car && v.mesh.visible);
-    return list.concat(this.extraCars);
+    return list.concat(this.extraCars, this.life.solid());
   }
 
   private keepOffCars(): void {
@@ -253,9 +315,9 @@ export class Game {
   }
 
   private findNearCar(): void {
-    let best: Vehicle | null = null;
+    let best: Vehicle | TrafficCar | null = null;
     let bd = ENTER_RANGE;
-    for (const c of this.vehicles) {
+    for (const c of [...this.vehicles, ...this.life.traffic.cars]) {
       if (!c.mesh.visible) continue; // a friend is driving it
       const d = hullDistance(c, this.player.x, this.player.z).d;
       if (d < bd) {
