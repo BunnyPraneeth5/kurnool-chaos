@@ -14,6 +14,10 @@ export class Hud {
   private readonly heatEl = el('heat');
   private readonly stars = Array.from(this.heatEl.children) as HTMLElement[];
   private lastHeat = -1;
+  private readonly chaosEl = el('chaos');
+  private readonly chaosNum = this.chaosEl.querySelector('b') as HTMLElement;
+  private readonly pop = el('chaospop');
+  private lastChaos = -1;
   private toastT = 0;
   private lastKmh = -1;
 
@@ -35,6 +39,24 @@ export class Hud {
       this.heatEl.classList.toggle('hot', level > 0);
     }
     this.heatEl.classList.toggle('bust', bust > 0.15);
+  }
+
+  /** Chaos points counter beside the stars. */
+  chaos(total: number): void {
+    if (total === this.lastChaos) return;
+    this.lastChaos = total;
+    this.chaosEl.hidden = total <= 0;
+    this.chaosNum.textContent = String(total);
+  }
+
+  /** A short "+15 Near miss" that floats up and fades. */
+  chaosPop(delta: number, label: string): void {
+    const d = document.createElement('div');
+    d.className = delta < 0 ? 'bad' : '';
+    d.textContent = `${delta > 0 ? '+' : ''}${delta} ${label}`;
+    this.pop.append(d);
+    while (this.pop.children.length > 4) this.pop.firstElementChild?.remove();
+    window.setTimeout(() => d.remove(), 1600);
   }
 
   toast(msg: string, cls?: 'bad'): void {

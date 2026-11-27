@@ -23,6 +23,11 @@ export class TouchControls {
   readonly bAct = el<HTMLButtonElement>('bAct');
   readonly bHand = el<HTMLButtonElement>('bHand');
   readonly bUnstuck = el<HTMLButtonElement>('bUnstuck');
+  readonly bHorn = el<HTMLButtonElement>('bHorn');
+  readonly bBoost = el<HTMLButtonElement>('bBoost');
+  private boostTaps = 0;
+  /** Horn held down. */
+  hornDown = false;
 
   constructor() {
     const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
@@ -67,6 +72,21 @@ export class TouchControls {
       e.preventDefault();
       this.actionTaps++;
     });
+    this.bHorn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.hornDown = true;
+      this.bHorn.classList.add('down');
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave'] as const) {
+      this.bHorn.addEventListener(ev, () => {
+        this.hornDown = false;
+        this.bHorn.classList.remove('down');
+      });
+    }
+    this.bBoost.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.boostTaps++;
+    });
     this.bUnstuck.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       this.unstuckTaps++;
@@ -103,6 +123,12 @@ export class TouchControls {
   consumeAction(): boolean {
     const hit = this.actionTaps > 0;
     this.actionTaps = 0;
+    return hit;
+  }
+
+  consumeBoost(): boolean {
+    const hit = this.boostTaps > 0;
+    this.boostTaps = 0;
     return hit;
   }
 

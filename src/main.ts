@@ -10,6 +10,7 @@ import { buildProps } from './map/props';
 import { buildRail } from './map/rail';
 import { buildWaterways } from './map/waterways';
 import { buildPoliceStations } from './map/police';
+import { JunctionScenery } from './map/signals';
 import { createSky } from './world/sky';
 import { detectQuality } from './world/quality';
 import { Game } from './game';
@@ -168,6 +169,8 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   scene.add(buildBuildings(map, quality, anisotropy));
   scene.add(buildProps(map, quality, anisotropy));
   scene.add(buildPoliceStations(map));
+  const junctionScene = new JunctionScenery(map);
+  scene.add(junctionScene.group);
 
   let room: Room | null = null;
   let beforeUpdate: (dt: number) => void = () => {};
@@ -187,9 +190,9 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     }
   }
 
-  const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined, { traffic: quality.traffic, shadows: quality.vehicleShadows });
+  const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined, { traffic: quality.traffic, shadows: quality.vehicleShadows, pedestrians: quality.pedestrians });
   menu.add(settingsPage(quality.level), 'about');
-  menu.add(statsPage(), 'about');
+  menu.add(statsPage(() => game.chaos), 'about');
   showPlace = (x, z) => {
     menu.close();
     game.viewPlace(x, z);
@@ -219,7 +222,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
       game.update(dt);
       afterUpdate();
     };
-    Object.assign(window, { __three: { renderer, scene, camera }, __game: game, __room: room, __menu: menu, __frame: frame });
+    Object.assign(window, { __three: { renderer, scene, camera }, __game: game, __room: room, __menu: menu, __frame: frame, __junctionScene: junctionScene });
   }
 
   const fps = createFpsMeter(quality.level);
@@ -231,6 +234,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     beforeUpdate(dt);
     if (!(solo && menu.isOpen)) game.update(dt);
     afterUpdate();
+    junctionScene.update(Date.now());
     sky.update(camera);
     renderer.render(scene, camera);
     fps.frame(ts);

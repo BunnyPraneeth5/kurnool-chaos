@@ -42,7 +42,9 @@ export function settingsPage(qualityNow: 'low' | 'high'): MenuPage {
         choice('Camera distance', 'camera', [['near', 'Near'], ['normal', 'Normal'], ['far', 'Far']]),
         choice('Steering', 'steering', [['low', 'Gentle'], ['normal', 'Normal'], ['high', 'Quick']], 'How fast vehicles and you turn for the same stick or key.'),
         choice('Minimap', 'minimap', [[true, 'Show'], [false, 'Hide']]),
-        h('p', 'note', 'Settings are saved on this device. Sound settings arrive with sound (task H.7).'),
+        choice('Sound', 'sound', [[true, 'On'], [false, 'Off']], 'Engine, horns, sirens and beeps. Starts after your first tap or key press.'),
+        choice('Volume', 'volume', [['low', 'Low'], ['normal', 'Normal'], ['high', 'High']]),
+        h('p', 'note', 'Settings are saved on this device.'),
       ];
     },
   };
@@ -52,7 +54,7 @@ function km(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
-export function statsPage(): MenuPage {
+export function statsPage(chaosNow: () => { total: number; best: number }): MenuPage {
   return {
     id: 'stats',
     title: 'Stats',
@@ -60,6 +62,8 @@ export function statsPage(): MenuPage {
       const mins = Math.floor((performance.now() - stats.startedAt) / 60000);
       const rows: [string, string][] = [
         ['Playing for', `${mins} min`],
+        ['Chaos points', String(chaosNow().total)],
+        ['Best chaos round', String(chaosNow().best)],
         ['On foot', km(stats.distance.foot)],
         ...VEHICLE_TYPES.map((t): [string, string] => [`By ${VEHICLES[t].name.toLowerCase()}`, km(stats.distance[t])]),
         ['Top speed', `${Math.round(stats.topSpeed * 3.6)} km/h`],

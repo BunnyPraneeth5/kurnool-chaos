@@ -13,6 +13,7 @@ export interface QualitySettings {
   litWindows: boolean;
   treeDensity: number; // 0..1 share of trees kept
   traffic: number; // local traffic vehicles around the player
+  pedestrians: number;
   vehicleShadows: boolean;
 }
 
@@ -23,6 +24,6 @@ export function detectQuality(): QualitySettings {
   const level: Quality = q === 'low' || q === 'high' ? q : (saved ?? (coarse ? 'low' : 'high'));
   const dpr = window.devicePixelRatio || 1;
   return level === 'low'
-    ? { level, pixelRatio: 1, fogFar: 420, litWindows: false, treeDensity: 0.5, traffic: 20, vehicleShadows: false }
-    : { level, pixelRatio: Math.min(dpr, 2), fogFar: 580, litWindows: true, treeDensity: 1, traffic: 32, vehicleShadows: true };
+    ? { level, pixelRatio: 1, fogFar: 420, litWindows: false, treeDensity: 0.5, traffic: 20, pedestrians: 25, vehicleShadows: false }
+    : { level, pixelRatio: Math.min(dpr, 2), fogFar: 580, litWindows: true, treeDensity: 1, traffic: 32, pedestrians: 50, vehicleShadows: true };
 }

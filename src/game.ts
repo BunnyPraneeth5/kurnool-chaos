@@ -18,6 +18,10 @@ import { Minimap } from './ui/minimap';
 import { nearestStation } from './map/police';
 import { settings, STEER_SCALE } from './ui/settings';
 import { stats } from './ui/stats';
+import { sound } from './audio/sound';
+import { ChaosPoints, CHAOS } from './modes/chaosPoints';
+import type { ModeId } from './modes/types';
+import { BOOSTS } from './modes/chorPolice';
 import { TouchControls } from './ui/touch';
 import { Hud } from './ui/hud';
 
@@ -50,6 +54,15 @@ export class Game {
   /** Ask for a seat in a friend's vehicle: the seat number, or why not (set by the room code). */
   askRide: (driver: string) => number | string = () => 'Riding along works in rooms';
   private rideLast: Pose | null = null;
+  /** Chaos points hook (H.10). */
+  onRanRed: ((seen: boolean) => void) | null = null;
+  /** Chaos points (H.10). */
+  readonly chaos = new ChaosPoints();
+  private readonly nearMiss = new Map<TrafficCar, number>();
+  private driftT = 0;
+  private notDriftT = 0;
+  /** Boosts left this round (Chor–Police). */
+  boostsLeft = 0;
   private nearFriend: Bumper | null = null;
   /** Traffic, cops and heat (local to this screen). */
   readonly life: Life;
@@ -63,6 +76,7 @@ export class Game {
   private readonly hint = document.getElementById('hint');
   private nearCar: Vehicle | TrafficCar | null = null;
   private readonly shirt: number;
+  private readonly camera: THREE.PerspectiveCamera;
   private readonly onFootBody: Bumper;
 
   constructor(
@@ -71,7 +85,7 @@ export class Game {
     camera: THREE.PerspectiveCamera,
     canvas: HTMLCanvasElement,
     shirt: number | undefined,
-    opts: { traffic: number; shadows: boolean },
+    opts: { traffic: number; shadows: boolean; pedestrians: number },
   ) {
     this.world = new CollisionWorld(map);
     this.roads = new RoadIndex(map);
@@ -81,11 +95,15 @@ export class Game {
     this.vehicles = spawnParkedVehicles(map.spawn.x, map.spawn.z, this.roads, this.world);
     this.shared = this.vehicles.slice();
     for (const v of this.vehicles) scene.add(v.mesh);
+    this.camera = camera;
     this.chase = new ChaseCamera(camera);
     this.chase.snap(this.player, this.world);
     this.free = new FreeCamera(camera, canvas);
     this.free.enabled = false;
-    this.life = new Life(map, scene, this.world, opts.traffic, opts.shadows);
+    this.life = new Life(map, scene, this.world, opts.traffic, opts.shadows, opts.pedestrians);
+    this.life.traffic.onHonk = (c) => sound.honkAt(c.x, c.z, c.type);
+    this.chaos.onChange = (d, label) => this.hud.chaosPop(d, label);
+    this.onRanRed = () => this.chaos.add(CHAOS.redLight, 'Red light');
     this.minimap = new Minimap(map, camera);
     // Traffic stops for you when you walk in front of it.
     const p = this.player;
@@ -115,6 +133,14 @@ export class Game {
     const unstuck = this.keys.consume('KeyR') || this.touch.consumeUnstuck();
     if (act && !still) this.action();
     if (unstuck && !still && !this.ride) this.unstuck();
+    const boost = this.keys.consume('KeyB') || this.touch.consumeBoost();
+    if (boost && !still && this.car && this.boostsLeft > 0 && this.car.boostT <= 0) {
+      this.boostsLeft--;
+      this.car.boostT = 3;
+      sound.beep(880, 0.3, 'sawtooth');
+      this.hud.toast(`BOOST! (${this.boostsLeft} left)`);
+      this.refreshLabels();
+    }
     const bx = (this.car ?? this.player).x, bz = (this.car ?? this.player).z;
 
     if (this.ride) {
@@ -124,11 +150,15 @@ export class Game {
       if (crash > 0) {
         this.chase.shake(crash);
         stats.crashes++;
+        sound.thud(crash * 2);
       }
       const hit = this.car.bumped;
       if (hit && (this.life.isCop(hit) || this.life.isTraffic(hit))) {
         if (this.life.crime(1, this.car)) this.hud.toast(this.life.isCop(hit) ? 'You hit a cop car' : 'Hit and run');
+        // The crash halved our speed; points for how fast we hit.
+        this.chaos.add(CHAOS.crash + Math.abs(this.car.speed) / 0.45, this.life.isCop(hit) ? 'Cop crash' : 'Crash');
       }
+      this.chaosDriving(dt, inp);
       this.player.x = this.car.x;
       this.player.z = this.car.z;
       this.player.a = this.car.a;
@@ -145,20 +175,51 @@ export class Game {
     if (moved < 5) stats.distance[this.car ? this.car.type : 'foot'] += moved;
     if (this.car) stats.topSpeed = Math.max(stats.topSpeed, Math.abs(this.car.speed));
     this.updateLife(dt);
+    this.updateSound(inp, still);
     this.hud.speed(!!this.car, this.car ? this.car.speed : 0);
     this.hud.update(dt);
     this.keys.endFrame();
   }
 
+  private updateSound(inp: MoveInput, still: boolean): void {
+    const cam = this.camera;
+    const m = cam.matrixWorld.elements; // the camera looks down its -z axis
+    const fx = -m[8], fz = -m[10];
+    sound.setListener(cam.position.x, cam.position.z, Math.atan2(fx, fz));
+    const c = this.car;
+    sound.engine(c ? c.type : null, c ? c.speed : 0, c ? inp.thr : 0);
+    sound.horn(!!c && !still && (this.keys.isDown('KeyH') || this.touch.hornDown), c ? c.type : null);
+    const me = c ?? this.player;
+    let near = Infinity;
+    for (const cop of this.life.cops.cops) near = Math.min(near, Math.hypot(cop.x - me.x, cop.z - me.z));
+    sound.siren(near);
+    document.body.classList.toggle('driving', !!c);
+  }
+
   private updateLife(dt: number): void {
     const me = this.car ?? this.player;
-    const focus = { x: me.x, z: me.z, speed: this.car ? this.car.speed : 0 };
+    const focus = { x: me.x, z: me.z, a: me.a, speed: this.car ? this.car.speed : 0, driving: !!this.car };
     const parked = this.vehicles.filter((v) => v !== this.car && v.mesh.visible);
     const moving: Bumper[] = [...this.extraCars, this.car ?? this.onFootBody];
     const ev = this.life.update(dt, focus, parked, moving);
     if (ev === 'busted') stats.busted++;
-    if (ev === 'lost' || ev === 'cooler') stats.copsEscaped++;
-    if (ev === 'busted') this.busted(); else if (ev === 'lost') this.hud.toast('Cops lost');
+    if (ev === 'lost' || ev === 'cooler') {
+      stats.copsEscaped++;
+      this.chaos.add(CHAOS.escapePerStar, ev === 'lost' ? 'Cops lost' : 'Escaped a star');
+    }
+    this.chaos.heat(dt, this.life.cops.heat);
+    this.hud.chaos(this.chaos.total);
+    if (ev === 'busted') {
+      sound.beep(160, 0.6, 'sawtooth');
+      this.chaos.busted();
+      this.busted();
+    }
+    if (this.life.peds.scared && this.life.crime(1, me)) this.hud.toast('Mind the people!', 'bad');
+    const red = this.life.ranRed;
+    if (red) {
+      if (red.seen && this.life.crime(1, me)) this.hud.toast('Ran a red light: the police saw you', 'bad');
+      this.onRanRed?.(red.seen);
+    } else if (ev === 'lost') this.hud.toast('Cops lost');
     else if (ev === 'cooler') this.hud.toast('Heat dropping');
     this.hud.heat(this.life.cops.heat, this.life.cops.bustLevel);
     // Vehicles taken from traffic and left far behind.
@@ -216,6 +277,7 @@ export class Game {
   /** Put the player on foot at a spot; a car they were in stays parked where it is. */
   toFoot(x: number, z: number, heading: number): void {
     this.endRide();
+    this.boostsLeft = 0;
     if (this.car) {
       this.leave(this.car);
       this.car = null;
@@ -377,8 +439,50 @@ export class Game {
     return !this.nearCar || df <= hullDistance(this.nearCar, this.player.x, this.player.z).d;
   }
 
+  /** Near misses with traffic at speed, and drifting (chaos points). */
+  private chaosDriving(dt: number, inp: MoveInput): void {
+    const c = this.car;
+    if (!c) return;
+    const fast = Math.abs(c.speed) > 15;
+    const sa = Math.sin(c.a), ca = Math.cos(c.a);
+    for (const t of this.life.traffic.cars) {
+      const dx = t.x - c.x, dz = t.z - c.z;
+      if (Math.abs(dx) > 12 || Math.abs(dz) > 12) {
+        this.nearMiss.delete(t);
+        continue;
+      }
+      const d = hullDistance(t, c.x, c.z).d - c.t.w / 2;
+      const seen = this.nearMiss.get(t);
+      if (fast && d < 1.2) this.nearMiss.set(t, Math.min(seen ?? Infinity, d));
+      // Passed it: the closest we came counts if we never touched.
+      if (seen !== undefined && dx * sa + dz * ca < -(c.t.len + VEHICLES[t.type].len) / 2) {
+        this.nearMiss.delete(t);
+        if (seen > 0.05 && !this.car?.bumped) this.chaos.add(CHAOS.nearMiss, 'Near miss');
+      }
+    }
+    const slide = Math.abs(Math.atan2(Math.sin(c.a - c.va), Math.cos(c.a - c.va)));
+    if (inp.hand && Math.abs(c.speed) > 10 && slide > 0.3) {
+      this.driftT += dt;
+      this.notDriftT = 0;
+    } else if (this.driftT > 0) {
+      this.notDriftT += dt;
+      if (this.notDriftT > 0.3) {
+        if (this.driftT > 0.6) this.chaos.add(this.driftT * CHAOS.driftPerS, 'Drift');
+        this.driftT = 0;
+      }
+    }
+  }
+
+  /** A game round starts for us (chaos round points start from 0). */
+  startRound(mode: ModeId): void {
+    this.chaos.startRound();
+    this.boostsLeft = mode === 'chor' ? BOOSTS : 0;
+    this.refreshLabels();
+  }
+
   /** Get into a vehicle (on a bike you can be seen riding it). */
   private sit(c: Vehicle): void {
+    sound.beep(420, 0.08);
     c.kind = 'player';
     this.car = c;
     this.player.figure.visible = false;
@@ -388,6 +492,7 @@ export class Game {
 
   /** Leave a vehicle parked where it is. */
   private leave(c: Vehicle): void {
+    sound.beep(300, 0.08);
     setRider(c.mesh, null);
     c.park();
   }
@@ -499,6 +604,8 @@ export class Game {
     this.touch.bAct.textContent = inCar ? 'Get out' : this.nearFriend && this.nearFriendIsClosest() ? 'Ride' : 'Get in';
     this.touch.bAct.classList.toggle('ready', near);
     this.touch.bHand.textContent = inCar ? 'Drift' : 'Run';
+    this.touch.bBoost.textContent = `Boost ${this.boostsLeft}`;
+    document.body.classList.toggle('boosts', this.boostsLeft > 0 && !!this.car);
     if (!this.hint) return;
     this.hint.hidden = false;
     if (this.mapView) {
@@ -506,7 +613,7 @@ export class Game {
     } else if (this.ride) {
       this.hint.textContent = 'Riding with a friend · E get out · C map view · Esc menu · G guide';
     } else if (inCar) {
-      this.hint.textContent = 'W/S gas and brake · A/D steer · Space drift · E get out · R unstuck · C map view · Esc menu · G guide';
+      this.hint.textContent = `W/S gas and brake · A/D steer · Space drift · H horn · ${this.boostsLeft > 0 ? `B boost (${this.boostsLeft}) · ` : ''}E get out · R unstuck · C map view · Esc menu · G guide`;
     } else {
       const hint = this.nearFriend && this.nearFriendIsClosest() ? 'E ride along · ' : this.nearCar ? 'E get in · ' : '';
       this.hint.textContent = `W/S walk · A/D turn · Shift run · ${hint}R unstuck · C map view · Esc menu · G guide`;

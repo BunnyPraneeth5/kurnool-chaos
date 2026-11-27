@@ -68,6 +68,18 @@ export class Agent implements Bumper {
     this.speed *= 0.9;
   }
 
+  /** Metres left along the path. */
+  left(): number {
+    let d = 0;
+    let x = this.px, z = this.pz;
+    for (const [px, pz] of this.path) {
+      d += Math.hypot(px - x, pz - z);
+      x = px;
+      z = pz;
+    }
+    return d;
+  }
+
   /** Drive `dist` metres along the path, calling `more` when it runs short. False at a true dead end. */
   advance(dist: number, more: () => boolean): boolean {
     let left = dist;

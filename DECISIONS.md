@@ -2,6 +2,18 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-27 | Traffic lights only at junctions with 4+ ways, 3+ of them main roads and one trunk or primary (84); the first rule (192) put lights almost everywhere | Bunny asked for the busiest junctions |
+| 2026-11-27 | Light cycle from Date.now() with a per-junction offset, not synced | Friends' clocks are close enough; no extra messages |
+| 2026-11-27 | Red-light heat only when a cop is within 120 m or at a traffic policeman's junction | Being seen is the point; chaos points either way |
+| 2026-11-27 | Buses stop every 300 m on main roads instead of at OSM bus stops | The map file has no bus stops and is at 5.95 of 6 MB; OSM has only 6 stops in the box |
+| 2026-11-27 | Overtaking only on two-way roads 9 m+ wide, with 70 m clear coming the other way | Narrow lanes would put traffic into oncoming vehicles |
+| 2026-11-27 | Pedestrians 25 low / 50 high, instanced; heat for racing past them (12 m/s+, within 1.6 m) | Bunny: they dodge and are never hurt; keeps phones fast |
+| 2026-11-27 | Roadblocks only at 3 stars, at most one at a time, 40 s apart; bike cops for half the new cops in lanes 7 m wide or less | Escapes must stay possible |
+| 2026-11-27 | Chaos points: crash 10 + m/s, near miss 15, drift 10/s, heat 2/star/s, escape 50/star, red light 10, busted -25% (min 50) | Starting values; tune after playtests |
+| 2026-11-27 | Chaos round points reported by each player every 3 s and sent with the 4 s keep-alive ('quiet' claims) | Immediate broadcasts would break the 100 msg/s budget with 8 players |
+| 2026-11-27 | Radar ping every 12 s, live within 50 m; 2 boosts of 3 s; escape bonus 15; last chor survival x2 | ChatGPT review points Bunny picked; values to tune |
+| 2026-11-27 | Hill climb start where the road is 115 m below the summit (2.1 km), found from the road route to Raj Vihar | Found from the map, survives map changes; not too long for a 3 min round |
+| 2026-11-27 | Landmark challenges only at Raj Vihar (checkpoints) and the fort (bonus gate) | The two Bunny's plan named |
 | 2026-11-27 | Police stations keep their real OSM buildings; a signboard at the road in front instead of a separate model | A model would sit on top of the real building |
 | 2026-11-27 | Busted in a shared vehicle: it stays where you were caught (for everyone); a borrowed traffic vehicle is taken away | Sending a shared vehicle home for friends would need a new network message; leaving it is already how getting out works |
 | 2026-11-27 | Police quarters and the radio receiving station are left out of police stations (5 of 7 kept) | Busted players should land at a station |

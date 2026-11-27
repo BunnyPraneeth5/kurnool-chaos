@@ -38,6 +38,8 @@ export class Vehicle implements Bumper {
   /** travel direction (lags behind the nose when drifting) */
   va: number;
   speed = 0;
+  /** Seconds of boost left (Chor–Police, task H.11): faster and quicker off the line. */
+  boostT = 0;
   /** The vehicle hit hard during the last drive() call, if any. */
   bumped: Bumper | null = null;
   private roll = 0;
@@ -101,7 +103,11 @@ export class Vehicle implements Bumper {
     const t = this.t;
     const { thr, steer, hand } = inp;
     let crash = 0;
-    if (thr > 0) this.speed += (this.speed < 0 ? 32 : t.acc * (1 - clamp(this.speed / t.top, 0, 1))) * thr * h;
+    const boost = this.boostT > 0;
+    if (boost) this.boostT -= h;
+    const top = boost ? t.top * 1.35 : t.top;
+    const acc = boost ? t.acc * 1.8 : t.acc;
+    if (thr > 0) this.speed += (this.speed < 0 ? 32 : acc * (1 - clamp(this.speed / top, 0, 1))) * thr * h;
     else if (thr < 0) {
       this.speed += (this.speed > 0 ? 34 : 10) * thr * h;
       if (this.speed < -11) this.speed = -11;
@@ -109,7 +115,7 @@ export class Vehicle implements Bumper {
     this.speed -= this.speed * 0.04 * h;
     if (thr === 0) this.speed -= Math.sign(this.speed) * Math.min(Math.abs(this.speed), 2.5 * h);
     if (hand) this.speed -= Math.sign(this.speed) * Math.min(Math.abs(this.speed), 13 * h);
-    const sf = clamp(Math.abs(this.speed) / 7, 0, 1) * (1 - 0.5 * clamp(Math.abs(this.speed) / t.top, 0, 1));
+    const sf = clamp(Math.abs(this.speed) / 7, 0, 1) * (1 - 0.5 * clamp(Math.abs(this.speed) / top, 0, 1));
     this.a -= steer * (hand ? t.turn * 1.35 : t.turn) * sf * (this.speed < 0 ? -1 : 1) * h;
     this.va += angDiff(this.a, this.va) * Math.min(1, (hand ? 1.6 : t.grip) * h);
     this.x += Math.sin(this.va) * this.speed * h;

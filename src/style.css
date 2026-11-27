@@ -157,10 +157,19 @@ body {
   text-transform: uppercase;
   touch-action: none;
 }
-#bUnstuck {
+#bUnstuck,
+#bHorn,
+#bBoost {
   width: 58px;
   height: 58px;
   font-size: 10px !important;
+}
+body:not(.driving) #bHorn,
+body:not(.boosts) #bBoost {
+  display: none;
+}
+#bBoost {
+  background: rgba(228, 87, 61, 0.7) !important;
 }
 #bHand {
   width: 68px;
@@ -764,7 +773,10 @@ body.mapview #mapbox,
     height: 104px;
   }
   #roompill {
-    top: calc(max(6px, env(safe-area-inset-top)) + 114px);
+    /* beside the Menu button, clear of the buttons on the right */
+    top: max(6px, env(safe-area-inset-top));
+    right: auto;
+    left: calc(max(8px, env(safe-area-inset-left)) + 84px);
   }
 }
 
@@ -993,5 +1005,64 @@ body.touch #fps {
   #menu .vcard {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* Chaos points (task H.10). */
+#chaos {
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgba(24, 20, 48, 0.55);
+  color: #ffc247;
+  font: 800 15px system-ui, sans-serif;
+  white-space: nowrap;
+}
+#chaos[hidden] {
+  display: none;
+}
+#chaospop {
+  position: fixed;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+#chaospop div {
+  font: 800 20px system-ui, sans-serif;
+  color: #ffc247;
+  text-shadow: 0 2px 0 rgba(28, 26, 58, 0.85);
+  animation: chaosup 1.6s ease-out forwards;
+}
+#chaospop div.bad {
+  color: #ff5d4d;
+}
+@keyframes chaosup {
+  from {
+    transform: translateY(10px);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
+}
+
+/* Short screens (phones in landscape): the five buttons in two columns so they fit. */
+@media (max-height: 480px) {
+  #btns {
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-auto-flow: row;
+    align-items: end;
+    justify-items: end;
+    gap: 8px;
+  }
+  #bAct {
+    grid-column: 2;
+    grid-row: 2 / span 2;
   }
 }

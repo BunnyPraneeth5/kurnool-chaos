@@ -10,10 +10,12 @@ export interface Settings {
   camera: 'near' | 'normal' | 'far';
   steering: Level;
   minimap: boolean;
+  sound: boolean;
+  volume: 'low' | 'normal' | 'high';
 }
 
 const KEY = 'kc.settings';
-const DEFAULTS: Settings = { quality: null, camera: 'normal', steering: 'normal', minimap: true };
+const DEFAULTS: Settings = { quality: null, camera: 'normal', steering: 'normal', minimap: true, sound: true, volume: 'normal' };
 
 let current: Settings = load();
 const listeners: ((s: Settings) => void)[] = [];
@@ -26,6 +28,8 @@ function load(): Settings {
       camera: raw.camera === 'near' || raw.camera === 'far' ? raw.camera : 'normal',
       steering: raw.steering === 'low' || raw.steering === 'high' ? raw.steering : 'normal',
       minimap: raw.minimap !== false,
+      sound: raw.sound !== false,
+      volume: raw.volume === 'low' || raw.volume === 'high' ? raw.volume : 'normal',
     };
   } catch {
     return { ...DEFAULTS };

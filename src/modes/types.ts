@@ -3,7 +3,7 @@ import type { RoadIndex } from '../map/roadIndex';
 
 // Game rounds (TASKS Phase G): shapes shared by the round flow and the modes.
 
-export type ModeId = 'hunt' | 'chor';
+export type ModeId = 'hunt' | 'chor' | 'chaos' | 'climb';
 export type Phase = 'lobby' | 'countdown' | 'playing' | 'results';
 export const ROUND_MINUTES = [3, 5, 10] as const;
 
@@ -58,6 +58,8 @@ export interface ModeCtx {
   nickOf(id: string): string;
   /** Riding in someone's vehicle: the driver's id (task H.4). */
   rideOf?(id: string): string | null;
+  /** My chaos points this round (task H.10). */
+  chaos?(): number;
 }
 
 export interface Claim {
@@ -73,12 +75,16 @@ export interface ModeHud {
   /** Arrow and distance on screen, beacon in the world (hunt). */
   target?: Target;
   beacon?: boolean;
+  /** A second marker in the world, e.g. a challenge's bonus gate. */
+  marker?: { x: number; z: number };
 }
 
 export interface GameMode {
   id: ModeId;
   name: string;
   blurb: string;
+  /** false: shown greyed out with the blurb saying why, cannot be picked */
+  available?: boolean;
   /** Host: roles, data and starting scores for a new round. */
   setup(players: string[], mins: number, ctx: ModeCtx): Pick<RoundState, 'roles' | 'data' | 'scores'>;
   /** Everyone: where this player starts (always in their slot's car). */
@@ -87,8 +93,8 @@ export interface GameMode {
   holdMs(id: string, s: RoundState): number;
   /** Everyone, each frame while playing: watch for things to claim (a catch, a landmark reached). */
   tick(s: RoundState, ctx: ModeCtx, claim: (c: Claim) => void): void;
-  /** Host: check and apply a claim. True if the state changed. */
-  claim(s: RoundState, from: string, c: Claim, ctx: ModeCtx): boolean;
+  /** Host: check and apply a claim. True if the state changed; 'quiet' = changed, but send it with the next regular update. */
+  claim(s: RoundState, from: string, c: Claim, ctx: ModeCtx): boolean | 'quiet';
   /** Host: round over before the timer? */
   done(s: RoundState, ctx: ModeCtx): boolean;
   /** Host: final points when the round ends. */
