@@ -1,7 +1,7 @@
 // Keyboard input. Keys are turned into actions (src/player/actions.ts); the game reads
 // actions, never key codes.
 
-import { keyAction, type Action } from './actions';
+import { digitOf, keyAction, type Action } from './actions';
 
 export interface MoveInput {
   /** -1 back .. 1 forward */
@@ -15,6 +15,7 @@ export interface MoveInput {
 export class Keyboard {
   private readonly down = new Set<string>();
   private readonly pressed = new Set<Action>();
+  private digit: number | null = null;
 
   constructor() {
     window.addEventListener('keydown', (e) => {
@@ -23,6 +24,8 @@ export class Keyboard {
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || (t instanceof HTMLElement && t.isContentEditable)) return;
       const a = keyAction(e.code);
       if (a && !e.repeat) this.pressed.add(a);
+      const d = digitOf(e.code);
+      if (d !== null && !e.repeat) this.digit = d;
       this.down.add(e.code);
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
     });
@@ -41,8 +44,16 @@ export class Keyboard {
     return this.pressed.delete(a);
   }
 
+  /** A number key pressed this frame (1-9), for the emote and weapon wheels. */
+  consumeDigit(): number | null {
+    const d = this.digit;
+    this.digit = null;
+    return d;
+  }
+
   /** Forget presses nobody consumed this frame. */
   endFrame(): void {
     this.pressed.clear();
+    this.digit = null;
   }
 }

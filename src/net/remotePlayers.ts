@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OnFootPlayer } from '../player/onFoot';
-import { buildVehicleMesh, seatedFigure, setRider } from '../vehicles/models';
+import { buildVehicleMesh, seatedFigure, setDamageLook, setRider } from '../vehicles/models';
+import { decodeActs } from './acts';
 import { VEHICLES, vehicleColour, type VehicleType } from '../vehicles/params';
 import type { Bumper } from '../vehicles/hull';
 import type { Vehicle } from '../vehicles/vehicle';
@@ -41,6 +42,8 @@ interface View {
   last: Pose | null;
   /** Riding: the seated figure in the driver's vehicle. */
   seated: { obj: THREE.Object3D; host: THREE.Object3D; type: VehicleType; seat: number } | null;
+  /** Their gun was firing in the last pose (draw a tracer when it starts again). */
+  firing: boolean;
 }
 
 export class RemotePlayers {
@@ -50,6 +53,8 @@ export class RemotePlayers {
   /** Where friends' vehicles are drawn this frame; you bounce off these. */
   readonly carColliders: Bumper[] = [];
   private readonly v3 = new THREE.Vector3();
+  /** A friend fired a gun (task M.9): draw their tracer. */
+  onShot: (x: number, y: number, z: number, a: number) => void = () => {};
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -125,6 +130,19 @@ export class RemotePlayers {
     return { x: v.last.x, z: v.last.z };
   }
 
+  /** Friends drawn on this screen, on foot or driving (not riding): what you can hit. */
+  bodies(): { id: string; x: number; y: number; z: number; type: 'foot' | VehicleType; a: number }[] {
+    const out: { id: string; x: number; y: number; z: number; type: 'foot' | VehicleType; a: number }[] = [];
+    const now = performance.now();
+    for (const v of this.views.values()) {
+      const p = v.last;
+      if (v.blocked || !p || p.mode === 'ride' || now - v.buf.lastRecv > STALE_MS) continue;
+      if (p.mode === 'foot' && decodeActs(p.a ?? 0).down) continue;
+      out.push({ id: v.info.id, x: p.x, y: p.y, z: p.z, type: p.mode, a: p.h });
+    }
+    return out;
+  }
+
   /** Where a friend is drawn right now, or null if we cannot see them. */
   poseOf(id: string): Pose | null {
     const v = this.views.get(id);
@@ -167,6 +185,9 @@ export class RemotePlayers {
         v.car.visible = true;
         v.car.position.set(pose.x, pose.y, pose.z);
         v.car.rotation.y = pose.h;
+        // Their vehicle's damage (task M.12).
+        const vd = pose.vd ?? 100;
+        setDamageLook(v.car, vd, vd < 0);
         this.carColliders.push({ x: pose.x, z: pose.z, a: pose.h, type: pose.mode, id: v.info.id });
       } else {
         if (v.car) v.car.visible = false;
@@ -176,8 +197,12 @@ export class RemotePlayers {
         f.z = pose.z;
         f.y = pose.y;
         f.a = pose.h;
+        const acts = decodeActs(pose.a ?? 0);
+        f.setActs(acts);
         f.animate(dt, pose.v);
         f.sync();
+        if (acts.fire && !v.firing) this.onShot(f.x, f.y, f.z, f.a);
+        v.firing = acts.fire;
       }
       v.last = pose;
       this.placeTag(v, pose, w, h);
@@ -248,7 +273,7 @@ export class RemotePlayers {
     document.body.append(tag);
     const buf = this.early.get(p.id) ?? new SnapshotBuffer();
     this.early.delete(p.id);
-    return { info: p, buf, figure, car: null, carIndex: -1, carType: null, tag, nick, bubble, bubbleUntil: 0, blocked: false, police: false, last: null, seated: null };
+    return { info: p, buf, figure, car: null, carIndex: -1, carType: null, tag, nick, bubble, bubbleUntil: 0, blocked: false, police: false, last: null, seated: null, firing: false };
   }
 
   /** Switch which parked car (if any) this friend is driving. */
@@ -262,6 +287,11 @@ export class RemotePlayers {
         old.x = v.last.x;
         old.z = v.last.z;
         old.a = old.va = v.last.h;
+        const vd = v.last.vd ?? 100;
+        old.hp = Math.max(0, vd);
+        old.blown = vd < 0;
+        if (old.hp <= 0 && old.wreck <= 0) old.wreck = 0.001;
+        setDamageLook(old.mesh, old.hp, old.blown);
         old.sync();
       }
       old.mesh.visible = true;

@@ -224,6 +224,14 @@ export class RoundController {
     }
   }
 
+  /** Chor–Police: our weapon hit a chor (task M.11): claim it as a catch. */
+  stun(target: string): void {
+    const s = this.state;
+    if (!this.inRound || s.phase !== 'playing' || s.mode !== 'chor') return;
+    if (s.roles[this.room.myId] !== 'police' || s.roles[target] !== 'chor') return;
+    this.claim({ kind: 'catch', target, stun: true });
+  }
+
   // --- internals ---
 
   private claim(c: Claim): void {

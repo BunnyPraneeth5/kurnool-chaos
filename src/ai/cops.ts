@@ -41,6 +41,8 @@ export class Cop extends Agent {
   replan = 0;
   /** part of a roadblock: parked across the road, does not chase */
   block = false;
+  /** stopped while its officer chases you on foot (task M.11) */
+  hold = false;
   age = 0;
 }
 
@@ -78,7 +80,7 @@ export class Cops {
 
   private chasers(): number {
     let n = 0;
-    for (const c of this.cops) if (!c.block) n++;
+    for (const c of this.cops) if (!c.block && c.wreck <= 0) n++;
     return n;
   }
 
@@ -163,6 +165,8 @@ export class Cops {
       c.age += dt;
       if (c.age > BLOCK_LIFE_S || this.heat < MAX_HEAT || Math.hypot(c.x - target.x, c.z - target.z) > 400) this.remove(c);
     }
+    // Burnt-out cop cars are towed away once you are far off.
+    for (const c of [...this.cops]) if (c.wreck > 30 && Math.hypot(c.x - target.x, c.z - target.z) > 150) this.remove(c);
     if (this.heat >= MAX_HEAT && this.blockCd <= 0 && !this.cops.some((c) => c.block) && Math.abs(target.speed) > 5) {
       this.blockCd = BLOCK_GAP_S;
       this.roadblock(target);
@@ -205,7 +209,8 @@ export class Cops {
     return null;
   }
 
-  private remove(c: Cop): void {
+  /** Take a cop out of the chase (its car was towed, a test). */
+  remove(c: Cop): void {
     const i = this.cops.indexOf(c);
     if (i >= 0) this.cops.splice(i, 1);
     this.scene.remove(c.mesh);
@@ -213,6 +218,16 @@ export class Cops {
 
   private drive(c: Cop, dt: number, t: Target): number {
     const d = Math.hypot(t.x - c.x, t.z - c.z);
+    if (c.hold || c.wreck > 0) {
+      // Parked for its officer, or wrecked: stop and stay.
+      if (c.wreck > 0) c.wreck += dt;
+      c.speed = Math.max(0, c.speed - 20 * dt);
+      c.px += Math.sin(c.a) * c.speed * dt;
+      c.pz += Math.cos(c.a) * c.speed * dt;
+      c.path.length = 0;
+      c.place(dt, this.world);
+      return c.wreck > 0 ? Infinity : d;
+    }
     // 2+ stars: aim where you are going, not where you are.
     const lead = this.heat >= 2 ? Math.min(LEAD_MAX_S, d / TOP) : 0;
     const ax = t.x + Math.sin(t.a) * t.speed * lead;

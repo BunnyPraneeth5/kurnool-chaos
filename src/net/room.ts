@@ -52,6 +52,8 @@ export class Room {
   onGame: (payload: Record<string, unknown>, fromId: string) => void = () => {};
   /** Broken pieces from a friend (Phase R.1): [id, ms until fixed]. */
   onBreaks: (list: [number, number][]) => void = () => {};
+  /** A shared parked vehicle was wrecked or blew up on a friend's screen (task M.12). */
+  onWreck: (index: number, blown: boolean) => void = () => {};
 
   private readonly client: SupabaseClient;
   /** Players the host removed: hidden and ignored even if their client stays. */
@@ -183,6 +185,11 @@ export class Room {
     return this.sendEvent('b', { from: this.myId, l: list.slice(0, 400) });
   }
 
+  /** Tell friends a shared parked vehicle was wrecked (or blew up). Rare: one message. */
+  sendWreck(index: number, blown: boolean): boolean {
+    return this.sendEvent('w', { from: this.myId, i: index, x: blown ? 1 : 0 });
+  }
+
   private sendEvent(event: string, payload: Record<string, unknown>): boolean {
     const ch = this.channel;
     if (this.status !== 'online' || !ch || ch.state !== 'joined') return false;
@@ -241,6 +248,12 @@ export class Room {
         if (Array.isArray(e) && Number.isInteger(e[0]) && e[0] >= 0 && typeof e[1] === 'number' && Number.isFinite(e[1])) list.push([e[0], e[1]]);
       }
       if (list.length) this.onBreaks(list);
+    });
+    ch.on('broadcast', { event: 'w' }, (msg) => {
+      if (gen !== this.generation) return;
+      const p = msg.payload as { from?: unknown; i?: unknown; x?: unknown } | null;
+      if (!p || typeof p.from !== 'string' || p.from === this.myId || this.banned.has(p.from)) return;
+      if (typeof p.i === 'number' && Number.isInteger(p.i) && p.i >= 0 && p.i < 64) this.onWreck(p.i, p.x === 1);
     });
     ch.on('broadcast', { event: 'k' }, (msg) => {
       if (gen !== this.generation) return;

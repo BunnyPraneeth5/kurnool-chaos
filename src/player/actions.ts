@@ -5,7 +5,7 @@
 import type { MoveInput } from './input';
 
 /** Everything a key or a touch button can do in the game. */
-export const ACTIONS = ['gas', 'brake', 'left', 'right', 'hand', 'act', 'horn', 'boost', 'unstuck', 'map'] as const;
+export const ACTIONS = ['gas', 'brake', 'left', 'right', 'hand', 'jump', 'crouch', 'attack', 'weapon', 'emote', 'act', 'horn', 'boost', 'unstuck', 'map'] as const;
 export type Action = (typeof ACTIONS)[number];
 
 /** Actions that steer or drive: held, and read every frame as an axis. */
@@ -17,7 +17,13 @@ export const KEYS: Record<Action, readonly string[]> = {
   brake: ['KeyS', 'ArrowDown'],
   left: ['KeyA', 'ArrowLeft'],
   right: ['KeyD', 'ArrowRight'],
-  hand: ['ShiftLeft', 'ShiftRight', 'Space'],
+  hand: ['ShiftLeft', 'ShiftRight'],
+  // Space jumps on foot and is the handbrake in a vehicle (game.ts reads it as both).
+  jump: ['Space'],
+  crouch: ['KeyZ'],
+  attack: ['KeyF'],
+  weapon: ['KeyQ'],
+  emote: ['KeyX'],
   act: ['KeyE'],
   horn: ['KeyH'],
   boost: ['KeyB'],
@@ -69,4 +75,10 @@ export function moveFrom(s: AxisSources): MoveInput {
   if (Math.abs(s.stick.x) > DEAD) steer += s.stick.x;
   steer += s.tilt;
   return { thr: clamp1(thr), steer: clamp1(steer), hand: s.held('hand') };
+}
+
+/** Emote and weapon wheels pick with the number keys. */
+export function digitOf(code: string): number | null {
+  const m = /^(?:Digit|Numpad)([1-9])$/.exec(code);
+  return m ? Number(m[1]) : null;
 }

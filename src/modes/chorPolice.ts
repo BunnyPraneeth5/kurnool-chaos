@@ -13,6 +13,7 @@ const POLICE = 'police';
 const CHOR = 'chor';
 const CATCH_M = 4.5; // touching distance on the catcher's screen
 const HOST_CHECK_M = 15; // the host accepts a catch if it sees them this close (lag)
+const STUN_CHECK_M = 70; // a stun (hit with a weapon, task M.11) can come from gun range
 const HEAD_START_MS = 10000;
 const NEW_POLICE_WAIT_MS = 3000; // a fresh police cannot catch straight away
 const CATCH_POINTS = 30;
@@ -152,7 +153,8 @@ export const chorPoliceMode: GameMode = {
     if (turned > 0 && t - turned < NEW_POLICE_WAIT_MS) return false;
     const a = ctx.posOf(from);
     const b = ctx.posOf(target);
-    if (!a || !b || Math.hypot(a.x - b.x, a.z - b.z) > HOST_CHECK_M) return false;
+    const reach = c.stun === true ? STUN_CHECK_M : HOST_CHECK_M;
+    if (!a || !b || Math.hypot(a.x - b.x, a.z - b.z) > reach) return false;
     s.roles[target] = POLICE;
     const survived = Math.floor(t / 1000);
     s.scores[target] = (s.scores[target] ?? 0) + (target === d.lastChor ? survived * 2 : survived);

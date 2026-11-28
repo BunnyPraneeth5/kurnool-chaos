@@ -165,6 +165,18 @@ export function buildVehicleMesh(type: VehicleType, colour: number, shadow = tru
   return mesh;
 }
 
+// Damage looks (task M.12): the same vertex colours, darkened. Shared, so a dented car costs
+// no new material.
+const dentMat = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0xa29a92 });
+const burntMat = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0x2e2a2a });
+
+/** Show a vehicle's damage: clean above 60 health, dented and dull below, burnt out when blown up. */
+export function setDamageLook(mesh: THREE.Object3D, hp: number, blown = false): void {
+  if (!(mesh instanceof THREE.Mesh)) return;
+  const mat = blown || hp <= 0 ? burntMat : hp < 60 ? dentMat : bodyMat;
+  if (mesh.material !== mat) mesh.material = mat;
+}
+
 const RIDER = 'rider';
 const riderCache = new Map<number, THREE.BufferGeometry>();
 

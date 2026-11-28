@@ -1178,3 +1178,162 @@ body.touch #fps {
   }
 }
 
+#ctl .b-attack {
+  background: rgba(214, 96, 52, 0.72);
+}
+#ctl .b-crouch.on {
+  background: rgba(255, 243, 224, 0.4);
+  border-color: #fff3e0;
+}
+#ctl .b-weapon span {
+  font-size: calc(8px * var(--s, 1));
+}
+/* Emote and weapon wheels (M.6, M.9). */
+#wheel {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: max(170px, calc(env(safe-area-inset-bottom) + 150px));
+  background: rgba(10, 8, 24, 0.25);
+}
+#wheel[hidden] {
+  display: none;
+}
+#wheel .wbox {
+  padding: 10px 12px 12px;
+  border-radius: 14px;
+  background: rgba(24, 20, 48, 0.92);
+  border: 1px solid rgba(255, 243, 224, 0.3);
+  color: #fff3e0;
+  font: 14px system-ui, sans-serif;
+  text-align: center;
+}
+#wheel .wgrid {
+  display: grid;
+  grid-template-columns: repeat(4, 72px);
+  gap: 8px;
+  margin-top: 8px;
+}
+#wheel button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 72px;
+  padding: 6px 2px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 243, 224, 0.25);
+  background: rgba(255, 243, 224, 0.08);
+  color: inherit;
+  font: 600 11px system-ui, sans-serif;
+}
+#wheel button:disabled {
+  opacity: 0.35;
+}
+#wheel button i {
+  font-style: normal;
+  font-size: 26px;
+  line-height: 1;
+}
+/* Health bar, hit direction, hit marker and splash (tasks M.7 to M.12). */
+#hpbar {
+  position: fixed;
+  /* Under the heat stars and chaos counter, left of the minimap. */
+  top: calc(max(6px, env(safe-area-inset-top)) + 34px);
+  right: calc(max(8px, env(safe-area-inset-right)) + 142px);
+  width: 120px;
+  height: 16px;
+  border-radius: 9px;
+  background: rgba(24, 20, 48, 0.7);
+  border: 1px solid rgba(255, 243, 224, 0.35);
+  overflow: hidden;
+  pointer-events: none;
+}
+#hpbar[hidden] {
+  display: none;
+}
+#hpbar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #49b08c;
+  transition: width 0.2s;
+}
+#hpbar.mid i {
+  background: #f2b33d;
+}
+#hpbar.low i {
+  background: #e4573d;
+}
+#hpbar.veh i {
+  background: #3d8fd6;
+}
+#hpbar.veh.low i {
+  background: #e4573d;
+}
+#hpbar span {
+  position: relative;
+  display: block;
+  text-align: center;
+  font: 700 10px/16px system-ui, sans-serif;
+  color: #fff3e0;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+/* Round bar sits at the top centre during rounds: the health bar goes under it. */
+@media (max-height: 480px) {
+  #hpbar {
+    right: calc(max(8px, env(safe-area-inset-right)) + 114px);
+  }
+}
+body.mapview #hpbar {
+  display: none;
+}
+#hitdir {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 180px;
+  height: 180px;
+  pointer-events: none;
+}
+#hitdir::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  margin-left: -14px;
+  border: 14px solid transparent;
+  border-bottom: 22px solid rgba(228, 60, 45, 0.85);
+  border-top: 0;
+}
+#hitdir[hidden],
+#hitmark[hidden],
+#splash[hidden] {
+  display: none;
+}
+#hitmark {
+  position: fixed;
+  left: 50%;
+  top: 45%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  pointer-events: none;
+  background:
+    linear-gradient(45deg, transparent 44%, #fff3e0 44%, #fff3e0 56%, transparent 56%),
+    linear-gradient(-45deg, transparent 44%, #fff3e0 44%, #fff3e0 56%, transparent 56%);
+}
+#splash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+#splash.balloon {
+  background: radial-gradient(circle at 40% 45%, rgba(79, 168, 232, 0.55), rgba(79, 168, 232, 0.25) 45%, transparent 75%);
+}
+#splash.tomato {
+  background: radial-gradient(circle at 55% 40%, rgba(216, 52, 44, 0.6), rgba(216, 52, 44, 0.3) 40%, transparent 72%);
+}

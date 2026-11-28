@@ -42,6 +42,8 @@ export const BREAK_SPEED = 8.3;
 export const BREAK_SPEED_HEAVY = 4.2;
 /** Broken pieces are fixed after this long (shared with friends). */
 export const FIX_MS = 120000;
+/** How tall each breakable piece is: someone jumping higher clears it (task M.6). */
+const BREAK_TOP: Record<BreakItem['kind'], number> = { rail: 1.1, barrier: 1.0, cone: 0.75, fence: 1.8 };
 
 interface Seg {
   ax: number;
@@ -92,6 +94,7 @@ export class CollisionWorld {
   private readonly ylo: Float64Array; // walls only block between these heights (railings up on decks)
   private readonly yhi: Float64Array;
   private readonly kerb: Uint8Array; // 1 = kerb-like: stops slow vehicles, mounted at speed, walked over
+  private readonly top: Float32Array; // height above the ground: people jumping higher clear it (task M.6)
   private readonly cells = new Map<number, number[]>();
   private readonly stamp: Uint32Array;
   private query = 0;
@@ -118,7 +121,9 @@ export class CollisionWorld {
     const ylo: number[] = [];
     const yhi: number[] = [];
     const kerb: number[] = [];
-    const addWall = (x0: number, z0: number, x1: number, z1: number, lo = -1e9, hi = 1e9, isKerb = 0): void => {
+    const top: number[] = [];
+    const addWall = (x0: number, z0: number, x1: number, z1: number, lo = -1e9, hi = 1e9, isKerb = 0, height = Infinity): void => {
+      top.push(height);
       ax.push(x0);
       az.push(z0);
       bx.push(x1);
@@ -146,7 +151,7 @@ export class CollisionWorld {
 
     // Roads and borders (Phase R): dividers, station walls, flyover barriers; kerbs; breakables; raised surfaces.
     const borders = bordersOf(map);
-    for (const w of borders.walls) for (let i = 1; i < w.pts.length; i++) addWall(w.pts[i - 1][0], w.pts[i - 1][1], w.pts[i][0], w.pts[i][1], w.lo, w.hi);
+    for (const w of borders.walls) for (let i = 1; i < w.pts.length; i++) addWall(w.pts[i - 1][0], w.pts[i - 1][1], w.pts[i][0], w.pts[i][1], w.lo, w.hi, 0, w.top);
     for (const line of borders.kerbs) for (let i = 1; i < line.length; i++) addWall(line[i - 1][0], line[i - 1][1], line[i][0], line[i][1], -1e9, 1e9, 1);
     this.breakables = borders.breakables;
     this.broken = new Uint8Array(this.breakables.length);
@@ -274,6 +279,7 @@ export class CollisionWorld {
     this.ylo = Float64Array.from(ylo);
     this.yhi = Float64Array.from(yhi);
     this.kerb = Uint8Array.from(kerb);
+    this.top = Float32Array.from(top);
     this.az = Float64Array.from(az);
     this.bx = Float64Array.from(bx);
     this.bz = Float64Array.from(bz);
@@ -297,7 +303,7 @@ export class CollisionWorld {
    * Push a circle at (x, z) with radius r out of every wall it overlaps, and keep
    * it inside the map bounds. The returned object is reused between calls.
    */
-  collide(x: number, z: number, r: number, y?: number, veh?: VehicleHit): CollideResult {
+  collide(x: number, z: number, r: number, y?: number, veh?: VehicleHit, clear = 0): CollideResult {
     let hit = false;
     const r2 = r * r;
     // Kerbs only stop vehicles going slowly; people and fast vehicles go over them.
@@ -317,6 +323,7 @@ export class CollisionWorld {
             this.stamp[e] = q;
             if (y !== undefined && (y < this.ylo[e] || y > this.yhi[e])) continue;
             if (this.kerb[e] && !kerbs) continue;
+            if (clear > 0 && clear >= this.top[e]) continue; // jumped over it
             const ax = this.ax[e], az = this.az[e];
             const dx = this.bx[e] - ax, dz = this.bz[e] - az;
             const l2 = dx * dx + dz * dz;
@@ -350,6 +357,7 @@ export class CollisionWorld {
             if (this.broken[id]) continue;
             const b = this.breakables[id];
             if (y !== undefined && (y < b.y - 1 || y > b.y + 2.5)) continue;
+            if (clear > 0 && clear >= BREAK_TOP[b.kind]) continue; // jumped over it
             const ux = Math.sin(b.a) * (b.len / 2), uz = Math.cos(b.a) * (b.len / 2);
             const ax = b.x - ux, az = b.z - uz;
             const dx = ux * 2, dz = uz * 2;

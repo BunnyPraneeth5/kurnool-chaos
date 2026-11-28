@@ -36,7 +36,7 @@ Browser multiplayer open-city driving game, just for fun with friends. Map is re
 - Ask Bunny when stuck or when a decision is not covered by the docs. Do not guess on scope.
 
 ## Current focus
-Phase 3 and Phase K are merged into `main` (2026-11-27). Open: phone check for K.1-K.3 and K.5, K.4 (needs a real correction), G.1 lobby on the real Jagannatha Gattu, G.5. Phase M (phone controls, moves, fighting) planned 2026-11-28, starts with M.1 on its own branch. Track sessions work on their own branches; the coordinator session merges into `main`.
+Phase 3 and Phase K are merged into `main` (2026-11-27). Open: phone check for K.1-K.3 and K.5, K.4 (needs a real correction), G.1 lobby on the real Jagannatha Gattu, G.5. Phase M (phone controls, moves, fighting): M.1-M.12 built on branch `phase-m` (M.1-M.5 merged); M.13-M.14 next. Track sessions work on their own branches; the coordinator session merges into `main`.
 
 ## Gotchas
 (add repeated mistakes here as rules)

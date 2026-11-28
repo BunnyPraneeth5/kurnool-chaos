@@ -52,6 +52,12 @@ export interface NetState {
   /** riding: the driver's player id and the seat (1 and up) */
   ride?: string;
   seat?: number;
+  /** on foot: what they are doing, packed (src/net/acts.ts, tasks M.6 to M.11) */
+  a?: number;
+  /** driving: vehicle health 0..100, -1 blown up (task M.12) */
+  vd?: number;
+  /** hits on friends since the last message: [victim id, damage, weapon] (task M.11) */
+  hits?: [string, number, string][];
 }
 
 export interface Pose {
@@ -64,6 +70,8 @@ export interface Pose {
   car: number;
   ride?: string;
   seat?: number;
+  a?: number;
+  vd?: number;
 }
 
 function angLerp(a: number, b: number, f: number): number {
@@ -132,6 +140,8 @@ export class SnapshotBuffer {
         car: last.car,
         ride: last.ride,
         seat: last.seat,
+        a: last.a,
+        vd: last.vd,
       };
     }
     let i = n - 2;
@@ -152,8 +162,28 @@ export class SnapshotBuffer {
       car: a.car,
       ride: a.ride,
       seat: a.seat,
+      // Discrete states come from the nearer snapshot.
+      a: (f < 0.5 ? a : b).a,
+      vd: (f < 0.5 ? a : b).vd,
     };
   }
+}
+
+/** The optional fighting fields of a state message, checked (tasks M.6 to M.12). */
+function extras(o: Record<string, unknown>): Pick<NetState, 'a' | 'vd' | 'hits'> {
+  const out: Pick<NetState, 'a' | 'vd' | 'hits'> = {};
+  if (typeof o.a === 'number' && Number.isInteger(o.a) && o.a >= 0 && o.a <= 0xffff) out.a = o.a;
+  if (typeof o.vd === 'number' && Number.isFinite(o.vd) && o.vd >= -1 && o.vd <= 100) out.vd = o.vd;
+  if (Array.isArray(o.hits)) {
+    const hits: [string, number, string][] = [];
+    for (const h of o.hits.slice(0, 8)) {
+      if (Array.isArray(h) && typeof h[0] === 'string' && typeof h[1] === 'number' && Number.isFinite(h[1]) && typeof h[2] === 'string') {
+        hits.push([h[0].slice(0, 32), Math.max(0, Math.min(100, h[1])), h[2].slice(0, 12)]);
+      }
+    }
+    if (hits.length) out.hits = hits;
+  }
+  return out;
 }
 
 /** Validates an incoming broadcast payload; anything malformed is ignored. */
@@ -169,9 +199,9 @@ export function parseState(p: unknown): NetState | null {
     const seat = o.seat;
     if (typeof o.ride !== 'string' || typeof seat !== 'number' || !Number.isInteger(seat) || seat < 1 || seat > 7) return null;
     if (Math.abs(x) > 1e5 || Math.abs(z) > 1e5 || Math.abs(y) > 1e3 || Math.abs(v) > 200) return null;
-    return { id: o.id.slice(0, 32), t, x, z, y, h, v, mode, car: -1, ride: o.ride.slice(0, 32), seat };
+    return { id: o.id.slice(0, 32), t, x, z, y, h, v, mode, car: -1, ride: o.ride.slice(0, 32), seat, ...extras(o) };
   }
   if (Math.abs(x) > 1e5 || Math.abs(z) > 1e5 || Math.abs(y) > 1e3 || Math.abs(v) > 200) return null;
   const car = typeof o.car === 'number' && Number.isInteger(o.car) && o.car >= 0 && o.car < 64 ? o.car : -2;
-  return { id: o.id.slice(0, 32), t, x, z, y, h, v, mode, car: mode === 'foot' ? -1 : car };
+  return { id: o.id.slice(0, 32), t, x, z, y, h, v, mode, car: mode === 'foot' ? -1 : car, ...extras(o) };
 }

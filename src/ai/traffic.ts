@@ -116,6 +116,16 @@ export class Traffic {
   }
 
   private drive(c: TrafficCar, dt: number, others: readonly Obstacle[]): void {
+    if (c.wreck > 0) {
+      // Wrecked (task M.12): rolls to a stop where it is.
+      c.wreck += dt;
+      c.speed = Math.max(0, c.speed - 12 * dt);
+      c.px += Math.sin(c.a) * c.speed * dt;
+      c.pz += Math.cos(c.a) * c.speed * dt;
+      c.path.length = 0;
+      c.place(dt, this.world);
+      return;
+    }
     const t = VEHICLES[c.type];
     c.ghost = Math.max(0, c.ghost - dt);
     c.honkCd = Math.max(0, c.honkCd - dt);

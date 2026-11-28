@@ -20,6 +20,66 @@ export class Hud {
   private lastChaos = -1;
   private toastT = 0;
   private lastKmh = -1;
+  // Fighting (tasks M.7 to M.12): health bar, hit direction, hit marker, splash.
+  private readonly bar = document.createElement('div');
+  private readonly barFill = document.createElement('i');
+  private readonly barLabel = document.createElement('span');
+  private lastBar = '';
+  private readonly hitDir = document.createElement('div');
+  private hitDirT = 0;
+  private readonly mark = document.createElement('div');
+  private markT = 0;
+  private readonly splashEl = document.createElement('div');
+  private splashT = 0;
+
+  constructor() {
+    this.bar.id = 'hpbar';
+    this.bar.append(this.barFill, this.barLabel);
+    this.bar.setAttribute('role', 'meter');
+    this.hitDir.id = 'hitdir';
+    this.hitDir.hidden = true;
+    this.mark.id = 'hitmark';
+    this.mark.hidden = true;
+    this.splashEl.id = 'splash';
+    this.splashEl.hidden = true;
+    document.body.append(this.bar, this.hitDir, this.mark, this.splashEl);
+  }
+
+  /** Your health on foot, or your vehicle's while driving (null hides that one). */
+  health(hp: number | null, vehicle: number | null): void {
+    const v = vehicle ?? hp;
+    const key = v === null ? '' : `${vehicle !== null ? 'v' : 'p'}${Math.ceil(v)}`;
+    if (key === this.lastBar) return;
+    this.lastBar = key;
+    this.bar.hidden = v === null;
+    if (v === null) return;
+    const n = Math.max(0, Math.ceil(v));
+    this.barFill.style.width = `${n}%`;
+    this.bar.className = `${vehicle !== null ? 'veh' : ''} ${n < 30 ? 'low' : n < 60 ? 'mid' : ''}`;
+    this.barLabel.textContent = vehicle !== null ? (n <= 0 ? 'Wrecked' : `Vehicle ${n}`) : `Health ${n}`;
+    this.bar.setAttribute('aria-label', this.barLabel.textContent);
+  }
+
+  /** Hit: a red arrow towards where it came from (radians, 0 = ahead), or a splash over the screen. */
+  hurt(relAngle: number | null, splash: string | null): void {
+    if (splash) {
+      this.splashEl.className = splash;
+      this.splashEl.hidden = false;
+      this.splashT = 2;
+      return;
+    }
+    if (relAngle === null) return;
+    // Screen: ahead is up; angles grow to the left in the world, so flip for the screen.
+    this.hitDir.style.transform = `translate(-50%, -50%) rotate(${(-relAngle * 180) / Math.PI}deg)`;
+    this.hitDir.hidden = false;
+    this.hitDirT = 0.8;
+  }
+
+  /** Our hit landed: a small cross in the middle. */
+  hitMark(): void {
+    this.mark.hidden = false;
+    this.markT = 0.18;
+  }
 
   speed(inVehicle: boolean, metresPerSecond: number): void {
     this.spd.hidden = !inVehicle;
@@ -67,6 +127,11 @@ export class Hud {
   }
 
   update(dt: number): void {
+    for (const [t, el] of [['hitDirT', this.hitDir], ['markT', this.mark], ['splashT', this.splashEl]] as const) {
+      if (this[t] <= 0) continue;
+      this[t] -= dt;
+      if (this[t] <= 0) el.hidden = true;
+    }
     if (this.toastT > 0) {
       this.toastT -= dt;
       if (this.toastT <= 0) this.toastEl.hidden = true;

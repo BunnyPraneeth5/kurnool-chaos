@@ -10,6 +10,7 @@ import { buildProps } from './map/props';
 import { buildRail } from './map/rail';
 import { buildWaterways } from './map/waterways';
 import { buildPoliceStations } from './map/police';
+import { buildHospitals } from './map/hospitals';
 import { JunctionScenery } from './map/signals';
 import { BorderMeshes } from './map/bordersMesh';
 import { createSky } from './world/sky';
@@ -174,6 +175,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   scene.add(buildBuildings(map, quality, anisotropy));
   scene.add(buildProps(map, quality, anisotropy));
   scene.add(buildPoliceStations(map));
+  scene.add(buildHospitals(map));
   const junctionScene = new JunctionScenery(map);
   scene.add(junctionScene.group);
 
