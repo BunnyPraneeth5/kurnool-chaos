@@ -7,7 +7,7 @@ import { PICKUP_WEAPONS, WEAPONS, type WeaponId } from './weapons';
 // Weapon pickups (task M.9, Bunny's proposal): spots round the city on road edges, the same
 // on every screen (seeded from the map), each giving one weapon (lathi, shotgun, balloons,
 // tomatoes, firecrackers). Walk over one to take it; it comes back after 90 s (on your screen).
-// Only the 12 nearest are drawn: spinning coloured crates.
+// Only the 12 nearest are drawn (6 on low quality): spinning coloured crates.
 
 const COUNT = 60;
 const TAKE_M = 1.6;
@@ -58,10 +58,10 @@ export class Pickups {
   private readonly meshes: THREE.Mesh[] = [];
   private t = 0;
 
-  constructor(map: MapData, world: CollisionWorld, scene: THREE.Scene) {
+  constructor(map: MapData, world: CollisionWorld, scene: THREE.Scene, drawn = DRAWN) {
     this.list = pickupSpots(map, world);
     const geo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
-    for (let i = 0; i < DRAWN; i++) {
+    for (let i = 0; i < drawn; i++) {
       const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x332200 }));
       m.visible = false;
       scene.add(m);

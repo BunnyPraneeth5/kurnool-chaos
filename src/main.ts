@@ -15,6 +15,8 @@ import { JunctionScenery } from './map/signals';
 import { BorderMeshes } from './map/bordersMesh';
 import { createSky } from './world/sky';
 import { detectQuality } from './world/quality';
+import { SlowWatch, nextStep } from './world/autoQuality';
+import { saveSettings, settings as currentSettings } from './ui/settings';
 import { Game } from './game';
 import { sound } from './audio/sound';
 import { showLoading, showError, hideStatus } from './ui/status';
@@ -197,7 +199,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
     }
   }
 
-  const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined, { traffic: quality.traffic, shadows: quality.vehicleShadows, pedestrians: quality.pedestrians });
+  const game = new Game(map, scene, camera, gl, room ? playerColour(room.self.slot) : undefined, { traffic: quality.traffic, shadows: quality.vehicleShadows, pedestrians: quality.pedestrians, low: quality.level === 'low' });
   // Roads and borders (Phase R): drawn from the same data as the collision world's borders.
   const borderMeshes = new BorderMeshes(map, game.world, quality);
   scene.add(borderMeshes.group);
@@ -242,15 +244,38 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
       game.update(dt);
       afterUpdate();
     };
-    Object.assign(window, { __three: { renderer, scene, camera }, __game: game, __room: room, __menu: menu, __frame: frame, __junctionScene: junctionScene });
+    Object.assign(window, { __three: { renderer, scene, camera }, __game: game, __room: room, __menu: menu, __frame: frame, __junctionScene: junctionScene, __slowStep: () => stepDown() });
   }
 
   const fps = createFpsMeter(quality.level);
   const timer = new THREE.Timer();
+  // Automatic slow-down (task M.13): under 25 fps for 10 s steps the graphics down, unless the
+  // player picked High themselves or a ?quality= test link is in use.
+  const slow = new SlowWatch();
+  const picked = new URLSearchParams(location.search).has('quality') || currentSettings().quality === 'high';
+  let fewer = false;
+  const startedAt = performance.now();
+  const stepDown = (): void => {
+    const step = nextStep({ pixelRatio: renderer.getPixelRatio(), fewer });
+    if (!step) return;
+    if (step === 'ratio1') renderer.setPixelRatio(1);
+    else if (step === 'ratio075') renderer.setPixelRatio(0.75);
+    else {
+      fewer = true;
+      game.life.traffic.count = Math.ceil(game.life.traffic.count / 2);
+      game.life.peds.count = Math.ceil(game.life.peds.count / 2);
+    }
+    resize();
+    // Next time it loads on low (only if it was Auto).
+    if (currentSettings().quality === null && quality.level === 'high') saveSettings({ quality: 'low' });
+    game.toast('Running slowly: graphics lowered. Menu → Settings → Graphics quality to change');
+  };
   renderer.setAnimationLoop((ts) => {
     timer.update(ts);
+    const raw = timer.getDelta();
+    if (!picked && slow.frame(raw, !document.hidden && !menu.isOpen && performance.now() - startedAt > 8000)) stepDown();
     // Capped so a stalled frame never teleports anything; vehicles also sub-step.
-    const dt = Math.min(timer.getDelta(), 1 / 30);
+    const dt = Math.min(raw, 1 / 30);
     beforeUpdate(dt);
     if (!(solo && menu.isOpen)) game.update(dt);
     afterUpdate();

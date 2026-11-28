@@ -15,6 +15,8 @@ interface Live {
 }
 
 const POOLS = { tracer: 24, flash: 16, splat: 24, blast: 6, puff: 60 } as const;
+/** Low quality (phones): fewer of each, so a fight costs fewer draw calls (task M.13). */
+const POOLS_LOW = { tracer: 12, flash: 8, splat: 12, blast: 4, puff: 24 } as const;
 
 export class Effects {
   private readonly group = new THREE.Group();
@@ -23,22 +25,25 @@ export class Effects {
   private readonly arc: THREE.Line;
   private readonly arcPos: Float32Array;
   private readonly things: THREE.Mesh[] = [];
+  private readonly blastPuffs: number;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, low = false) {
+    const POOL = low ? POOLS_LOW : POOLS;
+    this.blastPuffs = low ? 3 : 6;
     this.group.name = 'fight-effects';
     scene.add(this.group);
     const dot = new THREE.SphereGeometry(1, 8, 6);
     const disc = new THREE.CircleGeometry(1, 14).rotateX(-Math.PI / 2);
-    for (let i = 0; i < POOLS.tracer; i++) {
+    for (let i = 0; i < POOL.tracer; i++) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
       const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xfff1a0, transparent: true }));
       this.add('tracer', line);
     }
-    for (let i = 0; i < POOLS.flash; i++) this.add('flash', new THREE.Mesh(dot, new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, depthWrite: false })));
-    for (let i = 0; i < POOLS.splat; i++) this.add('splat', new THREE.Mesh(disc, new THREE.MeshBasicMaterial({ color: 0x4fa8e8, transparent: true, depthWrite: false })));
-    for (let i = 0; i < POOLS.blast; i++) this.add('blast', new THREE.Mesh(dot, new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, depthWrite: false })));
-    for (let i = 0; i < POOLS.puff; i++) this.add('puff', new THREE.Mesh(dot, new THREE.MeshLambertMaterial({ color: 0x55525e, transparent: true, depthWrite: false })));
+    for (let i = 0; i < POOL.flash; i++) this.add('flash', new THREE.Mesh(dot, new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, depthWrite: false })));
+    for (let i = 0; i < POOL.splat; i++) this.add('splat', new THREE.Mesh(disc, new THREE.MeshBasicMaterial({ color: 0x4fa8e8, transparent: true, depthWrite: false })));
+    for (let i = 0; i < POOL.blast; i++) this.add('blast', new THREE.Mesh(dot, new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, depthWrite: false })));
+    for (let i = 0; i < POOL.puff; i++) this.add('puff', new THREE.Mesh(dot, new THREE.MeshLambertMaterial({ color: 0x55525e, transparent: true, depthWrite: false })));
     // Throw arc preview: 24 points.
     const ag = new THREE.BufferGeometry();
     this.arcPos = new Float32Array(24 * 3);
@@ -117,7 +122,7 @@ export class Effects {
       e.base = radius * 0.25;
       e.grow = radius * 1.6;
     }
-    for (let i = 0; i < 6; i++) this.puff(x + (Math.random() - 0.5) * radius, y + 0.5, z + (Math.random() - 0.5) * radius, i < 2 ? 'fire' : 'smoke', 0.9);
+    for (let i = 0; i < this.blastPuffs; i++) this.puff(x + (Math.random() - 0.5) * radius, y + 0.5, z + (Math.random() - 0.5) * radius, i < 2 ? 'fire' : 'smoke', 0.9);
   }
 
   /** One puff of smoke or fire rising from a damaged vehicle or a blast. */

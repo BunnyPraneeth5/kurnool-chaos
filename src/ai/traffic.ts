@@ -73,7 +73,8 @@ export class Traffic {
     private readonly scene: THREE.Scene,
     private readonly graph: RoadGraph,
     private readonly world: CollisionWorld,
-    private readonly count: number,
+    /** how many vehicles around you (lowered by the automatic slow-down, task M.13) */
+    public count: number,
     private readonly shadows: boolean,
   ) {
     this.junctions = junctionsOf(graph.map, graph);
@@ -103,6 +104,11 @@ export class Traffic {
 
   update(dt: number, focus: { x: number; z: number }, others: readonly Obstacle[]): void {
     for (const c of [...this.cars]) if (Math.hypot(c.x - focus.x, c.z - focus.z) > DESPAWN) this.remove(c);
+    // Count lowered: the farthest go first.
+    if (this.cars.length > this.count) {
+      const far = [...this.cars].sort((a, b) => Math.hypot(b.x - focus.x, b.z - focus.z) - Math.hypot(a.x - focus.x, a.z - focus.z));
+      for (const c of far.slice(0, this.cars.length - this.count)) this.remove(c);
+    }
     // A jump (teleport, round start) empties the area: fill it again from close in.
     if (this.cars.length === 0) this.first = true;
     this.spawnWait -= dt;

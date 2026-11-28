@@ -2,6 +2,9 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-28 | Automatic slow-down: under 25 fps for 10 s steps resolution 1x, then 0.75x, then half the traffic and pedestrians; works on Auto and Low, never when the player picked High | Phones already start on Low, so "drop to low" alone would do nothing there; resolution is the biggest phone win and can change while playing (meshes need a reload) |
+| 2026-11-28 | Figures merged to 6 meshes plus one for a held weapon; smaller effect pools on Low | A Raj Vihar fight on Low went from 178 to 137 draw calls; instancing smoke would need a custom shader for fading |
+| 2026-11-28 | M.13 and M.14 coded and merged into `main` without ticks: Bunny tests on the live site | Bunny's call: test on the main website directly |
 | 2026-11-28 | Officers get out of cop cars at 2 stars and shoot at 3 (the plan said 3 and 4) | Police heat stops at 3 stars; raising it would change busting, chaos points and the HUD |
 | 2026-11-28 | Hits on friends ride on the state message (`hits`), not their own event | With 8 players the state already uses about 80 of the 100 messages a second; an event per hit would go over. Costs up to one send interval of delay (0.2 s with 4 players, 0.8 s with 8) |
 | 2026-11-28 | Jump about 1.4 m; jumping against a vehicle (not a bike) climbs onto its roof up to 3.4 m above your feet | A plain jump cannot reach a car roof (1.7 m) or a bus (3.15 m); climbing makes "lands on a parked bus" work without silly jump heights |

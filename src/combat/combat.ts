@@ -113,10 +113,11 @@ export class Combat {
   constructor(
     private readonly game: Game,
     scene: THREE.Scene,
+    private readonly low = false,
   ) {
-    this.effects = new Effects(scene);
+    this.effects = new Effects(scene, low);
     this.officers = new Officers(scene, game.world);
-    this.pickups = new Pickups(game.map, game.world, scene);
+    this.pickups = new Pickups(game.map, game.world, scene, low ? 6 : 12);
     game.player.setWeapon(this.inv.current);
   }
 
@@ -625,7 +626,7 @@ export class Combat {
   private updateVehicles(dt: number): void {
     const g = this.game;
     this.smokeT += dt;
-    if (this.smokeT < 0.12) return;
+    if (this.smokeT < (this.low ? 0.25 : 0.12)) return;
     const step = this.smokeT;
     this.smokeT = 0;
     const me = g.car ?? g.player;

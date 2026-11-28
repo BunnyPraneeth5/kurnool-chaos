@@ -49,7 +49,7 @@ export function settingsPage(qualityNow: 'low' | 'high', controls: ControlHooks)
       reload.append('Quality changes after a reload (you stay in your room). ', reloadBtn);
       return [
         h('h2', '', 'Settings'),
-        choice('Graphics quality', 'quality', [[null, 'Auto'], ['low', 'Low (phones)'], ['high', 'High (laptops)']], `Now: ${qualityNow}. Low has less traffic, shorter view and no lit windows.`, () => (reload.hidden = false)),
+        choice('Graphics quality', 'quality', [[null, 'Auto'], ['low', 'Low (phones)'], ['high', 'High (laptops)']], `Now: ${qualityNow}. Low has less traffic, shorter view and no lit windows. Auto and Low lower the graphics by themselves when the game runs slowly.`, () => (reload.hidden = false)),
         reload,
         choice('Camera distance', 'camera', [['near', 'Near'], ['normal', 'Normal'], ['far', 'Far']]),
         choice('Steering', 'steering', [['low', 'Gentle'], ['normal', 'Normal'], ['high', 'Quick']], 'How fast vehicles and you turn for the same stick or key.'),

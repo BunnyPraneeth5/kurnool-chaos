@@ -143,9 +143,11 @@ Goal: the game feels made for phones (icon buttons that change with what you are
   - Accept: a car crashed hard several times smokes, then stops; 2 tabs see the same damage on a shared car; it is back after 2 min.
 - [ ] **M.13 Phone performance pass (was the R.7 phone check and 7.1).** Low/high quality toggle with a pixel ratio cap on low; drops to low by itself (with a message) when fps stays under 25 for 10 s; everything merged per chunk; low keeps fewer details (borders, props, pedestrians, effects, tracers); chunk culling checked; effects reuse pooled meshes (nothing new per shot or hit). Draw calls and triangles measured at Raj Vihar, on NH44 and in a fight, before and after.
   - Accept: numbers written in PROGRESS.md; no garbage-collection stutter in a fight with the laptop CPU throttled 4x.
+  - Built (2026-11-28), not ticked: waits for the Bunny check on the phone; the throttled-CPU stutter check was not done.
   - **Bunny check:** 30+ fps on the phone on low at Raj Vihar, on NH44 and in a 4-player fight; borders look right.
 - [ ] **M.14 Guide and friends check.** Guide pages: Controls (new buttons, steering choices, edit layout), Fighting (weapons, health, hospitals, heat, friend rules per mode), Vehicles (damage), plus R.7's pages (dividers, breaking things, footpaths, railway crossings).
   - Accept: every page readable on a 375x812 phone; numbers match the game.
+  - Built (2026-11-28), not ticked: pages checked at 375x812; waits for the friends playtest.
   - **Bunny check:** 20 minutes with friends on phones: controls feel good, fights are fun, nothing desyncs.
 
 ## Phase 4: Kurnool feel

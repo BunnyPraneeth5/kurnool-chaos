@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CollisionWorld } from '../map/collision';
 import type { MoveInput } from './input';
 import { NO_ACTS, type Acts, type EmoteId } from '../net/acts';
@@ -26,17 +27,41 @@ const HIP = 0.9;
 
 type Limb = THREE.Group;
 
-function box(w: number, h: number, d: number, color: number): THREE.Mesh {
-  return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
+// Draw calls (task M.13): the torso, head and hair are one mesh, each limb one mesh, a held
+// weapon one mesh, all with shared vertex-colour materials. Geometries are cached.
+const vertexMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+const shadowGeo = new THREE.CircleGeometry(0.55, 14).rotateX(-Math.PI / 2);
+const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false });
+const geoCache = new Map<string, THREE.BufferGeometry>();
+
+/** A box with one colour baked in, moved to (x, y, z). */
+function colouredBox(w: number, h: number, d: number, x: number, y: number, z: number, colour: number): THREE.BufferGeometry {
+  const g = new THREE.BoxGeometry(w, h, d).translate(x, y, z);
+  const c = new THREE.Color(colour);
+  const n = g.attributes.position.count;
+  const cols = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) cols.set([c.r, c.g, c.b], i * 3);
+  g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  return g;
 }
 
-/** A small model of a weapon held in the right hand (null for fists). */
+/** Several coloured boxes as one cached geometry. */
+function merged(key: string, parts: () => THREE.BufferGeometry[]): THREE.BufferGeometry {
+  let g = geoCache.get(key);
+  if (!g) {
+    const list = parts();
+    g = mergeGeometries(list) ?? list[0];
+    for (const p of list) if (p !== g) p.dispose();
+    geoCache.set(key, g);
+  }
+  return g;
+}
+
+/** A small model of a weapon held in the right hand (null for fists): one mesh. */
 function weaponModel(id: WeaponId): THREE.Object3D | null {
-  const g = new THREE.Group();
+  const parts: THREE.BufferGeometry[] = [];
   const part = (w: number, h: number, d: number, c: number, z: number, y = 0): void => {
-    const m = box(w, h, d, c);
-    m.position.set(0, y, z);
-    g.add(m);
+    parts.push(colouredBox(w, h, d, 0, y, z, c));
   };
   switch (id) {
     case 'bat':
@@ -67,7 +92,10 @@ function weaponModel(id: WeaponId): THREE.Object3D | null {
     default:
       return null;
   }
-  return g;
+  const key = `weapon:${id}`;
+  const cached = geoCache.get(key);
+  if (cached) for (const p of parts) p.dispose();
+  return new THREE.Mesh(cached ?? merged(key, () => parts), vertexMat);
 }
 
 export interface FootExtras {
@@ -118,18 +146,17 @@ export class OnFootPlayer {
     const b = this.body;
     b.position.y = HIP;
     this.figure.add(b);
-    const torso = box(0.62, 0.72, 0.36, shirt);
-    torso.position.y = 1.16 - HIP;
-    const head = box(0.38, 0.38, 0.38, 0xd9a07c);
-    head.position.y = 1.74 - HIP;
-    const hair = box(0.4, 0.12, 0.4, 0x241c2e);
-    hair.position.y = 1.97 - HIP;
-    b.add(torso, head, hair);
+    // Torso, head and hair: one mesh.
+    const top = merged(`body:${shirt}`, () => [
+      colouredBox(0.62, 0.72, 0.36, 0, 1.16 - HIP, 0, shirt),
+      colouredBox(0.38, 0.38, 0.38, 0, 1.74 - HIP, 0, 0xd9a07c),
+      colouredBox(0.4, 0.12, 0.4, 0, 1.97 - HIP, 0, 0x241c2e),
+    ]);
+    b.add(new THREE.Mesh(top, vertexMat));
     const limb = (x0: number, y0: number, w: number, h: number, color: number): Limb => {
       const g = new THREE.Group();
       g.position.set(x0, y0 - HIP, 0);
-      const m = box(w, h, 0.28, color);
-      m.position.y = -h / 2;
+      const m = new THREE.Mesh(merged(`limb:${w}:${h}:${color}`, () => [colouredBox(w, h, 0.28, 0, -h / 2, 0, color)]), vertexMat);
       g.add(m);
       b.add(g);
       return g;
@@ -138,10 +165,7 @@ export class OnFootPlayer {
     this.legR = limb(-0.16, 0.8, 0.26, 0.8, 0x2b2a4a);
     this.armL = limb(0.42, 1.5, 0.18, 0.66, shirt);
     this.armR = limb(-0.42, 1.5, 0.18, 0.66, shirt);
-    const shadow = new THREE.Mesh(
-      new THREE.CircleGeometry(0.55, 14).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }),
-    );
+    const shadow = new THREE.Mesh(shadowGeo, shadowMat);
     shadow.position.y = 0.2; // above the highest road layer
     shadow.name = 'shadow';
     this.figure.add(shadow);

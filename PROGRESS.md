@@ -2,6 +2,15 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-28: Phase M, tasks M.13 and M.14 (branch `phase-m`, merged into `main`)
+- M.13: automatic slow-down (resolution 1x, 0.75x, then half the traffic and pedestrians, with a message; Auto and Low only); figures merged (9 to 6 meshes, weapon one mesh, shared materials); smaller effect pools, fewer blast puffs, slower smoke and 6 pickup crates on Low; Settings and guide say what Auto does.
+- Measured on Low (draw calls, triangles, worst of 4 directions): Raj Vihar 90 / 110k before, 87 / 110k after; a trunk road 54 / 44k before, 51 / 44k after; a fight at Raj Vihar (3 officers, 48 tracers, 4 blasts, 80 smoke puffs, 16 flashes) 178 / 77k before, 137 / 75k after.
+- Slow-down checked by stepping it by hand: ratio 1 then 0.75 (canvas drawn at 75%), traffic 20 to 10, pedestrians 25 to 13, message shown, a fourth step does nothing. 4 new tests (`tests/autoQuality.test.ts`), 85 in all; typecheck and build pass.
+- M.14: guide Other page updated (stars from attacks, officers, new chaos points, jumping dividers, automatic slow-down); Phase R topics were already there. Every guide page checked at 375x812: nothing wider than the screen (only the sub-page tab row scrolls sideways, as before).
+- Merged `phase-m` into `main` and pushed at Bunny's request; Bunny tests on the live site.
+- Not checked: real phone fps (Bunny), the slow-down firing by itself on a slow phone, garbage-collection stutter with a throttled CPU, the friends playtest.
+- Next: Bunny's phone results; fix what they show.
+
 ## 2026-11-28: Phase M, tasks M.6 to M.12 (branch `phase-m`)
 - M.1 to M.5 merged into `main` and pushed first (Bunny's request).
 - M.6: jump (about 1.4 m), climbing onto vehicle roofs (bus too), walking on roofs, real falls; walls have heights so jumps clear planter dividers, flyover barriers, railings, barricades and cones; crouch (button stays lit), roll (Shift+Z or Run + Crouch), emote wheel (wave, dance, point, namaste). On foot has its own touch layout; new buttons Attack, Jump, Crouch, weapon (tap next, hold wheel), Emote. Friends see it all through the new `a` field.

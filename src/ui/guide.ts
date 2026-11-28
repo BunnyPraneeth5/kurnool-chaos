@@ -231,7 +231,8 @@ const SECTIONS: Section[] = [
       LIST([
         'Stars (next to the minimap) show police heat, up to 3; one cop per star.',
         'At 2 stars cops try to cut you off and ram you; at 3 stars they also block the road ahead with two cars. In narrow old-city lanes some come on bikes.',
-        'You get a star for taking a vehicle from traffic, crashing hard into traffic, hitting a cop, racing right past people on the roadside, or running a red light where the police can see.',
+        'You get a star for taking a vehicle from traffic, crashing hard into traffic, hitting a cop, racing right past people on the roadside, running a red light where the police can see, or hitting people and traffic (hitting a cop or an officer: two).',
+        'From 2 stars a cop near you gets out and chases you on foot; at 3 stars they shoot. Keep moving, or crouch out of sight. See Fighting.',
         'Stop within 7 m of a cop for 1.3 s and you are busted: the stars go, and you are taken on foot to the nearest police station (5 in the city, under Places). Your vehicle stays where you were caught; one borrowed from traffic is taken away. The stars pulse while a bust is building.',
         'Stay more than 58 m from every cop for 10 s to drop a star (new cops get 20 s to reach you first).',
         'No cops chase you while you play a game round.',
@@ -239,8 +240,8 @@ const SECTIONS: Section[] = [
       h('h3', '', 'Chaos points'),
       LIST([
         'Always counting (💥 next to the stars), in free roam and in Chaos rounds.',
-        'Crash into traffic or a cop: 10 plus your speed. Near miss at speed: 15. Drift (Space while turning fast): 10 a second. Every second with stars: 2 per star. Losing a star: 50. Red light: 10. Smashing a railing, fence panel or barricade: 5.',
-        'Busted: you lose a quarter of your points (at least 50).',
+        'Crash into traffic or a cop: 10 plus your speed. Near miss at speed: 15. Drift (Space while turning fast): 10 a second. Every second with stars: 2 per star. Losing a star: 50. Red light: 10. Smashing a railing, fence panel or barricade: 5. A hit on a person: 5. Wrecking a vehicle: 25. A blast: 20.',
+        'Busted: you lose a quarter of your points (at least 50). Knocked out: a tenth (at least 20).',
       ]),
       h('h3', '', 'Roads and borders'),
       LIST([
@@ -249,6 +250,7 @@ const SECTIONS: Section[] = [
         'Speed breakers near schools and hospitals bump your vehicle. The Raj Vihar circle has a raised island.',
         'The railway is fenced through the city, with walls round the station: cross at level crossings, underpasses and bridges.',
         'Railings, railway fence panels, barricades and cones break if you hit them faster than 30 km/h (buses and lorries 15 km/h): 5 chaos points each. Friends see the gap too; everything is fixed 2 minutes later. Walls, bridge railings and canal walls do not break.',
+        'On foot you can jump over planted dividers, railings, barricades and cones, but not fences, walls or buildings.',
         'Look out for road works (one lane closed), police checkposts where the highways leave the city, and stone steps (ghats) down to the Tungabhadra and the Handri.',
       ]),
       h('h3', '', 'Junctions'),
@@ -264,7 +266,12 @@ const SECTIONS: Section[] = [
         'You can walk into anything that is not a building, wall or water. Bridges and flyovers can be driven over and under.',
       ]),
       h('h3', '', 'Phones'),
-      LIST(['Phones use low quality automatically; change it in Menu → Settings.', 'Sound starts after your first tap; turn it off or down in Menu → Settings.', 'After the phone sleeps, the game reconnects to your room by itself.']),
+      LIST([
+        'Phones use low quality automatically; change it in Menu → Settings.',
+        'If the game runs slowly for 10 seconds it lowers the graphics by itself (sharpness first, then fewer cars and people) and says so. Picking High in Settings turns this off.',
+        'Sound starts after your first tap; turn it off or down in Menu → Settings.',
+        'After the phone sleeps, the game reconnects to your room by itself.',
+      ]),
       P('Credits and data licences are under Menu → About.'),
     ],
   },

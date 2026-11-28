@@ -105,7 +105,7 @@ export class Game {
     camera: THREE.PerspectiveCamera,
     canvas: HTMLCanvasElement,
     shirt: number | undefined,
-    opts: { traffic: number; shadows: boolean; pedestrians: number },
+    opts: { traffic: number; shadows: boolean; pedestrians: number; low?: boolean },
   ) {
     this.world = new CollisionWorld(map);
     this.roads = new RoadIndex(map);
@@ -137,7 +137,7 @@ export class Game {
     this.chaos.onChange = (d, label) => this.hud.chaosPop(d, label);
     this.onRanRed = () => this.chaos.add(CHAOS.redLight, 'Red light');
     this.minimap = new Minimap(map, camera);
-    this.combat = new Combat(this, scene);
+    this.combat = new Combat(this, scene, !!opts.low);
     this.combat.onHurt = (ang, splash) => this.hud.hurt(ang === null ? null : ang - this.aimYaw(), splash);
     this.combat.onHitMark = () => this.hud.hitMark();
     this.touch.onWeaponHold = () => this.openWeaponWheel();

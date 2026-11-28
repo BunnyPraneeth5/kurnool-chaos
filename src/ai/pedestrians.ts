@@ -84,7 +84,8 @@ export class Pedestrians {
     scene: THREE.Scene,
     private readonly graph: RoadGraph,
     private readonly world: CollisionWorld,
-    private readonly count: number,
+    /** how many people around you (lowered by the automatic slow-down, task M.13); the mesh holds the first number */
+    public count: number,
   ) {
     const shirtGeo = mergeGeometries([box(0.5, 0.62, 0.3, 0, 1.12, 0), box(0.14, 0.58, 0.16, 0.33, 1.12, 0), box(0.14, 0.58, 0.16, -0.33, 1.12, 0)]);
     const restGeo = mergeGeometries([
@@ -113,6 +114,7 @@ export class Pedestrians {
     for (let i = this.peds.length - 1; i >= 0; i--) {
       if (Math.hypot(this.peds[i].x - focus.x, this.peds[i].z - focus.z) > DESPAWN) this.peds.splice(i, 1);
     }
+    if (this.peds.length > this.count) this.peds.length = this.count;
     for (let tries = 0; tries < 6 && this.peds.length < this.count; tries++) this.spawn(focus);
     this.inRoad.length = 0;
     this.scared = false;
