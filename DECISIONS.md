@@ -2,6 +2,9 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-28 | New Phase M: phone controls, jump/crouch/roll/emotes, and fighting (melee, cartoon guns, throwables, health with hospital respawn, vehicle damage); PRD's "weapons, damage models, health" out-of-scope line replaced by feature 14 | Bunny's choices: weapons too, health then respawn, friends hittable in free roam with mode rules in rounds, attacks add heat, vehicle damage |
+| 2026-11-28 | R.7 and 7.1 folded into Phase M (M.13 performance, M.14 guide) | Bunny wants all phone work in one place; new effects need the same performance pass |
+| 2026-11-28 | Hits on friends are decided on the attacker's screen and sent as one small `hit` message | Friends' game, no cheat check; same trust model as Chaos points; keeps the message budget low |
 | 2026-11-28 | Sounds are CC0 recordings from Freesound (replaces the generated Web Audio sounds of H.7), all listed on the About page; Pixabay not used | Bunny's request; the Pixabay licence is not CC0 |
 | 2026-11-28 | Built from Freesound's public high-quality MP3 previews, not the original files | Originals need a login; the previews are plenty for 32 kHz mono output. Bunny approved each file |
 | 2026-11-28 | Mono 32 kHz 80 kb/s MP3, 297 KB for 15 files; loops are padded with 0.1 s of themselves and loop points set inside | MP3 plays on every phone; the padding keeps decoder silence away from the seam |

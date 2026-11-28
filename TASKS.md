@@ -107,9 +107,43 @@ Goal: proper dividers on the main roads, raised edges where Kurnool has them, an
   - Accept: the borders are visible where you hit them; no invisible walls left along roads by the water; the Tungabhadra bridge has railings.
 - [x] **R.6 Barricades and cones.** Orange and white plastic barricades and cones: at the lit junctions and traffic police stands (channelling turns), at a few made-up road-works spots on main roads (one lane closed, a dug patch), at police checkposts (at the stations and where the highways enter the city), and closing some divider openings. (None round the traffic police stands: they blocked the junction.) They fly away when hit and come back with the R.1 timer (shared with friends).
   - Accept: barricades in all four kinds of places; hitting one knocks it away on both tabs; back after 2 min.
-- [ ] **R.7 Phone check and guide.** Everything merged per chunk; low quality keeps fewer details; guide pages updated (dividers, breaking things, footpaths, railway crossings).
-  - **Bunny check:** 30+ fps on the phone on low at Raj Vihar and on NH44; borders look right.
+- [ ] **R.7 Phone check and guide.** Moved on 2026-11-28: performance into M.13, guide pages into M.14.
 - Ghats: two on the Tungabhadra near the old city and one on the Handri (Bunny OK'd the proposal).
+
+## Phase M: Phone controls, moves and fighting (Bunny, 2026-11-28; its own branch)
+Goal: the game feels made for phones (icon buttons that change with what you are doing, swipe to look, your own button layout, steering choices, smooth on a mid-range Android), and on foot you can jump, crouch, roll, emote and fight. Weapons, health and vehicle damage join v1 (PRD changed, Bunny 2026-11-28). Cartoon style: low-poly, no blood. Friends can hurt each other in free roam; in rounds the mode decides. Order: M.1 is the base for everything; then the phone UI (M.2 to M.5) and moves (M.6); fighting M.7 to M.12 in order; M.13 and M.14 last. The guide (H.3) is updated by every task. Takes over R.7 and task 7.1.
+- [ ] **M.1 Actions layer (the base).** One list of actions (move, look, run, jump, crouch, attack, aim, next/previous weapon, get in/out, horn, boost, handbrake, emote, unstuck, map) that keyboard and touch both feed, so new moves are added in one place. A key for every action, shown on the Controls guide page. Short phone buzz (`navigator.vibrate`) on presses, hits and crashes, with a Vibration setting.
+  - Accept: every existing control still works on keyboard and touch; `npm test` covers the key and button mapping.
+- [ ] **M.2 Buttons that change with what you are doing.** Big round icon buttons (thumb-sized, short English label under each icon) for the right thumb. On foot: Attack (biggest), Jump, Crouch, Run, Get in (only near a vehicle), weapon icon (tap: next weapon, hold: weapon wheel), Emote. Driving: Gas, Brake/Reverse, Handbrake, Horn, Boost (rounds), Get out, and Shoot when holding a gun (M.9). Unstuck and Map move to a small top-right row. Buttons that cannot be used right now are hidden, not greyed. Portrait and landscape; safe areas (notch, gesture bar) respected.
+  - Accept: on a 375x812 phone and a landscape phone nothing overlaps the minimap, chat, HUD or credit; on foot and driving show the right sets.
+- [ ] **M.3 Swipe to look.** Drag on the free right half of the screen turns the camera around you (on foot and driving); while driving it eases back behind you a moment after you let go. Laptop: mouse drag (no pointer lock, so the menu stays easy). Look sensitivity in Settings.
+  - Accept: look behind while driving and look around on foot with one thumb while the other steers or walks; buttons still work during a drag.
+- [ ] **M.4 Edit layout.** Settings → Edit controls: drag any touch button or the joystick, resize with pinch or a slider, opacity slider, Reset to default. Saved per device, separate for portrait and landscape.
+  - Accept: a moved and resized layout survives a reload; Reset brings back the default; nothing can be dragged off screen.
+- [ ] **M.5 Steering choices.** Settings → Steering: joystick (now), left/right arrow buttons with separate Gas and Brake, or tilt the phone (Device Orientation, with a centre calibration button; a clear message where the browser refuses it or asks permission).
+  - Accept: all three drive a car round Raj Vihar Circle on the phone; the choice survives a reload.
+- [ ] **M.6 Jump, crouch, roll, emotes.** Jump (about 1 m) clears kerbs, speed breakers, low walls and dividers, and lands on footpaths and vehicle roofs (riding a moving roof not needed). Crouch: slower and smaller; cops on foot lose sight of you faster when you crouch behind something. Roll: quick dodge (Run + Crouch), no hits taken while rolling. Emotes: wave, dance, point, namaste from a small wheel. Friends see jumps, crouches, rolls and emotes (state `s` gets a small `act` field; ARCHITECTURE updated).
+  - Accept: jump clears an NH44 divider and lands on a parked bus; 2 tabs see each other's emotes and crouch; building walls still stop you.
+- [ ] **M.7 Health and hospitals.** Health bar on the HUD (on foot; vehicles get theirs in M.12). Health comes back slowly after 8 s without a hit. At zero you fall over, lose some chaos points and get up at the nearest hospital after 5 s, like busted (H.5). The map build exports OSM hospitals (GGH and others) the way H.5 did police stations, with a HOSPITAL signboard (English + Telugu); rebuild identical, file under 6 MB. Health and falls sent to friends.
+  - Accept: falling to zero anywhere lands you at the nearest hospital; friends see you fall and reappear.
+  - **Bunny check:** Telugu text for the hospital signboard.
+- [ ] **M.8 Punches and melee weapons.** Punch and kick combo on Attack; cricket bat and lathi (longer reach, more damage). Hits knock pedestrians and traffic drivers over; they get up and run away (pedestrians still never die). Attack a traffic vehicle's driver: pull them out and take it (carjack). Low-poly swing, hit flash, buzz on hit.
+  - Accept: fists, bat and lathi each hit within their reach; carjack works on traffic cars, autos and bikes; no hits through walls.
+- [ ] **M.9 Cartoon guns.** Pistol and one bigger gun (proposal: a toy-looking shotgun), low-poly, bright tracer, no blood. Phone: aim assist picks the nearest target in front, tap Attack to shoot. Laptop: aim with the mouse, click to shoot. Ammo. From a vehicle: driver shoots sideways only (proposal), riders aim freely.
+  - Accept: shoot a cop, a friend and a traffic car on foot and from a car; aim assist picks the right target on the phone.
+  - **Bunny check:** how weapons are got. Proposal: everyone starts with fists, bat and pistol; the bigger gun, lathi and throwables from pickups round the city (on the minimap); ammo refills at police stations and on respawn.
+- [ ] **M.10 Throwables.** Water balloons and tomatoes (splash, no damage, a friend's screen gets splattered for 2 s, pedestrians look round) and firecrackers (small blast, knocks people over, small damage, traffic swerves). Throw in an arc; hold to throw farther, with the arc drawn while held.
+  - Accept: each lands where the arc showed; a firecracker near traffic makes it swerve; friends see the splatter.
+- [ ] **M.11 Fighting friends and cops.** The attacker's screen decides a hit on a friend and sends one small `hit` message (who, damage, direction); the victim's game applies it with a hit marker. Rules: free roam on; Chor–Police only police can stun chors (a stun counts as a catch); Chaos rounds on; Landmark hunt and Hill climb off. Heat: hitting pedestrians or traffic adds a star, hitting a cop two; at 3+ stars cops get out and chase on foot, at 4+ they shoot back (cartoon; dodge by rolling and cover). Message budget checked and written in ARCHITECTURE.
+  - Accept: 2 tabs: a hit on one shows on the other once; rounds follow their rules; cops shoot at 4 stars; 8 players fighting stay inside the free-plan message budget.
+- [ ] **M.12 Vehicle damage.** Damage from crashes (by speed and weight) and from shots and firecrackers: dents, smoke at half, fire when low, then it stops and can blow up (small blast, knocks people nearby). Vehicle health on the HUD while driving. Traffic and cops take damage too. A shared vehicle's damage is sent to friends; a wrecked shared vehicle comes back at its parked spot after 2 minutes (like R.1).
+  - Accept: a car crashed hard several times smokes, then stops; 2 tabs see the same damage on a shared car; it is back after 2 min.
+- [ ] **M.13 Phone performance pass (was the R.7 phone check and 7.1).** Low/high quality toggle with a pixel ratio cap on low; drops to low by itself (with a message) when fps stays under 25 for 10 s; everything merged per chunk; low keeps fewer details (borders, props, pedestrians, effects, tracers); chunk culling checked; effects reuse pooled meshes (nothing new per shot or hit). Draw calls and triangles measured at Raj Vihar, on NH44 and in a fight, before and after.
+  - Accept: numbers written in PROGRESS.md; no garbage-collection stutter in a fight with the laptop CPU throttled 4x.
+  - **Bunny check:** 30+ fps on the phone on low at Raj Vihar, on NH44 and in a 4-player fight; borders look right.
+- [ ] **M.14 Guide and friends check.** Guide pages: Controls (new buttons, steering choices, edit layout), Fighting (weapons, health, hospitals, heat, friend rules per mode), Vehicles (damage), plus R.7's pages (dividers, breaking things, footpaths, railway crossings).
+  - Accept: every page readable on a 375x812 phone; numbers match the game.
+  - **Bunny check:** 20 minutes with friends on phones: controls feel good, fights are fun, nothing desyncs.
 
 ## Phase 4: Kurnool feel
 - [ ] **4.1 Landmarks.** Fort, Tungabhadra bridge, station, bus stand, GGH + KMC, junction markers at Rajvihar and C-Camp, Abdullah Khan Estate sign. Low-poly models based on 2 or 3 photos per landmark from Bunny, so they look like the real ones.
@@ -141,8 +175,7 @@ Goal: proper dividers on the main roads, raised edges where Kurnool has them, an
   - Accept: 2-player race on a preset route finishes and saves both times.
 
 ## Phase 7: Ship
-- [ ] **7.1 Performance pass.** Quality toggle, pixel ratio cap, chunk culling check.
-  - Accept: 30+ fps on Bunny's phone on low, during a 4-player session.
+- [ ] **7.1 Performance pass.** Moved into M.13 on 2026-11-28.
 - [ ] **7.2 Friends play-test.** Bunny plus 3 or more friends, 20 minutes.
   - **Bunny check:** collect bugs into PROGRESS.md and fix the top ones.
 - [ ] **7.3 README + credits.** What it is, how to play, how to run locally, how sync works, OSM credit.
