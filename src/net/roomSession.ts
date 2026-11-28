@@ -12,6 +12,8 @@ import { buildLobby, findLobby, lobbySpot, parkLobbyCars } from '../modes/lobby'
 import { NetSync } from './sync';
 import { LOBBY_CARS } from '../vehicles/parked';
 import { VEHICLES } from '../vehicles/params';
+import { setDamageLook } from '../vehicles/models';
+import { mayHit } from '../combat/rules';
 import { FIX_MS } from '../map/collision';
 import { RoundController } from '../modes/round';
 import { GameUi } from '../modes/ui';
@@ -256,7 +258,34 @@ export function startRoomSession(
   remotes.setPlayers(r.players);
   r.onPlayers = onPlayers;
   r.onStatus = (st) => hud.setStatus(st);
-  r.onState = (st, recv) => remotes.push(st, recv);
+  // Fighting (tasks M.6 to M.12): hits ride on state messages; each is applied once.
+  const lastHitT = new Map<string, number>();
+  r.onState = (st, recv) => {
+    remotes.push(st, recv);
+    if (!st.hits || hud.isBlocked(st.id)) return;
+    if (st.t <= (lastHitT.get(st.id) ?? -Infinity)) return;
+    lastHitT.set(st.id, st.t);
+    for (const [to, d, k] of st.hits) {
+      if (to !== r.myId || !canHit(st.id)) continue;
+      game.combat.takeFriendHit(remotes.posOf(st.id), d, k);
+    }
+  };
+  /** May these two players hit each other now? Free roam yes; in rounds the mode decides. */
+  const canHit = (other: string): boolean => !hud.isBlocked(other) && mayHit(rounds.state, r.myId, other);
+  game.combat.friends = () => remotes.bodies();
+  game.combat.canHitFriend = canHit;
+  game.combat.onStun = (id) => rounds.stun(id);
+  game.combat.onSharedWreck = (i, blown) => void r.sendWreck(i, blown);
+  r.onWreck = (i, blown) => {
+    const v = game.shared[i];
+    if (!v || v === game.car) return;
+    if (v.wreck <= 0) v.wreck = 0.001;
+    v.hp = 0;
+    if (blown && !v.blown && v.mesh.visible) game.combat.effects.blast(v.x, v.y, v.z, 5);
+    v.blown = v.blown || blown;
+    setDamageLook(v.mesh, 0, v.blown);
+  };
+  remotes.onShot = (x, y, z, a) => game.combat.friendShot(x, y, z, a);
   r.onChat = (m) => {
     const p = byId(m.id);
     if (!p || hud.isBlocked(m.id)) return;
@@ -303,6 +332,7 @@ export function startRoomSession(
         if (pose) game.minimap.friends.push({ x: pose.x, z: pose.z, colour: colourOf(p) });
       }
       gameUi.update();
+      document.body.classList.toggle('inround', rounds.inRound);
       remotes.update(dt, now, r.players.length);
       checkRide();
       game.extraCars = remotes.carColliders;

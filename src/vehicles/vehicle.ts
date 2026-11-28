@@ -44,6 +44,15 @@ export class Vehicle implements Bumper {
   broke: number[] = [];
   /** The vehicle hit hard during the last drive() call, if any. */
   bumped: Bumper | null = null;
+  /** Vehicle health (task M.12): 0 = wrecked, it will not drive. */
+  hp = 100;
+  /** seconds since it was wrecked (0 = fine) */
+  wreck = 0;
+  blown = false;
+  /** Biggest speed lost in a crash during the last drive() call (m/s), for damage. */
+  impact = 0;
+  /** Where a shared parked vehicle lives: wrecks come back here after 2 minutes. */
+  home: { x: number; z: number; a: number } | null = null;
   private roll = 0;
   private wasHit = false;
   private acc = 0;
@@ -91,6 +100,7 @@ export class Vehicle implements Bumper {
   drive(dt: number, inp: MoveInput, world: CollisionWorld, others: readonly Bumper[]): number {
     let crash = 0;
     this.bumped = null;
+    this.impact = 0;
     this.acc += dt;
     while (this.acc >= SUBSTEP) {
       this.acc -= SUBSTEP;
@@ -127,6 +137,7 @@ export class Vehicle implements Bumper {
     const hit = this.pushOut(world);
     if (hit) {
       if (!this.wasHit && Math.abs(this.speed) > HARD_HIT) {
+        this.impact = Math.max(this.impact, Math.abs(this.speed) * 0.55);
         this.speed *= 0.45;
         crash = 0.5;
       } else {
@@ -150,6 +161,7 @@ export class Vehicle implements Bumper {
       this.x += push.x * mine;
       this.z += push.z * mine;
       if (Math.abs(this.speed) > HARD_BUMP) {
+        this.impact = Math.max(this.impact, Math.abs(this.speed) * 0.55);
         this.speed *= 0.45;
         crash = Math.max(crash, 0.55);
         this.bumped = o;

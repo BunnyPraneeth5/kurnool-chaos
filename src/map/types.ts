@@ -120,6 +120,8 @@ export interface MapData {
   };
   /** OSM police stations (task H.5) */
   police?: { name: string; x: number; z: number; a: number }[];
+  /** OSM hospitals (task M.7): where players get up when their health runs out */
+  hospitals?: { name: string; x: number; z: number; a: number }[];
   spawn: { x: number; z: number; heading: number };
   meta: { osmBase: string; overtureRelease?: string; credit: string };
 }

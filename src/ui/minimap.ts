@@ -33,6 +33,8 @@ export class Minimap {
   friends: MapDot[] = [];
   /** Current game target, if any. */
   target: { x: number; z: number } | null = null;
+  /** Weapon pickups (task M.9): small diamonds in their colour. */
+  pickups: MapDot[] = [];
 
   constructor(
     private readonly map: MapData,
@@ -161,6 +163,17 @@ export class Minimap {
       g.beginPath();
       g.arc(toX(this.target.x), toZ(this.target.z), 6 * this.dpr, 0, Math.PI * 2);
       g.stroke();
+    }
+    for (const p of this.pickups) {
+      const px = toX(p.x), pz = toZ(p.z), r = 3 * this.dpr;
+      g.fillStyle = p.colour;
+      g.beginPath();
+      g.moveTo(px, pz - r);
+      g.lineTo(px + r, pz);
+      g.lineTo(px, pz + r);
+      g.lineTo(px - r, pz);
+      g.closePath();
+      g.fill();
     }
     for (const f of this.friends) dot(f.x, f.z, 3.5, f.colour);
     for (const c of cops) dot(c.x, c.z, 3.5, '#ff4d3d');

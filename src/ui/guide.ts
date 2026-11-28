@@ -1,4 +1,5 @@
 import { KEYS, keyLabel, type Action } from '../player/actions';
+import { WEAPONS, WEAPON_IDS } from '../combat/weapons';
 import * as THREE from 'three';
 import { btn, h, type MenuPage } from './menu';
 import { VEHICLES, VEHICLE_TYPES, vehicleColour, type VehicleType } from '../vehicles/params';
@@ -66,6 +67,11 @@ const SECTIONS: Section[] = [
         [k('brake'), 'Walk back, or brake and reverse'],
         [`${k('left')}  ${k('right')}`, 'Turn or steer'],
         [k('hand'), 'Run (on foot), handbrake and drift (in a vehicle)'],
+        [k('jump'), 'Jump (on foot; jump at a vehicle to climb onto its roof), handbrake in a vehicle'],
+        [k('crouch'), 'Crouch or stand up; while running: a dodge roll'],
+        [k('attack'), 'Punch, swing, shoot or throw (hold to throw farther)'],
+        [k('weapon'), 'Next weapon (1 to 9 pick from the weapon wheel when it is open)'],
+        [k('emote'), 'Emote wheel: wave, dance, point, namaste (1 to 4)'],
         [k('horn'), 'Horn (in a vehicle)'],
         [k('boost'), 'Boost (Chor–Police rounds, 2 per round)'],
         [k('act'), 'Get in or out, or ride with a friend'],
@@ -91,15 +97,44 @@ const SECTIONS: Section[] = [
         h('h3', '', 'Phone'),
         LIST([
           'Left thumb: the joystick. Up and down walk or drive, left and right turn.',
-          'Right thumb: round buttons that change with what you are doing. On foot: Run, and Get in (gold, only when a vehicle or a friend is close). Driving: Drift, Horn, Get out, and Boost in Chor–Police rounds.',
+          'Right thumb: round buttons that change with what you are doing. On foot: Attack (it says Punch, Swing, Shoot or Throw), Jump, Crouch, Run, the weapon button (tap: next weapon, hold: weapon wheel), Emote, and Get in (gold, only when a vehicle or a friend is close). Driving: Drift, Horn, Get out, Shoot when you hold a gun, and Boost in Chor–Police rounds.',
+          'On foot and driving have their own button layouts.',
           'Drag anywhere on the right side of the screen to look around. While driving the view swings back behind you a moment after you let go.',
           'Small buttons under the minimap: Unstuck and Map view (Back returns from it).',
           'Phone steering (Menu → Settings): the joystick, arrow buttons (left and right on the left, Gas and Brake on the right), or tilting the phone like a steering wheel. Tilt centres itself each time you get in.',
-          'Edit controls (Menu → Settings): drag buttons and the joystick where you like, pinch or use Size to resize, change the opacity. Portrait and landscape are saved separately.',
+          'Edit controls (Menu → Settings): drag buttons and the joystick where you like, pinch or use Size to resize, change the opacity. On foot and driving, portrait and landscape are saved separately.',
           'Android phones buzz on presses and crashes (Vibration setting).',
           'Menu button top left; tap the minimap for the whole city.',
         ]),
         P('The Steering setting (Menu → Settings) makes turning gentler or quicker.'),
+      ];
+    },
+  },
+  {
+    id: 'fighting',
+    title: 'Fighting',
+    build: () => {
+      const list = h('div', 'places');
+      for (const id of WEAPON_IDS) {
+        const w = WEAPONS[id];
+        const card = h('div', 'place');
+        const nums = w.kind === 'throw' ? (w.damage ? `blast ${w.damage}` : 'no damage') : `${w.damage}${w.pellets ? ` x ${w.pellets}` : ''} damage`;
+        card.append(h('b', '', `${w.symbol} ${w.name}`), h('small', '', `${w.start ? 'You start with it' : 'Pickup'} · ${nums}${w.ammo ? ` · ${w.ammo} ${w.kind === 'gun' ? 'rounds' : 'to throw'}` : ''}. ${w.about}`));
+        list.append(card);
+      }
+      return [
+        h('h2', '', 'Fighting'),
+        P('Cartoon style: no blood. Everyone starts with fists, a cricket bat and a pistol.'),
+        list,
+        LIST([
+          `Pickups: spinning crates round the city (diamonds on the minimap) give a lathi, shotgun, water balloons, tomatoes or firecrackers. Walk over one to take it; it is back after 90 s. ${'Ammo refills at the police stations (walk up to the sign) and when you get up after being knocked out.'}`,
+          'Aim: where the camera looks. On phones aim assist picks the person or vehicle in front of you; drag on the right of the screen to look and aim. Throwables: hold Attack, the arc shows where it lands, let go to throw.',
+          'Health: the bar under the stars. It comes back slowly after 8 s without a hit. At zero you are knocked out, lose some chaos points and get up at the nearest hospital (white HOSPITAL signs, ఆసుపత్రి) with full health.',
+          'People on the street are knocked over and run away; they are never hurt for good. Punch a traffic driver through their door (slow vehicle, fists) to pull them out and take the vehicle.',
+          'Police: hitting people or traffic gives a star, hitting cops two. At 2 stars a cop gets out and chases you on foot: keep moving or you are busted; crouch out of sight and they lose you faster. At 3 stars they shoot back: a roll (run + crouch) dodges, walls block.',
+          'Vehicles: crashes and hits damage them. Smoke at half, then wrecked: it stops and burns. One more hit (or a while burning) and it blows up, knocking people over. The bar shows your vehicle while you drive. Shared parked vehicles come back where they started 2 minutes after a wreck, for everyone.',
+          'Friends: free roam, you can hit each other. In rounds: Chor–Police only police and chors (a police hit on a chor is a catch), Chaos everyone, Landmark hunt and Hill climb nobody. A water balloon or tomato on a friend wets or reddens their screen for 2 s.',
+        ]),
       ];
     },
   },
@@ -143,8 +178,8 @@ const SECTIONS: Section[] = [
         'Friends: name tags over their heads or vehicles and dots on the minimap, each in their colour. Chat and emotes show as speech bubbles.',
         'The host: the first to join a room (badge in the player list). Picks and starts game modes and can remove a player. If the host leaves, the next one takes over.',
         'Traffic drivers: autos, bikes, cars, buses and lorries on the left of the road, some with passengers. They stop at red lights and for whatever is in front, honk when held up, overtake slow vehicles on the right, buses pull in at stops and autos at auto stands. Walk up and take their vehicle.',
-        'Cops: white cars with a flashing light bar and POLICE sign. They come when you have stars, follow the roads to you and bust you if you stop near them. Busted players end up at a police station.',
-        'Pedestrians: people walking along the roadsides and crossing at the ends of roads. They jump out of the way and are never hurt, but racing right past them gets you a star.',
+        'Cops: white cars with a flashing light bar and POLICE sign. They come when you have stars, follow the roads to you and bust you if you stop near them. From 2 stars an officer (khaki shirt) gets out and chases you on foot, and at 3 stars shoots. Busted players end up at a police station.',
+        'Pedestrians: people walking along the roadsides and crossing at the ends of roads. They jump out of the way and are never hurt for good: hit one and they fall over, get up and run. Racing right past them or hitting them gets you a star.',
         'Traffic police: at Raj Vihar and C-Camp, on a stand under an umbrella. They see red-light runners.',
         'Police and chors (Chor–Police rounds): police have a light bar and a blue name tag.',
         'Your traffic, pedestrians and cops are your own: friends have their own.',
@@ -196,7 +231,8 @@ const SECTIONS: Section[] = [
       LIST([
         'Stars (next to the minimap) show police heat, up to 3; one cop per star.',
         'At 2 stars cops try to cut you off and ram you; at 3 stars they also block the road ahead with two cars. In narrow old-city lanes some come on bikes.',
-        'You get a star for taking a vehicle from traffic, crashing hard into traffic, hitting a cop, racing right past people on the roadside, or running a red light where the police can see.',
+        'You get a star for taking a vehicle from traffic, crashing hard into traffic, hitting a cop, racing right past people on the roadside, running a red light where the police can see, or hitting people and traffic (hitting a cop or an officer: two).',
+        'From 2 stars a cop near you gets out and chases you on foot; at 3 stars they shoot. Keep moving, or crouch out of sight. See Fighting.',
         'Stop within 7 m of a cop for 1.3 s and you are busted: the stars go, and you are taken on foot to the nearest police station (5 in the city, under Places). Your vehicle stays where you were caught; one borrowed from traffic is taken away. The stars pulse while a bust is building.',
         'Stay more than 58 m from every cop for 10 s to drop a star (new cops get 20 s to reach you first).',
         'No cops chase you while you play a game round.',
@@ -204,8 +240,8 @@ const SECTIONS: Section[] = [
       h('h3', '', 'Chaos points'),
       LIST([
         'Always counting (💥 next to the stars), in free roam and in Chaos rounds.',
-        'Crash into traffic or a cop: 10 plus your speed. Near miss at speed: 15. Drift (Space while turning fast): 10 a second. Every second with stars: 2 per star. Losing a star: 50. Red light: 10. Smashing a railing, fence panel or barricade: 5.',
-        'Busted: you lose a quarter of your points (at least 50).',
+        'Crash into traffic or a cop: 10 plus your speed. Near miss at speed: 15. Drift (Space while turning fast): 10 a second. Every second with stars: 2 per star. Losing a star: 50. Red light: 10. Smashing a railing, fence panel or barricade: 5. A hit on a person: 5. Wrecking a vehicle: 25. A blast: 20.',
+        'Busted: you lose a quarter of your points (at least 50). Knocked out: a tenth (at least 20).',
       ]),
       h('h3', '', 'Roads and borders'),
       LIST([
@@ -214,6 +250,7 @@ const SECTIONS: Section[] = [
         'Speed breakers near schools and hospitals bump your vehicle. The Raj Vihar circle has a raised island.',
         'The railway is fenced through the city, with walls round the station: cross at level crossings, underpasses and bridges.',
         'Railings, railway fence panels, barricades and cones break if you hit them faster than 30 km/h (buses and lorries 15 km/h): 5 chaos points each. Friends see the gap too; everything is fixed 2 minutes later. Walls, bridge railings and canal walls do not break.',
+        'On foot you can jump over planted dividers, railings, barricades and cones, but not fences, walls or buildings.',
         'Look out for road works (one lane closed), police checkposts where the highways leave the city, and stone steps (ghats) down to the Tungabhadra and the Handri.',
       ]),
       h('h3', '', 'Junctions'),
@@ -229,7 +266,12 @@ const SECTIONS: Section[] = [
         'You can walk into anything that is not a building, wall or water. Bridges and flyovers can be driven over and under.',
       ]),
       h('h3', '', 'Phones'),
-      LIST(['Phones use low quality automatically; change it in Menu → Settings.', 'Sound starts after your first tap; turn it off or down in Menu → Settings.', 'After the phone sleeps, the game reconnects to your room by itself.']),
+      LIST([
+        'Phones use low quality automatically; change it in Menu → Settings.',
+        'If the game runs slowly for 10 seconds it lowers the graphics by itself (sharpness first, then fewer cars and people) and says so. Picking High in Settings turns this off.',
+        'Sound starts after your first tap; turn it off or down in Menu → Settings.',
+        'After the phone sleeps, the game reconnects to your room by itself.',
+      ]),
       P('Credits and data licences are under Menu → About.'),
     ],
   },

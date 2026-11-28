@@ -29,6 +29,11 @@ const BUTTONS: Record<ButtonId, ButtonDef> = {
   gas: { action: 'gas', hold: true, icon: 'gas', label: 'Gas' },
   brake: { action: 'brake', hold: true, icon: 'brake', label: 'Brake' },
   hand: { action: 'hand', hold: true, icon: 'run', label: 'Run' },
+  attack: { action: 'attack', hold: true, icon: 'fist', label: 'Punch' },
+  jump: { action: 'jump', hold: false, icon: 'jump', label: 'Jump' },
+  crouch: { action: 'crouch', hold: false, icon: 'crouch', label: 'Crouch' },
+  weapon: { action: 'weapon', hold: false, icon: 'swap', label: 'Fists' },
+  emote: { action: 'emote', hold: false, icon: 'emote', label: 'Emote' },
   act: { action: 'act', hold: false, icon: 'getIn', label: 'Get in' },
   horn: { action: 'horn', hold: true, icon: 'horn', label: 'Horn' },
   boost: { action: 'boost', hold: false, icon: 'boost', label: 'Boost' },
@@ -38,6 +43,21 @@ const BUTTONS: Record<ButtonId, ButtonDef> = {
 
 /** What the Get in button says. */
 export type ActLabel = 'Get in' | 'Ride' | 'Get out';
+
+/** Labels that change with the game (task M.2, M.9). */
+export interface Labels {
+  act: ActLabel;
+  boosts: number;
+  /** the Attack button: icon and word for the weapon in hand */
+  attack?: { icon: IconName; text: string };
+  /** the weapon button: name and ammo of the weapon in hand */
+  weapon?: string;
+  /** crouching now (the Crouch button stays lit) */
+  crouched?: boolean;
+}
+
+/** Hold the weapon button this long to open the weapon wheel instead of switching. */
+const WHEEL_HOLD_MS = 450;
 
 function orientation(): Orientation {
   return window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
@@ -72,6 +92,9 @@ export class TouchControls {
   private readonly editPointers = new Map<number, { id: ControlId; x: number; y: number }>();
   private dragStart: { id: ControlId; px: number; py: number; slot: Slot; pinch: number } | null = null;
   private onEditEnd: (() => void) | null = null;
+  /** Long press on the weapon button (task M.9): open the weapon wheel. */
+  onWeaponHold: () => void = () => {};
+  private weaponTimer = 0;
   /** The editor shows the on-foot or the driving buttons. */
   private editMode: 'foot' | 'drive' = 'drive';
 
@@ -91,7 +114,7 @@ export class TouchControls {
     }
     document.body.append(this.root);
 
-    this.key = layoutKey(orientation(), this.state.steer);
+    this.key = layoutKey(orientation(), this.state.steer, 'foot');
     this.layout = mergeLayout(this.key, this.saved[this.key]);
     window.addEventListener('resize', () => this.relayout());
     screen.orientation?.addEventListener?.('change', () => this.relayout());
@@ -132,10 +155,13 @@ export class TouchControls {
   }
 
   /** What the player is doing changed: show the right buttons and labels. */
-  setState(st: ControlState, labels?: { act: ActLabel; boosts: number }): void {
-    const steerChanged = st.steer !== this.state.steer;
+  setState(st: ControlState, labels?: Labels): void {
+    const keyChanged = st.steer !== this.state.steer || (st.mode === 'foot') !== (this.state.mode === 'foot');
     this.state = st;
     if (labels) {
+      if (labels.attack) this.label(this.els.get('attack')!, labels.attack.icon, labels.attack.text);
+      if (labels.weapon !== undefined) this.label(this.els.get('weapon')!, 'swap', labels.weapon);
+      this.els.get('crouch')!.classList.toggle('on', !!labels.crouched);
       const act = this.els.get('act')!;
       this.label(act, labels.act === 'Get out' ? 'getOut' : labels.act === 'Ride' ? 'ride' : 'getIn', labels.act);
       act.classList.toggle('ready', labels.act !== 'Get out');
@@ -144,7 +170,7 @@ export class TouchControls {
     const driving = st.mode === 'drive';
     this.label(this.els.get('hand')!, driving ? 'drift' : 'run', driving ? 'Drift' : 'Run');
     this.label(this.els.get('map')!, st.mode === 'map' ? 'back' : 'map', st.mode === 'map' ? 'Back' : 'Map');
-    if (steerChanged) this.relayout();
+    if (keyChanged) this.relayout();
     if (!this.editing) this.show();
   }
 
@@ -174,6 +200,7 @@ export class TouchControls {
       footB.classList.toggle('on', m === 'foot');
       driveB.classList.toggle('on', m === 'drive');
       this.select(null);
+      this.relayout();
       this.show();
     };
     which.append(footB, driveB);
@@ -205,6 +232,7 @@ export class TouchControls {
     this.dragStart = null;
     document.body.classList.remove('ctledit');
     for (const el of this.els.values()) el.classList.remove('selected');
+    this.relayout();
     this.show();
     this.onEditEnd?.();
     this.onEditEnd = null;
@@ -258,14 +286,21 @@ export class TouchControls {
       }
       const def = BUTTONS[id];
       buzz(12);
-      if (def.hold) {
-        this.heldSet.add(def.action);
+      if (id === 'weapon') {
+        // Tap: next weapon (on release). Hold: the weapon wheel.
         el.classList.add('down');
-      } else {
-        this.taps.set(def.action, (this.taps.get(def.action) ?? 0) + 1);
-        el.classList.add('down');
-        setTimeout(() => el.classList.remove('down'), 120);
+        this.weaponTimer = window.setTimeout(() => {
+          this.weaponTimer = -1;
+          el.classList.remove('down');
+          this.onWeaponHold();
+        }, WHEEL_HOLD_MS);
+        return;
       }
+      // Every press counts as a tap; hold buttons are also held down until let go.
+      this.taps.set(def.action, (this.taps.get(def.action) ?? 0) + 1);
+      el.classList.add('down');
+      if (def.hold) this.heldSet.add(def.action);
+      else setTimeout(() => el.classList.remove('down'), 120);
     });
     el.addEventListener('pointermove', (e) => {
       if (this.editing) return this.editMove(e);
@@ -282,6 +317,15 @@ export class TouchControls {
         this.joyId = null;
         this.stick.x = this.stick.y = 0;
         this.knob.style.transform = '';
+        return;
+      }
+      if (id === 'weapon') {
+        if (this.weaponTimer > 0) {
+          clearTimeout(this.weaponTimer);
+          this.taps.set('weapon', (this.taps.get('weapon') ?? 0) + 1);
+        }
+        this.weaponTimer = 0;
+        el.classList.remove('down');
         return;
       }
       const def = BUTTONS[id];
@@ -334,7 +378,8 @@ export class TouchControls {
   }
 
   private relayout(): void {
-    const key = layoutKey(orientation(), this.state.steer);
+    const mode = this.editing ? this.editMode : this.state.mode === 'foot' ? 'foot' : 'drive';
+    const key = layoutKey(orientation(), this.state.steer, mode);
     if (key !== this.key) {
       this.key = key;
       this.layout = mergeLayout(key, this.saved[key]);
@@ -438,7 +483,7 @@ export class TouchControls {
     const title = this.editPanel?.querySelector('b');
     if (!title) return;
     const [o, g] = this.key.split('-');
-    title.textContent = `Edit controls: ${o}, ${g === 'stick' ? 'joystick steering' : 'pedal buttons'}`;
+    title.textContent = g === 'foot' ? `Edit controls: ${o}, on foot` : `Edit controls: ${o}, driving with ${g === 'stick' ? 'the joystick' : 'pedal buttons'}`;
   }
 
   private slider(text: string, min: number, max: number, value: number, onInput: (v: number) => void): HTMLLabelElement {

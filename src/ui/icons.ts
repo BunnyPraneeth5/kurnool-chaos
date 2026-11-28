@@ -18,6 +18,14 @@ export const ICONS = {
   unstuck: svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>'),
   map: svg('<path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/>'),
   back: svg('<path d="M15 4l-8 8 8 8"/>'),
+  fist: svg('<path d="M7 11V8a1.5 1.5 0 0 1 3 0v2M10 10V7a1.5 1.5 0 0 1 3 0v3M13 10V8a1.5 1.5 0 0 1 3 0v3M16 11v-1a1.5 1.5 0 0 1 3 0v4a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-3a1.5 1.5 0 0 1 2.4-1.8L7 13"/>'),
+  bat: svg('<path d="M4 20l3-3M7 17l10-11a2.5 2.5 0 0 1 3.5 3.5L9.5 19.5z"/>'),
+  gun: svg('<path d="M3 8h17v4h-9l-1 2H8l-1 5H4l1-7H3z"/><path d="M14 12v2"/>'),
+  throwIt: svg('<circle cx="17" cy="6" r="3"/><path d="M4 20c2-6 6-10 11-12"/><path d="M4 14v6h6"/>'),
+  jump: svg('<path d="M12 3v11M7 8l5-5 5 5M5 20h14"/>'),
+  crouch: svg('<circle cx="12" cy="7" r="2"/><path d="M8 20l2-5 4 1 2 4M9 13l3-3 4 2"/>'),
+  swap: svg('<path d="M4 8h13l-3-3M20 16H7l3 3"/>'),
+  emote: svg('<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5a4 4 0 0 0 7 0M9 9.5v.5M15 9.5v.5"/>'),
 } as const;
 
 export type IconName = keyof typeof ICONS;

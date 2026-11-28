@@ -28,7 +28,12 @@ describe('actions and keys', () => {
   it('keeps the keys players already know', () => {
     expect(keyAction('KeyW')).toBe('gas');
     expect(keyAction('ArrowLeft')).toBe('left');
-    expect(keyAction('Space')).toBe('hand');
+    expect(keyAction('ShiftLeft')).toBe('hand');
+    expect(keyAction('Space')).toBe('jump');
+    expect(keyAction('KeyZ')).toBe('crouch');
+    expect(keyAction('KeyF')).toBe('attack');
+    expect(keyAction('KeyQ')).toBe('weapon');
+    expect(keyAction('KeyX')).toBe('emote');
     expect(keyAction('KeyE')).toBe('act');
     expect(keyAction('KeyH')).toBe('horn');
     expect(keyAction('KeyB')).toBe('boost');
@@ -68,14 +73,20 @@ describe('which buttons show', () => {
   const st = (o: Partial<ControlState>): ControlState => ({ mode: 'foot', near: false, boosts: 0, steer: 'stick', ...o });
   const ids = (o: Partial<ControlState>) => [...visibleControls(st(o))].sort();
 
-  it('on foot: joystick, Run, Unstuck, Map; Get in only near a vehicle', () => {
-    expect(ids({})).toEqual(['hand', 'map', 'stick', 'unstuck']);
+  it('on foot: joystick, Attack, Jump, Crouch, Run, weapon, Emote, Unstuck, Map; Get in only near a vehicle', () => {
+    expect(ids({})).toEqual(['attack', 'crouch', 'emote', 'hand', 'jump', 'map', 'stick', 'unstuck', 'weapon']);
     expect(ids({ near: true })).toContain('act');
   });
 
-  it('driving with the joystick: no pedals; Boost only with boosts left', () => {
+  it('driving with the joystick: no pedals; Boost only with boosts left; Shoot only with a gun', () => {
     expect(ids({ mode: 'drive' })).toEqual(['act', 'hand', 'horn', 'map', 'stick', 'unstuck']);
     expect(ids({ mode: 'drive', boosts: 2 })).toContain('boost');
+    expect(ids({ mode: 'drive', gun: true })).toContain('attack');
+    expect(ids({ mode: 'ride', gun: true })).toEqual(['act', 'attack', 'map']);
+  });
+
+  it('knocked down: nothing but the map', () => {
+    expect(ids({ down: true, near: true })).toEqual(['map']);
   });
 
   it('arrow steering: arrows and pedals, no joystick; tilt: pedals only', () => {
@@ -91,28 +102,29 @@ describe('which buttons show', () => {
   });
 
   it('the editor shows every button that can appear, on foot or driving', () => {
-    expect([...editableControls('arrows', 'drive')].sort()).toEqual(['act', 'boost', 'brake', 'gas', 'hand', 'horn', 'left', 'map', 'right', 'unstuck']);
-    expect([...editableControls('arrows', 'foot')].sort()).toEqual(['act', 'hand', 'map', 'stick', 'unstuck']);
+    expect([...editableControls('arrows', 'drive')].sort()).toEqual(['act', 'attack', 'boost', 'brake', 'gas', 'hand', 'horn', 'left', 'map', 'right', 'unstuck']);
+    expect([...editableControls('arrows', 'foot')].sort()).toEqual(['act', 'attack', 'crouch', 'emote', 'hand', 'jump', 'map', 'stick', 'unstuck', 'weapon']);
     expect(editableControls('stick', 'drive').has('gas')).toBe(false);
   });
 });
 
 describe('layout', () => {
-  const keys: LayoutKey[] = ['portrait-stick', 'portrait-pedals', 'landscape-stick', 'landscape-pedals'];
+  const keys: LayoutKey[] = ['portrait-foot', 'portrait-stick', 'portrait-pedals', 'landscape-foot', 'landscape-stick', 'landscape-pedals'];
 
-  it('picks the layout by orientation and steering', () => {
-    expect(layoutKey('portrait', 'stick')).toBe('portrait-stick');
-    expect(layoutKey('landscape', 'arrows')).toBe('landscape-pedals');
-    expect(layoutKey('landscape', 'tilt')).toBe('landscape-pedals');
+  it('picks the layout by orientation, steering and on foot or driving', () => {
+    expect(layoutKey('portrait', 'stick', 'drive')).toBe('portrait-stick');
+    expect(layoutKey('landscape', 'arrows', 'drive')).toBe('landscape-pedals');
+    expect(layoutKey('landscape', 'tilt', 'drive')).toBe('landscape-pedals');
+    expect(layoutKey('portrait', 'tilt', 'foot')).toBe('portrait-foot');
   });
 
   it('default buttons shown together never overlap, on a 375x812 and an 844x390 phone', () => {
     for (const key of keys) {
       const l = defaultLayout(key);
-      const steer = key.endsWith('stick') ? 'stick' : 'arrows';
+      const steer = key.endsWith('pedals') ? 'arrows' : 'stick';
       const [w, h] = key.startsWith('portrait') ? [375, 812] : [844, 390];
-      for (const mode of ['foot', 'drive'] as const) {
-        const on = [...visibleControls({ mode, near: true, boosts: 2, steer })];
+      for (const mode of key.endsWith('foot') ? (['foot'] as const) : (['drive'] as const)) {
+        const on = [...visibleControls({ mode, near: true, boosts: 2, steer, gun: true })];
         // Centres on one screen (x from the left, y from the top).
         const centre = (id: (typeof on)[number]) => {
           const s = clampSlot(l[id], w, h);

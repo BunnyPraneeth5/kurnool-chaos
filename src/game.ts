@@ -7,6 +7,11 @@ import { moveFrom, type Action } from './player/actions';
 import { Tilt } from './player/tilt';
 import { LookControl } from './player/look';
 import { buzz } from './ui/haptics';
+import { Combat } from './combat/combat';
+import { WEAPONS } from './combat/weapons';
+import { Wheel } from './ui/wheel';
+import { EMOTE_WHEEL, encodeActs } from './net/acts';
+import { setDamageLook } from './vehicles/models';
 import { OnFootPlayer, PLAYER_RADIUS } from './player/onFoot';
 import { ChaseCamera } from './player/chaseCamera';
 import { FreeCamera } from './player/freeCamera';
@@ -35,6 +40,7 @@ const ENTER_RANGE = 3.2; // m from a vehicle's side to get in
 const MAX_EXIT_SPEED = 4; // m/s
 const PLAYER_GAP = 0.7; // m; on foot, you cannot walk into a vehicle
 const ABANDON_M = 400; // vehicles taken from traffic and left this far behind are tidied away
+const CLIMB_M = 3.4; // jump against a vehicle this much lower than its roof and you climb up (task M.6)
 
 export class Game {
   readonly world: CollisionWorld;
@@ -80,6 +86,10 @@ export class Game {
   readonly tilt = new Tilt();
   private tiltWarned = false;
   private readonly look: LookControl;
+  /** Weapons, health, cops on foot, vehicle damage (tasks M.7 to M.12). */
+  readonly combat: Combat;
+  private readonly wheel = new Wheel();
+  private lastLabels = '';
   private readonly hud = new Hud();
   private readonly chase: ChaseCamera;
   private readonly free: FreeCamera;
@@ -95,7 +105,7 @@ export class Game {
     camera: THREE.PerspectiveCamera,
     canvas: HTMLCanvasElement,
     shirt: number | undefined,
-    opts: { traffic: number; shadows: boolean; pedestrians: number },
+    opts: { traffic: number; shadows: boolean; pedestrians: number; low?: boolean },
   ) {
     this.world = new CollisionWorld(map);
     this.roads = new RoadIndex(map);
@@ -104,7 +114,10 @@ export class Game {
     this.shirt = shirt ?? 0xffc247;
     this.vehicles = spawnParkedVehicles(map.spawn.x, map.spawn.z, this.roads, this.world);
     this.shared = this.vehicles.slice();
-    for (const v of this.vehicles) scene.add(v.mesh);
+    for (const v of this.vehicles) {
+      scene.add(v.mesh);
+      v.home = { x: v.x, z: v.z, a: v.a };
+    }
     this.camera = camera;
     this.chase = new ChaseCamera(camera);
     this.chase.snap(this.player, this.world);
@@ -124,6 +137,10 @@ export class Game {
     this.chaos.onChange = (d, label) => this.hud.chaosPop(d, label);
     this.onRanRed = () => this.chaos.add(CHAOS.redLight, 'Red light');
     this.minimap = new Minimap(map, camera);
+    this.combat = new Combat(this, scene, !!opts.low);
+    this.combat.onHurt = (ang, splash) => this.hud.hurt(ang === null ? null : ang - this.aimYaw(), splash);
+    this.combat.onHitMark = () => this.hud.hitMark();
+    this.touch.onWeaponHold = () => this.openWeaponWheel();
     // Traffic stops for you when you walk in front of it.
     const p = this.player;
     this.onFootBody = {
@@ -173,11 +190,26 @@ export class Game {
     const raw: MoveInput = moveFrom({ held: (a) => this.held(a), stick: this.touch.stick, tilt: tiltOn ? this.tilt.steer() : 0 });
     raw.steer *= STEER_SCALE[settings().steering];
     const still = this.locked || this.isHeld || this.touch.editing;
+    const down = this.combat.down;
     const inp: MoveInput = still ? { thr: 0, steer: 0, hand: true } : raw;
+    // Space is the handbrake in a vehicle and Jump on foot.
+    if (this.car && !still && this.held('jump')) inp.hand = true;
+    if (this.car && this.car.wreck > 0) {
+      inp.thr = 0;
+      inp.steer *= 0.3;
+    }
     const act = this.pressed('act');
     const unstuck = this.pressed('unstuck');
-    if (act && !still) this.action();
-    if (unstuck && !still && !this.ride) this.unstuck();
+    const jump = this.pressed('jump');
+    const crouch = this.pressed('crouch');
+    const attack = this.pressed('attack');
+    const attackHeld = this.held('attack');
+    if (this.pressed('weapon') && !still && !down) this.combat.next();
+    if (this.pressed('emote') && !still && !down && !this.car && !this.ride) this.openEmoteWheel();
+    const digit = this.keys.consumeDigit();
+    if (digit !== null && this.wheel.isOpen) this.wheel.pick(digit);
+    if (act && !still && !down) this.action();
+    if (unstuck && !still && !this.ride && !down) this.unstuck();
     const lk = this.look.take();
     this.chase.look(lk.yaw, lk.pitch, this.look.dragging);
     const boost = this.pressed('boost');
@@ -194,6 +226,7 @@ export class Game {
       this.rideUpdate(dt);
     } else if (this.car) {
       const crash = this.car.drive(dt, inp, this.world, this.solidCars());
+      this.combat.crash(this.car);
       if (crash > 0) {
         this.chase.shake(crash);
         buzz(Math.round(Math.min(90, 25 + crash * 80)));
@@ -224,7 +257,12 @@ export class Game {
       this.player.a = this.car.a;
       this.chase.update(dt, this.car, this.world, true);
     } else {
-      this.player.update(dt, inp, this.world);
+      const foot = still || down;
+      this.player.update(dt, foot ? { thr: 0, steer: 0, hand: false } : inp, this.world, {
+        jump: jump && !foot,
+        crouch: crouch && !foot,
+        roofAt: (x, z, y) => this.roofAt(x, z, y),
+      });
       this.keepOffCars();
       this.chase.update(dt, this.player, this.world);
       this.findNearCar();
@@ -234,12 +272,111 @@ export class Game {
     const moved = Math.hypot(me.x - bx, me.z - bz);
     if (moved < 5) stats.distance[this.car ? this.car.type : 'foot'] += moved;
     if (this.car) stats.topSpeed = Math.max(stats.topSpeed, Math.abs(this.car.speed));
+    this.combat.update(dt, attack, attackHeld, still);
     this.world.updateBreaks();
     this.updateLife(dt);
     this.updateSound(inp, still);
     this.hud.speed(!!this.car, this.car ? this.car.speed : 0);
+    this.hud.health(this.car ? null : this.combat.health.hp, this.car ? this.car.hp : null);
     this.hud.update(dt);
+    // Labels that follow the weapon, its ammo and crouching.
+    const lk2 = `${this.combat.label()}|${this.player.crouched}|${down}|${this.combat.inv.current}`;
+    if (lk2 !== this.lastLabels) {
+      this.lastLabels = lk2;
+      this.refreshLabels();
+    }
     this.keys.endFrame();
+  }
+
+  /** The way the camera looks (forward = (sin, cos)): where you aim. */
+  aimYaw(): number {
+    const m = this.camera.matrixWorld.elements; // the camera looks down its -z axis
+    return Math.atan2(-m[8], -m[10]);
+  }
+
+  shake(n: number): void {
+    this.chase.shake(n);
+  }
+
+  /** Top of a vehicle under (x, z) that someone at height y could stand on (task M.6). */
+  private roofAt(x: number, z: number, y: number): number | null {
+    let best: number | null = null;
+    for (const c of this.solidCars()) {
+      if (Math.abs(c.x - x) > 6 || Math.abs(c.z - z) > 6) continue;
+      if (hullDistance(c, x, z).d > -0.1) continue;
+      const base = (c as { y?: number }).y ?? this.world.heightAt(c.x, c.z, y);
+      const top = base + VEHICLES[c.type].roof;
+      if (y >= top - 0.45 && (best === null || top > best)) best = top;
+    }
+    return best;
+  }
+
+  private openEmoteWheel(): void {
+    this.wheel.open('Emote', EMOTE_WHEEL.map((e) => ({ label: e.label, symbol: e.symbol })), (i) => this.player.startEmote(EMOTE_WHEEL[i].id));
+  }
+
+  private openWeaponWheel(): void {
+    if (this.combat.down) return;
+    const inv = this.combat.inv;
+    this.wheel.open(
+      'Weapons',
+      inv.have.map((id) => {
+        const n = inv.ammo[id];
+        return { label: n === undefined ? WEAPONS[id].name : `${WEAPONS[id].name} ${n}`, symbol: WEAPONS[id].symbol, off: n !== undefined && n <= 0 };
+      }),
+      (i) => this.combat.select(inv.have[i]),
+    );
+  }
+
+  /** Pull a traffic driver out and take their vehicle (task M.8). */
+  carjack(t: TrafficCar): void {
+    const side = VEHICLES[t.type].w / 2 + 0.8;
+    this.life.peds.addRunner(t.x - Math.cos(t.a) * side, t.z + Math.sin(t.a) * side, this.player.x, this.player.z);
+    sound.thud(0.4);
+    this.borrow(t, 'Carjacked!');
+    this.refreshLabels();
+  }
+
+  /** Busted by an officer on foot (task M.11). */
+  bustedOnFoot(): void {
+    stats.busted++;
+    sound.cue('busted');
+    this.chaos.busted();
+    this.life.cops.clear();
+    this.busted();
+  }
+
+  /** Our vehicle blew up with us in it: thrown out beside it, hurt. */
+  ejectFromWreck(): void {
+    const c = this.car;
+    if (!c) return;
+    this.leave(c);
+    const side = c.t.w / 2 + 1.5;
+    const r = this.world.collide(c.x - Math.cos(c.a) * side, c.z + Math.sin(c.a) * side, 0.5, c.y + 0.3);
+    this.player.x = r.x;
+    this.player.z = r.z;
+    this.player.a = c.a;
+    this.player.figure.visible = true;
+    this.car = null;
+    this.chase.snap(this.player, this.world);
+    this.combat.hurt(45, null);
+    this.refreshLabels();
+  }
+
+  /** A wrecked shared vehicle is back where it lives, good as new (2 minutes after the wreck). */
+  repairHome(v: Vehicle): void {
+    v.hp = 100;
+    v.wreck = 0;
+    v.blown = false;
+    setDamageLook(v.mesh, 100);
+    if (v.home) {
+      v.x = v.home.x;
+      v.z = v.home.z;
+      v.a = v.va = v.home.a;
+    }
+    v.speed = 0;
+    v.settle(this.world);
+    v.sync();
   }
 
   private updateSound(inp: MoveInput, still: boolean): void {
@@ -273,6 +410,7 @@ export class Game {
     if (ev === 'busted') {
       sound.cue('busted');
       this.chaos.busted();
+      this.combat.officers.clear();
       this.busted();
     }
     if (this.life.peds.scared && this.life.crime(1, me)) this.hud.toast('Mind the people!', 'bad');
@@ -282,7 +420,7 @@ export class Game {
       this.onRanRed?.(red.seen);
     } else if (ev === 'lost') this.hud.toast('Cops lost');
     else if (ev === 'cooler') this.hud.toast('Heat dropping');
-    this.hud.heat(this.life.cops.heat, this.life.cops.bustLevel);
+    this.hud.heat(this.life.cops.heat, Math.max(this.life.cops.bustLevel, this.combat.officers.bustLevel));
     // Vehicles taken from traffic and left far behind.
     for (let i = this.vehicles.length - 1; i >= this.shared.length; i--) {
       const v = this.vehicles[i];
@@ -317,8 +455,8 @@ export class Game {
     this.hud.toast(`Busted! Taken to ${st.name}`, 'bad');
   }
 
-  toast(msg: string): void {
-    this.hud.toast(msg);
+  toast(msg: string, kind?: 'bad'): void {
+    this.hud.toast(msg, kind);
   }
 
   /** Put the player in parked car `index` at a spot, stopped (game-round start). */
@@ -354,6 +492,10 @@ export class Game {
     this.player.x = r.x;
     this.player.z = r.z;
     this.player.a = heading;
+    // Straight onto the ground there (a teleport is not a fall).
+    this.player.y = this.world.heightAt(r.x, r.z, this.player.y);
+    this.player.air = false;
+    this.player.vy = 0;
     this.player.update(0, { thr: 0, steer: 0, hand: false }, this.world);
     this.chase.snap(this.player, this.world);
   }
@@ -416,25 +558,32 @@ export class Game {
       this.findNearCar();
       const near = this.nearCar;
       if (!near) return;
-      let c: Vehicle;
-      if (near instanceof Vehicle) c = near;
-      else {
-        // Taking a vehicle out of traffic: the cops notice.
-        c = new Vehicle(near.type, near.colour, near.x, near.z, near.a);
-        c.y = near.y;
-        c.settle(this.world);
-        c.sync();
-        this.life.traffic.remove(near);
-        this.vehicles.push(c);
-        this.scene.add(c.mesh);
-        stats.borrowed++;
-        this.life.crime(1, c);
-        this.hud.toast(this.life.calm ? `${c.t.name} borrowed` : `${c.t.name} borrowed. Cops noticed`, this.life.calm ? undefined : 'bad');
-      }
-      c.va = c.a;
-      this.sit(c);
+      if (near instanceof Vehicle) {
+        near.va = near.a;
+        this.sit(near);
+      } else this.borrow(near, 'borrowed');
     }
     this.refreshLabels();
+  }
+
+  /** Take a vehicle out of traffic and sit in it: the cops notice. */
+  private borrow(near: TrafficCar, how: string): void {
+    const c = new Vehicle(near.type, near.colour, near.x, near.z, near.a);
+    c.y = near.y;
+    c.hp = near.hp;
+    c.wreck = near.wreck;
+    setDamageLook(c.mesh, c.hp);
+    c.settle(this.world);
+    c.sync();
+    this.life.traffic.remove(near);
+    this.vehicles.push(c);
+    this.scene.add(c.mesh);
+    stats.borrowed++;
+    this.life.crime(1, c);
+    const what = how === 'borrowed' ? `${c.t.name} borrowed` : how;
+    this.hud.toast(this.life.calm ? what : `${what} Cops noticed`, this.life.calm ? undefined : 'bad');
+    c.va = c.a;
+    this.sit(c);
   }
 
   /** Riding: follow the friend's vehicle; get out when they do or when they are gone. */
@@ -596,7 +745,7 @@ export class Game {
   }
 
   /** Where this player is, for the network (ARCHITECTURE: broadcast event `s`). */
-  netState(): { x: number; z: number; y: number; h: number; v: number; mode: 'foot' | VehicleType | 'ride'; car: number; ride?: { driver: string; seat: number } } {
+  netState(): { x: number; z: number; y: number; h: number; v: number; mode: 'foot' | VehicleType | 'ride'; car: number; ride?: { driver: string; seat: number }; a?: number; vd?: number } {
     const r = this.ride;
     if (r) {
       const q = this.rideLast ?? this.player;
@@ -606,10 +755,10 @@ export class Game {
     const c = this.car;
     if (c) {
       const i = this.shared.indexOf(c);
-      return { x: c.x, z: c.z, y: c.y, h: c.a, v: c.speed, mode: c.type, car: i >= 0 ? i : -2 };
+      return { x: c.x, z: c.z, y: c.y, h: c.a, v: c.speed, mode: c.type, car: i >= 0 ? i : -2, vd: Math.round(c.blown ? -1 : c.hp) };
     }
     const p = this.player;
-    return { x: p.x, z: p.z, y: p.y, h: p.a, v: p.speed, mode: 'foot', car: -1 };
+    return { x: p.x, z: p.z, y: p.y, h: p.a, v: p.speed, mode: 'foot', car: -1, a: encodeActs(p.acts()) };
   }
 
   /** Visible parked cars (a friend may be driving our copy of one) and friends' cars. */
@@ -623,6 +772,22 @@ export class Game {
     for (const c of this.solidCars()) {
       const near = hullDistance(c, p.x, p.z);
       if (near.d >= PLAYER_GAP) continue;
+      // On top of it (jumped onto the roof): no push.
+      const base = (c as { y?: number }).y ?? this.world.heightAt(c.x, c.z, p.y);
+      const top = base + VEHICLES[c.type].roof;
+      if (p.y >= top - 0.45) continue;
+      // Jumping against its side: climb up onto the roof (task M.6), even a bus.
+      if (p.air && p.vy > -2 && top - p.y < CLIMB_M && c.type !== 'bike') {
+        const dx = near.cx - p.x, dz = near.cz - p.z;
+        const d = Math.hypot(dx, dz) || 1;
+        const step = Math.max(0, near.d) + 0.6;
+        p.x += (dx / d) * step;
+        p.z += (dz / d) * step;
+        p.y = top;
+        p.vy = 0;
+        p.air = false;
+        continue;
+      }
       const dx = p.x - near.cx;
       const dz = p.z - near.cz;
       const d = Math.hypot(dx, dz);
@@ -668,7 +833,13 @@ export class Game {
     const near = !inCar && (!!this.nearCar || !!this.nearFriend);
     const mode = this.mapView ? 'map' : this.ride ? 'ride' : this.car ? 'drive' : 'foot';
     const act = inCar ? 'Get out' : this.nearFriend && this.nearFriendIsClosest() ? 'Ride' : 'Get in';
-    this.touch.setState({ mode, near, boosts: this.boostsLeft, steer: settings().steerMode }, { act, boosts: this.boostsLeft });
+    // The combat module is made after the first refresh in the constructor.
+    const c = this.combat as Combat | undefined;
+    const w = c ? c.weapon : WEAPONS.fists;
+    this.touch.setState(
+      { mode, near, boosts: this.boostsLeft, steer: settings().steerMode, gun: w.kind === 'gun', down: c?.down },
+      { act, boosts: this.boostsLeft, attack: { icon: w.icon, text: w.verb }, weapon: c ? c.label() : 'Fists', crouched: this.player.crouched },
+    );
     document.body.classList.toggle('boosts', this.boostsLeft > 0 && !!this.car);
     if (!this.hint) return;
     this.hint.hidden = false;
@@ -677,10 +848,10 @@ export class Game {
     } else if (this.ride) {
       this.hint.textContent = 'Riding with a friend · E get out · C map view · Esc menu · G guide';
     } else if (inCar) {
-      this.hint.textContent = `W/S gas and brake · A/D steer · Space drift · H horn · ${this.boostsLeft > 0 ? `B boost (${this.boostsLeft}) · ` : ''}E get out · R unstuck · C map view · Esc menu · G guide`;
+      this.hint.textContent = `W/S gas and brake · A/D steer · Space/Shift drift · H horn · ${this.boostsLeft > 0 ? `B boost (${this.boostsLeft}) · ` : ''}${w.kind === 'gun' ? 'F shoot · ' : ''}E get out · R unstuck · C map view · Esc menu · G guide`;
     } else {
       const hint = this.nearFriend && this.nearFriendIsClosest() ? 'E ride along · ' : this.nearCar ? 'E get in · ' : '';
-      this.hint.textContent = `W/S walk · A/D turn · Shift run · ${hint}R unstuck · C map view · Esc menu · G guide`;
+      this.hint.textContent = `W/S walk · A/D turn · Shift run · Space jump · Z crouch (Shift+Z roll) · F ${w.verb.toLowerCase()} · Q weapon · X emote · ${hint}R unstuck · C map · Esc menu · G guide`;
     }
   }
 }

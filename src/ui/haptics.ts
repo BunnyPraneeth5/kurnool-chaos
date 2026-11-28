@@ -10,6 +10,9 @@ let last = 0;
 /** Buzz for `ms` milliseconds (or a pattern), when the setting is on. */
 export function buzz(ms: number | number[]): void {
   if (!canVibrate || !settings().vibration) return;
+  // Chrome refuses (and logs an error) until the page has been tapped once.
+  const ua = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+  if (ua && !ua.hasBeenActive) return;
   const now = performance.now();
   // Crashes come in bursts; one buzz every 60 ms is plenty.
   if (now - last < 60) return;

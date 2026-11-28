@@ -77,7 +77,7 @@ export interface Median {
 
 export interface Borders {
   /** solid walls (blocking between lo and hi; lo/hi undefined = always) */
-  walls: { pts: Pt[]; lo?: number; hi?: number }[];
+  walls: { pts: Pt[]; lo?: number; hi?: number; top?: number }[];
   /** kerb-like walls: stop slow vehicles, mounted above about 25 km/h, walked over */
   kerbs: Pt[][];
   breakables: BreakItem[];
@@ -307,7 +307,7 @@ function build(map: MapData): Borders {
     if (withRail) {
       out.kerbs.push(ring(l, r));
       railings(centre, (x, z) => groundY(x, z) + y + MEDIAN_H, true);
-    } else out.walls.push({ pts: ring(l, r) });
+    } else out.walls.push({ pts: ring(l, r), top: PLANTER_H + 0.15 }); // jumpable (task M.6)
   };
 
   /* R.2 (b): two-way main roads. */
@@ -397,7 +397,7 @@ function build(map: MapData): Borders {
       const hi = Math.max(p.y[k - 1], p.y[k]) + 2;
       const l = offsetLine([p.pts[k - 1], p.pts[k]], 0.3);
       const rr = offsetLine([p.pts[k - 1], p.pts[k]], -0.3);
-      out.walls.push({ pts: ring(l, rr), lo, hi });
+      out.walls.push({ pts: ring(l, rr), lo, hi, top: 1.0 });
     }
   }
 

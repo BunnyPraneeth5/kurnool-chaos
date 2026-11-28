@@ -19,7 +19,7 @@ const CROSS_CHANCE = 0.3; // at the end of a road
 const DODGE_SPEED = 6;
 const SHIRTS = [0xf4efe4, 0x3d8fd6, 0xd13b32, 0x49b08c, 0xf2b33d, 0xb25fc4, 0xf08a5d, 0x7a5cc4, 0xe0c9a6, 0x2f9e5b];
 
-interface Ped {
+export interface Ped {
   arc: Arc;
   pts: Pt[];
   len: number;
@@ -42,7 +42,16 @@ interface Ped {
   y: number;
   a: number;
   phase: number;
+  /** seconds left lying down after a hit (task M.8); they are never hurt for good */
+  down: number;
+  /** seconds left running away, and which way */
+  flee: number;
+  fx: number;
+  fz: number;
 }
+
+const FLEE_SPEED = 5;
+const KNOCK_DOWN_S = 2.5;
 
 function box(w: number, h: number, d: number, x: number, y: number, z: number, colour?: number): THREE.BufferGeometry {
   const g = new THREE.BoxGeometry(w, h, d).translate(x, y, z);
@@ -65,6 +74,7 @@ export class Pedestrians {
   private readonly p = new THREE.Vector3();
   private readonly one = new THREE.Vector3(1, 1, 1);
   private readonly up = new THREE.Vector3(0, 1, 0);
+  private readonly lie = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
   /** People in the road right now (crossing or dodging): traffic stops for them. */
   readonly inRoad: Bumper[] = [];
   /** Set for a frame when the player drove fast right past someone on the roadside. */
@@ -74,7 +84,8 @@ export class Pedestrians {
     scene: THREE.Scene,
     private readonly graph: RoadGraph,
     private readonly world: CollisionWorld,
-    private readonly count: number,
+    /** how many people around you (lowered by the automatic slow-down, task M.13); the mesh holds the first number */
+    public count: number,
   ) {
     const shirtGeo = mergeGeometries([box(0.5, 0.62, 0.3, 0, 1.12, 0), box(0.14, 0.58, 0.16, 0.33, 1.12, 0), box(0.14, 0.58, 0.16, -0.33, 1.12, 0)]);
     const restGeo = mergeGeometries([
@@ -103,6 +114,7 @@ export class Pedestrians {
     for (let i = this.peds.length - 1; i >= 0; i--) {
       if (Math.hypot(this.peds[i].x - focus.x, this.peds[i].z - focus.z) > DESPAWN) this.peds.splice(i, 1);
     }
+    if (this.peds.length > this.count) this.peds.length = this.count;
     for (let tries = 0; tries < 6 && this.peds.length < this.count; tries++) this.spawn(focus);
     this.inRoad.length = 0;
     this.scared = false;
@@ -114,7 +126,60 @@ export class Pedestrians {
     this.draw(dt);
   }
 
+  /** Knocked over by a hit from (fx, fz): lie down a moment, then get up and run away. */
+  knock(p: Ped, fromX: number, fromZ: number): void {
+    p.down = KNOCK_DOWN_S;
+    this.runFrom(p, fromX, fromZ, 4);
+  }
+
+  /** Scared by something at (x, z): run away for a few seconds. */
+  runFrom(p: Ped, fromX: number, fromZ: number, seconds = 3): void {
+    const dx = p.x - fromX, dz = p.z - fromZ;
+    const d = Math.hypot(dx, dz) || 1;
+    p.fx = dx / d;
+    p.fz = dz / d;
+    p.flee = Math.max(p.flee, seconds);
+  }
+
+  /** Everyone within r of (x, z) runs away from it (a blast, a splat, gunfire). */
+  scare(x: number, z: number, r: number): void {
+    for (const p of this.peds) if (Math.hypot(p.x - x, p.z - z) < r) this.runFrom(p, x, z, 3 + Math.random() * 2);
+  }
+
+  /** A driver pulled out of their vehicle (carjack, task M.8): a person at (x, z) running from (ax, az). */
+  addRunner(x: number, z: number, ax: number, az: number): void {
+    const e = this.graph.nearest(x, z, 60);
+    if (!e) return;
+    const edge = this.graph.map.graph.edges[e.edge];
+    const arc = this.graph.out[edge.a].find((a) => a.edge === e.edge);
+    if (!arc) return;
+    const p: Ped = { arc, pts: [], len: 0, s: e.along, side: 1, off: 0, speed: WALK, cross: 0, crossFrom: 1, ex: 0, ez: 0, vx: 0, vz: 0, x, z, y: this.world.heightAt(x, z), a: 0, phase: 0, down: 0, flee: 0, fx: 0, fz: 0 };
+    this.setArc(p, arc);
+    // Start exactly at the door: the path offset makes up the difference, then fades.
+    const road = this.graph.map.roads[arc.road];
+    const [cx, cz] = pointAlong(p.pts, p.s);
+    const [nx, nz] = pointAlong(p.pts, Math.min(p.len, p.s + 1));
+    const h = Math.atan2(nx - cx, nz - cz);
+    const off = road.width / 2 + 1.2;
+    p.ex = x - (cx + Math.cos(h) * off);
+    p.ez = z - (cz - Math.sin(h) * off);
+    this.runFrom(p, ax, az, 5);
+    if (this.peds.length >= this.count) this.peds.shift();
+    this.peds.push(p);
+  }
+
   private walk(p: Ped, dt: number): void {
+    if (p.down > 0) {
+      // Lying where they fell.
+      p.down -= dt;
+      this.inRoad.push({ x: p.x, z: p.z, a: p.a, type: 'bike' });
+      return;
+    }
+    if (p.flee > 0) {
+      p.flee -= dt;
+      p.vx = p.fx * FLEE_SPEED;
+      p.vz = p.fz * FLEE_SPEED;
+    }
     const road = this.graph.map.roads[p.arc.road];
     const hw = road.width / 2;
     if (p.cross > 0) {
@@ -138,8 +203,10 @@ export class Pedestrians {
     // Left of forward (sin h, cos h) is (cos h, -sin h).
     const bx = cx + Math.cos(heading) * p.off;
     const bz = cz - Math.sin(heading) * p.off;
-    p.vx *= Math.max(0, 1 - dt * 3);
-    p.vz *= Math.max(0, 1 - dt * 3);
+    if (p.flee <= 0) {
+      p.vx *= Math.max(0, 1 - dt * 3);
+      p.vz *= Math.max(0, 1 - dt * 3);
+    }
     p.ex += p.vx * dt;
     p.ez += p.vz * dt;
     p.ex -= p.ex * Math.min(1, dt * 0.5);
@@ -150,7 +217,7 @@ export class Pedestrians {
     p.x = r.x;
     p.z = r.z;
     p.y = this.world.heightAt(p.x, p.z, p.y);
-    p.phase += moving * 6;
+    p.phase += moving * (p.flee > 0 ? 9 : 6);
     if (p.cross > 0 || Math.abs(p.off) < hw) this.inRoad.push({ x: p.x, z: p.z, a: p.a, type: 'bike' });
   }
 
@@ -236,6 +303,10 @@ export class Pedestrians {
       y: this.world.heightAt(e.x, e.z),
       a: 0,
       phase: Math.random() * 6,
+      down: 0,
+      flee: 0,
+      fx: 0,
+      fz: 0,
     };
     this.setArc(p, arc);
     // Half of them walk the other way.
@@ -255,7 +326,11 @@ export class Pedestrians {
       const p = this.peds[i];
       const bob = Math.abs(Math.sin(p.phase)) * 0.06;
       this.q.setFromAxisAngle(this.up, p.a);
-      this.m.compose(this.p.set(p.x, p.y + 0.12 + bob, p.z), this.q, this.one);
+      if (p.down > 0) {
+        // Lying on their back: tip over round the feet.
+        this.q.multiply(this.lie);
+        this.m.compose(this.p.set(p.x, p.y + 0.3, p.z), this.q, this.one);
+      } else this.m.compose(this.p.set(p.x, p.y + 0.12 + bob, p.z), this.q, this.one);
       this.shirts.setMatrixAt(i, this.m);
       this.rest.setMatrixAt(i, this.m);
     }

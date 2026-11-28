@@ -2,6 +2,20 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-28 | Automatic slow-down: under 25 fps for 10 s steps resolution 1x, then 0.75x, then half the traffic and pedestrians; works on Auto and Low, never when the player picked High | Phones already start on Low, so "drop to low" alone would do nothing there; resolution is the biggest phone win and can change while playing (meshes need a reload) |
+| 2026-11-28 | Figures merged to 6 meshes plus one for a held weapon; smaller effect pools on Low | A Raj Vihar fight on Low went from 178 to 137 draw calls; instancing smoke would need a custom shader for fading |
+| 2026-11-28 | M.13 and M.14 coded and merged into `main` without ticks: Bunny tests on the live site | Bunny's call: test on the main website directly |
+| 2026-11-28 | Officers get out of cop cars at 2 stars and shoot at 3 (the plan said 3 and 4) | Police heat stops at 3 stars; raising it would change busting, chaos points and the HUD |
+| 2026-11-28 | Hits on friends ride on the state message (`hits`), not their own event | With 8 players the state already uses about 80 of the 100 messages a second; an event per hit would go over. Costs up to one send interval of delay (0.2 s with 4 players, 0.8 s with 8) |
+| 2026-11-28 | Jump about 1.4 m; jumping against a vehicle (not a bike) climbs onto its roof up to 3.4 m above your feet | A plain jump cannot reach a car roof (1.7 m) or a bus (3.15 m); climbing makes "lands on a parked bus" work without silly jump heights |
+| 2026-11-28 | Walls carry a height; people jumping higher clear planter dividers, flyover barriers, railings, barricades and cones, not fences, compound walls or buildings | Matches "clears kerbs, low walls and dividers"; fences and buildings stay real borders |
+| 2026-11-28 | Keys: Space jump (handbrake in a vehicle, Shift too), Z crouch, Shift+Z roll, F attack (hold to throw), Q next weapon, X emote, 1-9 pick in a wheel; laptop aim follows the camera (mouse drag), click-to-shoot left out | C is map view and left-drag is look; one key per action keeps `actions.ts` simple |
+| 2026-11-28 | On foot gets its own touch layout (portrait and landscape) beside the four driving ones | Seven on-foot buttons do not fit the driving arrangement; each layout is edited on its own |
+| 2026-11-28 | Weapons (Bunny's proposal, M.9 Bunny check): start with fists, bat, pistol; lathi, shotgun, balloons, tomatoes, firecrackers from 60 seeded pickups; ammo at police stations and on getting up | Everyone can fight at once; pickups give a reason to explore |
+| 2026-11-28 | Hospitals: all 84 OSM hospitals, one shared HOSPITAL / ఆసుపత్రి sign texture, instanced | Getting up nearby wherever you are; two draw calls for all signs. Map file still 5.96 MB, only `hospitals` changed, terrain identical |
+| 2026-11-28 | Pistol 8 and shotgun 5 per pellet against vehicles (a car is wrecked by about 13 pistol hits); crash damage (impact - 3)^2 x 0.35 / sqrt(mass) | First try needed 25+ pistol hits; two or three hard crashes wreck a car |
+| 2026-11-28 | Bike cops get off and chase on foot too | The first test cop was on a bike and never got out |
+| 2026-11-28 | No buzz until the page has been tapped once | Chrome logs an error for every vibrate before that |
 | 2026-11-28 | With joystick steering the joystick drives and steers, so no Gas/Brake buttons; Gas and Brake show only with arrow or tilt steering | Two ways to drive on one screen was crowded; the joystick already does both |
 | 2026-11-28 | Four touch layouts (portrait/landscape x joystick/pedals), each edited and saved on its own; the editor switches between the on-foot and driving buttons | Pedal steering needs the right corner for Gas; walking joystick and arrow buttons share the left corner but never show together |
 | 2026-11-28 | Phones upright: the speed readout moves above the joystick; Unstuck and Map are small buttons under the minimap and room pill | No room between the joystick and the buttons on a 375 px screen |

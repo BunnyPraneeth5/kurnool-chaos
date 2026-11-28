@@ -38,6 +38,7 @@ export class NetSync {
     const hz = sendHz(this.room.players.length);
     if (hz === 0) {
       this.force = true; // whoever joins next gets our state at once
+      this.game.combat.pendingHits.length = 0; // nobody to hit
       return;
     }
     const s = this.game.netState();
@@ -50,7 +51,10 @@ export class NetSync {
       l.ride?.driver !== s.ride?.driver ||
       Math.hypot(s.x - l.x, s.z - l.z) > MOVE_EPS ||
       Math.abs(s.h - l.h) > TURN_EPS ||
-      Math.abs(s.v - l.v) > SPEED_EPS;
+      Math.abs(s.v - l.v) > SPEED_EPS ||
+      l.a !== s.a ||
+      l.vd !== s.vd ||
+      this.game.combat.pendingHits.length > 0;
     const since = nowMs - this.lastAt;
     let send = false;
     if (this.force) send = true;
@@ -73,7 +77,13 @@ export class NetSync {
       msg.ride = s.ride.driver;
       msg.seat = s.ride.seat;
     }
+    if (s.a !== undefined && s.a !== 0) msg.a = s.a;
+    if (s.vd !== undefined && s.vd !== 100) msg.vd = s.vd;
+    // Hits on friends ride on this message: no extra messages (task M.11).
+    const pending = this.game.combat.pendingHits;
+    if (pending.length) msg.hits = pending.slice(0, 8).map((h) => [h.to, h.d, h.k]);
     if (!this.room.send(msg)) return; // reconnecting: try again next frame
+    if (pending.length) pending.splice(0, 8);
     this.sent++;
     this.force = false;
     this.idle = !changed;

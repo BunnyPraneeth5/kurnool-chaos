@@ -2,6 +2,30 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-28: Phase M, tasks M.13 and M.14 (branch `phase-m`, merged into `main`)
+- M.13: automatic slow-down (resolution 1x, 0.75x, then half the traffic and pedestrians, with a message; Auto and Low only); figures merged (9 to 6 meshes, weapon one mesh, shared materials); smaller effect pools, fewer blast puffs, slower smoke and 6 pickup crates on Low; Settings and guide say what Auto does.
+- Measured on Low (draw calls, triangles, worst of 4 directions): Raj Vihar 90 / 110k before, 87 / 110k after; a trunk road 54 / 44k before, 51 / 44k after; a fight at Raj Vihar (3 officers, 48 tracers, 4 blasts, 80 smoke puffs, 16 flashes) 178 / 77k before, 137 / 75k after.
+- Slow-down checked by stepping it by hand: ratio 1 then 0.75 (canvas drawn at 75%), traffic 20 to 10, pedestrians 25 to 13, message shown, a fourth step does nothing. 4 new tests (`tests/autoQuality.test.ts`), 85 in all; typecheck and build pass.
+- M.14: guide Other page updated (stars from attacks, officers, new chaos points, jumping dividers, automatic slow-down); Phase R topics were already there. Every guide page checked at 375x812: nothing wider than the screen (only the sub-page tab row scrolls sideways, as before).
+- Merged `phase-m` into `main` and pushed at Bunny's request; Bunny tests on the live site.
+- Not checked: real phone fps (Bunny), the slow-down firing by itself on a slow phone, garbage-collection stutter with a throttled CPU, the friends playtest.
+- Next: Bunny's phone results; fix what they show.
+
+## 2026-11-28: Phase M, tasks M.6 to M.12 (branch `phase-m`)
+- M.1 to M.5 merged into `main` and pushed first (Bunny's request).
+- M.6: jump (about 1.4 m), climbing onto vehicle roofs (bus too), walking on roofs, real falls; walls have heights so jumps clear planter dividers, flyover barriers, railings, barricades and cones; crouch (button stays lit), roll (Shift+Z or Run + Crouch), emote wheel (wave, dance, point, namaste). On foot has its own touch layout; new buttons Attack, Jump, Crouch, weapon (tap next, hold wheel), Emote. Friends see it all through the new `a` field.
+- M.7: health bar (under the stars), regen, knocked out, up at the nearest of 84 hospitals (map rebuild: only `hospitals` added, terrain identical, 5.96 MB) with HOSPITAL / ఆసుపత్రి signs; chaos loss.
+- M.8: fists (third hit a kick), bat, lathi; pedestrians fall over, get up and run, never hurt; carjack with fists on slow traffic (car, auto, bike).
+- M.9: pistol and shotgun, tracers, aim assist, drivers shoot out of a side window, riders anywhere; 60 seeded pickups on the minimap; ammo at police stations.
+- M.10: water balloon, tomato (splash, friend's screen wet or red for 2 s), firecracker (fuse, blast); hold to aim, the arc shows the landing.
+- M.11: hits on friends ride on the state message (no extra messages), applied once; rules per mode in `src/combat/rules.ts`; Chor–Police stun counts as a catch (host checks within 70 m); heat for attacks; officers on foot at 2 stars, shooting at 3.
+- M.12: crash and weapon damage, dented and burnt looks, smoke and fire, wrecks stop, blow up; vehicle bar while driving; shared vehicle damage while driving (`vd`) and wrecks (event `w`) shared; wrecked shared vehicles back home after 2 min.
+- Guide: new keys, phone buttons, new Fighting page, people page updated.
+- Checked in the browser (solo at 375x812 and 844x390, two tabs in a room): jump peak 1.1 m then 1.4 m after raising it; climbed onto the parked bus (3.2 m), walked along, fell off the end and landed outside; walking into a planter divider stopped, a jump crossed it; a median railing near Raj Vihar the same, unbroken; crouch 2.1 m/s; roll; emote wheel and number pick; punch knocked a pedestrian over (+1 star, +5 chaos), they got up; fists 1.4 m hit / 2.2 m miss, bat 2.0 / 2.6, lathi 2.5 / 3.1; a lathi hit through a building wall was let through first (fixed: the line check took no samples over short distances), then blocked; pistol wrecked a parked car in 14 hits and blew it up on the 15th; cracker landed 0.08 m from the arc's end; blast took 40 off a car and knocked a pedestrian over; an officer got out at 3 stars, ran to 1.6 m, shot and hit once, busted a still target; knocked out at 0, up at Kasthuriranga Children's Hospital with 100 health and 36 rounds; carjacked a car and a bike; weapon wheel on a long press, a tap switched weapon; 79 km/h into a bus took a car from 100 to 41 (dented, smoke), wrecked cars did not move, a wrecked shared car came home repaired; two tabs: crouch and dance seen on the friend, a pistol hit took exactly 18 once, a balloon wet the friend's screen with no damage, a damaged shared car showed dented on the friend, a blown shared car burnt out on the friend. 81 tests (`tests/combat.test.ts` new), typecheck and build pass; no console errors after the buzz fix.
+- Not checked: a real phone (touch feel of the new buttons, thumbs on Attack while steering, fps in a fight with effects), cops shooting while you really run away (tested by stepping the officer code), 8 players fighting, iPhone.
+- Bunny checks waiting: hospital sign Telugu (ఆసుపత్రి), how weapons are got (built as proposed), tilt on Android (M.5).
+- Next: M.13 phone performance pass, M.14 guide check and friends playtest.
+
 ## 2026-11-28: Phase M, tasks M.1 to M.5 (branch `phase-m`)
 - Phase M planned and committed on `main` (TASKS, PRD feature 14, DECISIONS); this work is on `phase-m`.
 - M.1: `src/player/actions.ts` is the one list of actions and keys; `Keyboard` and `TouchControls` feed it; `game.ts` reads `held()`/`pressed()` only. Guide Controls page built from the key list. Phone buzz (`src/ui/haptics.ts`) on presses, getting in/out, crashes and smashes; Vibration setting (says when the browser cannot, e.g. iPhones).

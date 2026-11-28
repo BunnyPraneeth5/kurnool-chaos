@@ -11,6 +11,11 @@ export const CHAOS = {
   escapePerStar: 50,
   redLight: 10,
   smash: 5, // per railing, fence panel or barricade (Phase R)
+  hit: 5, // a hit on a person (task M.8)
+  wreck: 25, // a vehicle wrecked (task M.12)
+  boom: 20, // a blast (firecracker, a vehicle blowing up)
+  knockoutShare: 0.1, // health ran out (task M.7): lose a tenth
+  knockoutMin: 20,
   bustedShare: 0.25,
   bustedMin: 50,
 } as const;
@@ -40,6 +45,15 @@ export class ChaosPoints {
     this.total -= loss;
     this.round -= roundLoss;
     if (loss > 0) this.onChange(-loss, 'Busted');
+    return loss;
+  }
+
+  /** Knocked out (task M.7): lose a tenth (at least 20, never below 0). */
+  knockedOut(): number {
+    const loss = Math.min(this.total, Math.max(CHAOS.knockoutMin, Math.round(this.total * CHAOS.knockoutShare)));
+    this.total -= loss;
+    this.round = Math.max(0, this.round - loss);
+    if (loss > 0) this.onChange(-loss, 'Knocked out');
     return loss;
   }
 

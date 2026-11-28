@@ -35,6 +35,12 @@ export class Agent implements Bumper {
   path: Pt[] = [];
   /** metres to the right of the path (steering round a parked vehicle) */
   side = 0;
+  /** vehicle health (task M.12): 0 = wrecked */
+  hp = 100;
+  /** seconds since it was wrecked (0 = fine); it stops, burns and can blow up */
+  wreck = 0;
+  /** blew up already (a burnt-out shell) */
+  blown = false;
   private kx = 0;
   private kz = 0;
 
