@@ -2,6 +2,17 @@
 
 Newest entry on top. Each session ends with an entry: what got done, what is half done, what is next, any blockers or questions for Bunny.
 
+## 2026-11-28: Phase M, tasks M.1 to M.5 (branch `phase-m`)
+- Phase M planned and committed on `main` (TASKS, PRD feature 14, DECISIONS); this work is on `phase-m`.
+- M.1: `src/player/actions.ts` is the one list of actions and keys; `Keyboard` and `TouchControls` feed it; `game.ts` reads `held()`/`pressed()` only. Guide Controls page built from the key list. Phone buzz (`src/ui/haptics.ts`) on presses, getting in/out, crashes and smashes; Vibration setting (says when the browser cannot, e.g. iPhones).
+- M.2: touch controls built in `src/ui/touch.ts` from `src/ui/layout.ts`: round icon buttons (own SVG icons, label under each), on foot Run + Get in (only when close, gold), driving Drift, Horn, Get out, Boost (rounds), Gas/Brake with arrow or tilt steering; riding only Get out; map view only Back. Unstuck and Map under the minimap. Old `#stick`/`#btns` markup and CSS removed. Portrait speed readout moved above the joystick (the Horn button covered it).
+- M.3: drag on the right of the screen (or the mouse on a laptop) turns the camera round you and tilts it; swings back after 0.6 s while driving, on foot once you walk. Look speed setting.
+- M.4: Settings → Edit controls: drag, pinch or Size slider, Opacity slider, On foot / Driving switch, Reset to default, Done (Esc too). Four saved layouts (portrait/landscape x joystick/pedals).
+- M.5: Settings → Phone steering: Joystick, Arrow buttons (left/right on the left, Gas and Brake on the right), Tilt the phone (devicemotion, centred on getting in, Centre tilt button). Refused or missing sensor: message in Settings and in game.
+- Checked in the browser at 375x812 and 844x390: right buttons for on foot, near a car, driving, arrows, tilt; no overlaps (also a test over all four default layouts); Get in by tapping; Gas + Right buttons drove 16 m/s and turned right, Brake reversed; a 150 px drag turned the view 1.2 rad and it swung back; touches in the joystick zone did not turn it; editor drag moved Gas, survived a reload, Reset restored it, Esc closed only the editor; Tilt in this browser said motion access was refused (Settings note and in-game message) and showed Gas/Brake; laptop: buttons hidden, W drives, H honks, mouse drag looks. 63 tests (18 new in `tests/controls.test.ts`), typecheck and build pass; no console errors.
+- Not checked: a real phone (touch feel, pinch resize with two real fingers, vibration, tilt steering on Android, iPhone permission prompt), a room with chat and the round bar open next to the new buttons.
+- Next: Bunny tries M.1 to M.5 on the phone (M.5 Bunny check); then M.6 (jump, crouch, roll, emotes).
+
 ## 2026-11-28: Real sound recordings (branch `claude/real-sounds`)
 - The generated Web Audio sounds are replaced by 15 CC0 recordings from Freesound in `public/sounds/` (296,940 bytes in total): engine loops for car, auto, bike, bus and lorry, a horn for each, police siren, crash, beeps for getting in, a star and busted. Getting out plays the get-in beep lower; boost plays the star beep higher. Bunny approved each download; the first lorry horn (637923, two short blips over traffic) was swapped for 667749, also approved, and is not shipped.
 - The files are Freesound's public high-quality MP3 previews (originals need a login), cut to mono 32 kHz 80 kb/s MP3, level-matched, with seamless loops. Pixabay was not used: its licence is not CC0.

@@ -1,5 +1,6 @@
 import { btn, h, type MenuPage } from './menu';
 import { saveSettings, settings, type Settings } from './settings';
+import { canVibrate } from './haptics';
 import { stats } from './stats';
 import { VEHICLES, VEHICLE_TYPES } from '../vehicles/params';
 import { CLIP_NAMES, clipInfo, sourceUrl } from '../audio/clips';
@@ -27,7 +28,17 @@ function choice<K extends keyof Settings>(label: string, key: K, options: [Setti
   return row;
 }
 
-export function settingsPage(qualityNow: 'low' | 'high'): MenuPage {
+/** What the Settings page can ask the game to do (phone controls, tasks M.4 and M.5). */
+export interface ControlHooks {
+  /** Close the menu and open the layout editor. */
+  editControls(): void;
+  /** Start tilt steering: null when it works, or why not. */
+  startTilt(): Promise<string | null>;
+  /** The way the phone is held now is straight ahead. */
+  centreTilt(): void;
+}
+
+export function settingsPage(qualityNow: 'low' | 'high', controls: ControlHooks): MenuPage {
   return {
     id: 'settings',
     title: 'Settings',
@@ -42,6 +53,9 @@ export function settingsPage(qualityNow: 'low' | 'high'): MenuPage {
         reload,
         choice('Camera distance', 'camera', [['near', 'Near'], ['normal', 'Normal'], ['far', 'Far']]),
         choice('Steering', 'steering', [['low', 'Gentle'], ['normal', 'Normal'], ['high', 'Quick']], 'How fast vehicles and you turn for the same stick or key.'),
+        ...steeringRows(controls),
+        choice('Look speed', 'look', [['low', 'Slow'], ['normal', 'Normal'], ['high', 'Fast']], 'How far the camera turns when you drag on the screen (phones: right side; laptops: mouse).'),
+        choice('Vibration', 'vibration', [[true, 'On'], [false, 'Off']], canVibrate ? 'Short buzz on button presses, getting in and out, and crashes.' : 'This browser cannot vibrate (iPhones never can).'),
         choice('Minimap', 'minimap', [[true, 'Show'], [false, 'Hide']]),
         choice('Sound', 'sound', [[true, 'On'], [false, 'Off']], 'Engine, horns, sirens and beeps. Starts after your first tap or key press.'),
         choice('Volume', 'volume', [['low', 'Low'], ['normal', 'Normal'], ['high', 'High']]),
@@ -49,6 +63,40 @@ export function settingsPage(qualityNow: 'low' | 'high'): MenuPage {
       ];
     },
   };
+}
+
+/** Phone steering: joystick, arrow buttons or tilt, plus Centre tilt and Edit controls. */
+function steeringRows(controls: ControlHooks): HTMLElement[] {
+  const note = h('p', 'note');
+  note.hidden = true;
+  const centre = btn('Centre tilt (hold the phone straight, then tap)', '', () => {
+    controls.centreTilt();
+    note.hidden = false;
+    note.textContent = 'Tilt centred.';
+  });
+  const showCentre = (): void => {
+    centre.hidden = settings().steerMode !== 'tilt';
+  };
+  showCentre();
+  const mode = choice(
+    'Phone steering',
+    'steerMode',
+    [['stick', 'Joystick'], ['arrows', 'Arrow buttons'], ['tilt', 'Tilt the phone']],
+    'Joystick: one stick walks and drives. Arrow buttons: left and right on the left, Gas and Brake on the right. Tilt: turn the phone like a steering wheel, Gas and Brake on the right.',
+    () => {
+      showCentre();
+      note.hidden = true;
+      if (settings().steerMode !== 'tilt') return;
+      note.hidden = false;
+      note.textContent = 'Checking the motion sensor…';
+      void controls.startTilt().then((why) => {
+        note.textContent = why ?? 'Tilt works. It centres itself each time you get in; use Centre tilt to set it again.';
+      });
+    },
+  );
+  const edit = h('div', 'setting');
+  edit.append(h('span', 'label', 'Touch buttons'), btn('Edit controls', '', () => controls.editControls()), h('small', '', 'Move and resize the buttons and joystick, and change how see-through they are. Saved for portrait and landscape.'));
+  return [mode, centre, note, edit];
 }
 
 function km(m: number): string {

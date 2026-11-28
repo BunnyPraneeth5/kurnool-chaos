@@ -1,4 +1,7 @@
-// Keyboard input, ported from the demo's readInput(). Touch controls come in task 2.5.
+// Keyboard input. Keys are turned into actions (src/player/actions.ts); the game reads
+// actions, never key codes.
+
+import { keyAction, type Action } from './actions';
 
 export interface MoveInput {
   /** -1 back .. 1 forward */
@@ -11,14 +14,15 @@ export interface MoveInput {
 
 export class Keyboard {
   private readonly down = new Set<string>();
-  private readonly pressed = new Set<string>();
+  private readonly pressed = new Set<Action>();
 
   constructor() {
     window.addEventListener('keydown', (e) => {
       // Typing a nickname or a chat message must not drive the car.
       const t = e.target;
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || (t instanceof HTMLElement && t.isContentEditable)) return;
-      if (!e.repeat) this.pressed.add(e.code);
+      const a = keyAction(e.code);
+      if (a && !e.repeat) this.pressed.add(a);
       this.down.add(e.code);
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
     });
@@ -26,25 +30,19 @@ export class Keyboard {
     window.addEventListener('blur', () => this.down.clear());
   }
 
-  isDown(code: string): boolean {
-    return this.down.has(code);
+  /** An action's key is held down. */
+  held(a: Action): boolean {
+    for (const code of this.down) if (keyAction(code) === a) return true;
+    return false;
   }
 
   /** True once per key press (not held repeats). */
-  consume(code: string): boolean {
-    return this.pressed.delete(code);
+  consume(a: Action): boolean {
+    return this.pressed.delete(a);
   }
 
   /** Forget presses nobody consumed this frame. */
   endFrame(): void {
     this.pressed.clear();
-  }
-
-  move(): MoveInput {
-    const d = this.down;
-    const thr = (d.has('KeyW') || d.has('ArrowUp') ? 1 : 0) - (d.has('KeyS') || d.has('ArrowDown') ? 1 : 0);
-    const steer = (d.has('KeyD') || d.has('ArrowRight') ? 1 : 0) - (d.has('KeyA') || d.has('ArrowLeft') ? 1 : 0);
-    const hand = d.has('ShiftLeft') || d.has('ShiftRight') || d.has('Space');
-    return { thr, steer, hand };
   }
 }

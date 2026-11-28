@@ -199,7 +199,17 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   // Roads and borders (Phase R): drawn from the same data as the collision world's borders.
   const borderMeshes = new BorderMeshes(map, game.world, quality);
   scene.add(borderMeshes.group);
-  menu.add(settingsPage(quality.level), 'about');
+  menu.add(
+    settingsPage(quality.level, {
+      editControls: () => {
+        menu.close();
+        game.touch.startEdit(() => menu.open('settings'));
+      },
+      startTilt: () => game.startTilt(),
+      centreTilt: () => game.tilt.calibrate(),
+    }),
+    'about',
+  );
   menu.add(statsPage(() => game.chaos), 'about');
   showPlace = (x, z) => {
     menu.close();
@@ -220,7 +230,7 @@ async function boot(gl: HTMLCanvasElement): Promise<void> {
   }
   // Solo play pauses while the menu is open; in a room the world goes on but you stand still.
   const solo = !room;
-  menu.onToggle = (open) => (game.held = open);
+  menu.onToggle = (open) => (game.isHeld = open);
   hideStatus();
 
   if (import.meta.env.DEV) {
