@@ -141,6 +141,13 @@ body {
   color: #fff3e0;
   pointer-events: none;
 }
+/* Phones upright: no room between the joystick and the buttons, so the speed sits above the joystick. */
+@media (orientation: portrait) {
+  body.touch #spd {
+    left: calc(env(safe-area-inset-left) + 84px);
+    bottom: calc(env(safe-area-inset-bottom) + 172px);
+  }
+}
 #kmh {
   display: block;
   font: 800 34px system-ui, sans-serif;
@@ -152,81 +159,159 @@ body {
   text-transform: uppercase;
   color: #d3c8dc;
 }
-#stick {
+/* Touch controls (tasks M.2 to M.5): placed by src/ui/touch.ts from the layout. */
+#ctl {
+  --ctl-opacity: 0.85;
+}
+#ctl .ctl {
   position: fixed;
-  left: max(16px, env(safe-area-inset-left));
-  bottom: max(22px, env(safe-area-inset-bottom));
-  width: 136px;
-  height: 136px;
+  z-index: 5;
   border-radius: 50%;
-  background: rgba(24, 20, 48, 0.42);
-  border: 1px solid rgba(255, 243, 224, 0.24);
-  touch-action: none;
-}
-#knob {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 58px;
-  height: 58px;
-  margin: -29px 0 0 -29px;
-  border-radius: 50%;
-  background: rgba(255, 243, 224, 0.82);
-}
-#btns {
-  position: fixed;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: max(22px, env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: flex-end;
-}
-#btns button {
-  border-radius: 50%;
-  border: 1px solid rgba(255, 243, 224, 0.24);
-  background: rgba(24, 20, 48, 0.66);
+  border: 1.5px solid rgba(255, 243, 224, 0.28);
+  background: rgba(24, 20, 48, 0.62);
   color: #fff3e0;
-  font: 600 14px system-ui, sans-serif;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  opacity: var(--ctl-opacity);
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
-#bUnstuck,
-#bHorn,
-#bBoost {
-  width: 58px;
-  height: 58px;
-  font-size: 10px !important;
-}
-body:not(.driving) #bHorn,
-body:not(.boosts) #bBoost {
+#ctl .ctl[hidden] {
   display: none;
 }
-#bBoost {
-  background: rgba(228, 87, 61, 0.7) !important;
+#ctl .btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(2px * var(--s, 1));
+  padding: 0;
+  font: 700 calc(9.5px * var(--s, 1)) / 1 system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 10px rgba(10, 8, 24, 0.35);
 }
-#bHand {
-  width: 68px;
-  height: 68px;
+#ctl .btn svg {
+  width: calc(24px * var(--s, 1));
+  height: calc(24px * var(--s, 1));
+  pointer-events: none;
 }
-#bAct {
-  width: 84px;
-  height: 84px;
+#ctl .btn span {
+  pointer-events: none;
+  white-space: nowrap;
 }
-#bAct.ready {
+#ctl .btn.down {
+  background: rgba(255, 243, 224, 0.34);
+  transform: scale(0.94);
+}
+#ctl .b-act.ready {
   background: #ffc247;
   color: #2a1d05;
   border-color: #ffc247;
 }
-#btns button.down {
-  background: rgba(255, 243, 224, 0.3);
+#ctl .b-boost {
+  background: rgba(228, 87, 61, 0.78);
 }
-body:not(.touch) #stick,
-body:not(.touch) #btns,
-body.mapview #stick,
-body.mapview #btns {
+#ctl .b-gas {
+  background: rgba(46, 140, 87, 0.7);
+}
+#ctl .b-brake {
+  background: rgba(176, 52, 52, 0.66);
+}
+#ctl .b-unstuck span,
+#ctl .b-map span {
+  font-size: calc(7.5px * var(--s, 1));
+}
+#ctl .stick {
+  background: rgba(24, 20, 48, 0.42);
+  border-color: rgba(255, 243, 224, 0.24);
+}
+#ctl .knob {
+  position: absolute;
+  left: 29%;
+  top: 29%;
+  width: 42%;
+  height: 42%;
+  border-radius: 50%;
+  background: rgba(255, 243, 224, 0.82);
+  pointer-events: none;
+}
+body:not(.touch):not(.ctledit) #ctl {
   display: none;
+}
+/* Layout editor (M.4). */
+body.ctledit #ctl .ctl {
+  outline: 2px dashed rgba(255, 194, 71, 0.75);
+  outline-offset: 3px;
+  cursor: move;
+}
+body.ctledit #ctl .ctl.selected {
+  outline: 3px solid #ffc247;
+}
+body.ctledit #mapbox,
+body.ctledit #menubtn,
+body.ctledit #roompill,
+body.ctledit #chatfeed,
+body.ctledit #spd {
+  visibility: hidden;
+}
+#ctledit {
+  position: fixed;
+  z-index: 6;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(340px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(24, 20, 48, 0.92);
+  border: 1px solid rgba(255, 243, 224, 0.3);
+  color: #fff3e0;
+  font: 14px system-ui, sans-serif;
+}
+#ctledit p {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+#ctledit label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+#ctledit label span {
+  width: 58px;
+}
+#ctledit input[type='range'] {
+  flex: 1;
+}
+#ctledit .row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+#ctledit button {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 243, 224, 0.3);
+  background: rgba(255, 243, 224, 0.1);
+  color: inherit;
+  font: 600 14px system-ui, sans-serif;
+}
+#ctledit .which {
+  margin: 6px 0 0;
+}
+#ctledit .which button.on {
+  background: rgba(255, 243, 224, 0.32);
+  border-color: #fff3e0;
+}
+#ctledit button.done {
+  background: #ffc247;
+  color: #2a1d05;
+  border-color: #ffc247;
 }
 body.touch #hint {
   display: none;
@@ -1093,18 +1178,3 @@ body.touch #fps {
   }
 }
 
-/* Short screens (phones in landscape): the five buttons in two columns so they fit. */
-@media (max-height: 480px) {
-  #btns {
-    display: grid;
-    grid-template-columns: auto auto;
-    grid-auto-flow: row;
-    align-items: end;
-    justify-items: end;
-    gap: 8px;
-  }
-  #bAct {
-    grid-column: 2;
-    grid-row: 2 / span 2;
-  }
-}

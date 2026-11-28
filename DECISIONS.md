@@ -2,6 +2,12 @@
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-28 | With joystick steering the joystick drives and steers, so no Gas/Brake buttons; Gas and Brake show only with arrow or tilt steering | Two ways to drive on one screen was crowded; the joystick already does both |
+| 2026-11-28 | Four touch layouts (portrait/landscape x joystick/pedals), each edited and saved on its own; the editor switches between the on-foot and driving buttons | Pedal steering needs the right corner for Gas; walking joystick and arrow buttons share the left corner but never show together |
+| 2026-11-28 | Phones upright: the speed readout moves above the joystick; Unstuck and Map are small buttons under the minimap and room pill | No room between the joystick and the buttons on a 375 px screen |
+| 2026-11-28 | Swipe to look ignores touches on the left 40% of the screen; laptops drag with the left mouse button, no pointer lock | Keeps misses near the joystick from turning the camera; no pointer lock keeps the menu and chat easy |
+| 2026-11-28 | Tilt reads gravity across the screen (devicemotion), full lock at about 20 degrees, centred on getting in; iPhones flip the sign | Works the same in portrait and landscape; centring on getting in means holding the phone any way is straight |
+| 2026-11-28 | Icons are our own small SVG line drawings in `src/ui/icons.ts` | No icon library (no new dependency), and they scale with the button |
 | 2026-11-28 | New Phase M: phone controls, jump/crouch/roll/emotes, and fighting (melee, cartoon guns, throwables, health with hospital respawn, vehicle damage); PRD's "weapons, damage models, health" out-of-scope line replaced by feature 14 | Bunny's choices: weapons too, health then respawn, friends hittable in free roam with mode rules in rounds, attacks add heat, vehicle damage |
 | 2026-11-28 | R.7 and 7.1 folded into Phase M (M.13 performance, M.14 guide) | Bunny wants all phone work in one place; new effects need the same performance pass |
 | 2026-11-28 | Hits on friends are decided on the attacker's screen and sent as one small `hit` message | Friends' game, no cheat check; same trust model as Chaos points; keeps the message budget low |

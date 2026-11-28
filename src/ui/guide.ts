@@ -1,3 +1,4 @@
+import { KEYS, keyLabel, type Action } from '../player/actions';
 import * as THREE from 'three';
 import { btn, h, type MenuPage } from './menu';
 import { VEHICLES, VEHICLE_TYPES, vehicleColour, type VehicleType } from '../vehicles/params';
@@ -59,17 +60,18 @@ const SECTIONS: Section[] = [
     id: 'controls',
     title: 'Controls',
     build: () => {
+      const k = (a: Action): string => [...new Set(KEYS[a].map(keyLabel))].join(' / ');
       const keys: [string, string][] = [
-        ['W / ↑', 'Walk forward, or accelerate'],
-        ['S / ↓', 'Walk back, or brake and reverse'],
-        ['A D / ← →', 'Turn or steer'],
-        ['Shift', 'Run (on foot)'],
-        ['Space', 'Handbrake and drift'],
-        ['H', 'Horn (in a vehicle)'],
-        ['B', 'Boost (Chor–Police rounds, 2 per round)'],
-        ['E', 'Get in or out'],
-        ['R', 'Unstuck: back to the nearest road'],
-        ['C', 'Map view (fly over the city), C again to go back'],
+        [k('gas'), 'Walk forward, or accelerate'],
+        [k('brake'), 'Walk back, or brake and reverse'],
+        [`${k('left')}  ${k('right')}`, 'Turn or steer'],
+        [k('hand'), 'Run (on foot), handbrake and drift (in a vehicle)'],
+        [k('horn'), 'Horn (in a vehicle)'],
+        [k('boost'), 'Boost (Chor–Police rounds, 2 per round)'],
+        [k('act'), 'Get in or out, or ride with a friend'],
+        [k('unstuck'), 'Unstuck: back to the nearest road'],
+        [k('map'), 'Map view (fly over the city), again to go back'],
+        ['Mouse drag', 'Look around (swings back behind you while driving)'],
         ['T / Enter', 'Chat (in a room)'],
         ['Esc', 'Menu'],
         ['G', 'This guide'],
@@ -89,7 +91,12 @@ const SECTIONS: Section[] = [
         h('h3', '', 'Phone'),
         LIST([
           'Left thumb: the joystick. Up and down walk or drive, left and right turn.',
-          'Right thumb: Get in / Get out (turns gold when a vehicle is close), Run on foot or Drift in a vehicle, Horn (while driving), Unstuck.',
+          'Right thumb: round buttons that change with what you are doing. On foot: Run, and Get in (gold, only when a vehicle or a friend is close). Driving: Drift, Horn, Get out, and Boost in Chor–Police rounds.',
+          'Drag anywhere on the right side of the screen to look around. While driving the view swings back behind you a moment after you let go.',
+          'Small buttons under the minimap: Unstuck and Map view (Back returns from it).',
+          'Phone steering (Menu → Settings): the joystick, arrow buttons (left and right on the left, Gas and Brake on the right), or tilting the phone like a steering wheel. Tilt centres itself each time you get in.',
+          'Edit controls (Menu → Settings): drag buttons and the joystick where you like, pinch or use Size to resize, change the opacity. Portrait and landscape are saved separately.',
+          'Android phones buzz on presses and crashes (Vibration setting).',
           'Menu button top left; tap the minimap for the whole city.',
         ]),
         P('The Steering setting (Menu → Settings) makes turning gentler or quicker.'),

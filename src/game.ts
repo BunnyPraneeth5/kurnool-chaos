@@ -3,6 +3,10 @@ import type { MapData } from './map/types';
 import { CollisionWorld } from './map/collision';
 import { RoadIndex } from './map/roadIndex';
 import { Keyboard, type MoveInput } from './player/input';
+import { moveFrom, type Action } from './player/actions';
+import { Tilt } from './player/tilt';
+import { LookControl } from './player/look';
+import { buzz } from './ui/haptics';
 import { OnFootPlayer, PLAYER_RADIUS } from './player/onFoot';
 import { ChaseCamera } from './player/chaseCamera';
 import { FreeCamera } from './player/freeCamera';
@@ -46,7 +50,7 @@ export class Game {
   /** Held still (game-round countdown): no driving, getting in or out, or unstuck. */
   locked = false;
   /** The menu is open: stand still and ignore the controls (rooms keep running). */
-  held = false;
+  isHeld = false;
   /** Riding in a friend's vehicle (task H.4). */
   ride: { driver: string; seat: number; type: VehicleType } | null = null;
   /** Where a friend is drawn (set by the room code). */
@@ -71,7 +75,11 @@ export class Game {
   readonly minimap: Minimap;
   private mapView = false;
   private readonly keys = new Keyboard();
-  private readonly touch = new TouchControls();
+  readonly touch = new TouchControls();
+  /** Tilt steering (task M.5); started from Settings or on the first tap. */
+  readonly tilt = new Tilt();
+  private tiltWarned = false;
+  private readonly look: LookControl;
   private readonly hud = new Hud();
   private readonly chase: ChaseCamera;
   private readonly free: FreeCamera;
@@ -102,6 +110,15 @@ export class Game {
     this.chase.snap(this.player, this.world);
     this.free = new FreeCamera(camera, canvas);
     this.free.enabled = false;
+    this.look = new LookControl(canvas);
+    if (settings().steerMode === 'tilt') {
+      // iPhones only allow motion access from a tap, so start on the first one.
+      const first = (): void => {
+        window.removeEventListener('pointerdown', first);
+        void this.startTilt();
+      };
+      window.addEventListener('pointerdown', first);
+    }
     this.life = new Life(map, scene, this.world, opts.traffic, opts.shadows, opts.pedestrians);
     this.life.traffic.onHonk = (c) => sound.honkAt(c.x, c.z, c.type);
     this.chaos.onChange = (d, label) => this.hud.chaosPop(d, label);
@@ -118,8 +135,29 @@ export class Game {
     this.refreshLabels();
   }
 
+  /** Held on the keyboard or a touch button. */
+  private held(a: Action): boolean {
+    return this.keys.held(a) || this.touch.held(a);
+  }
+
+  /** Pressed this frame (keyboard or touch); both are read so neither press is left over. */
+  private pressed(a: Action): boolean {
+    const k = this.keys.consume(a);
+    const t = this.touch.consume(a);
+    return k || t;
+  }
+
+  /** Start tilt steering; says why not when the device cannot. */
+  async startTilt(): Promise<string | null> {
+    const why = await this.tilt.start();
+    if (why) this.hud.toast(why, 'bad');
+    else if (this.car) this.tilt.calibrate();
+    this.tiltWarned = !!why;
+    return why;
+  }
+
   update(dt: number): void {
-    if (this.keys.consume('KeyC')) this.toggleMapView();
+    if (this.pressed('map')) this.toggleMapView();
     if (this.mapView) {
       this.free.update(dt);
       this.keys.endFrame();
@@ -127,15 +165,22 @@ export class Game {
       return;
     }
 
-    const raw: MoveInput = this.touch.merge(this.keys.move());
+    const tiltOn = !!this.car && settings().steerMode === 'tilt';
+    if (tiltOn && this.tilt.failed && !this.tiltWarned) {
+      this.tiltWarned = true;
+      this.hud.toast('Tilt steering gets no motion data here. Pick another in Menu → Settings → Steering', 'bad');
+    }
+    const raw: MoveInput = moveFrom({ held: (a) => this.held(a), stick: this.touch.stick, tilt: tiltOn ? this.tilt.steer() : 0 });
     raw.steer *= STEER_SCALE[settings().steering];
-    const still = this.locked || this.held;
+    const still = this.locked || this.isHeld || this.touch.editing;
     const inp: MoveInput = still ? { thr: 0, steer: 0, hand: true } : raw;
-    const act = this.keys.consume('KeyE') || this.touch.consumeAction();
-    const unstuck = this.keys.consume('KeyR') || this.touch.consumeUnstuck();
+    const act = this.pressed('act');
+    const unstuck = this.pressed('unstuck');
     if (act && !still) this.action();
     if (unstuck && !still && !this.ride) this.unstuck();
-    const boost = this.keys.consume('KeyB') || this.touch.consumeBoost();
+    const lk = this.look.take();
+    this.chase.look(lk.yaw, lk.pitch, this.look.dragging);
+    const boost = this.pressed('boost');
     if (boost && !still && this.car && this.boostsLeft > 0 && this.car.boostT <= 0) {
       this.boostsLeft--;
       this.car.boostT = 3;
@@ -151,6 +196,7 @@ export class Game {
       const crash = this.car.drive(dt, inp, this.world, this.solidCars());
       if (crash > 0) {
         this.chase.shake(crash);
+        buzz(Math.round(Math.min(90, 25 + crash * 80)));
         stats.crashes++;
         sound.thud(crash * 2);
       }
@@ -160,6 +206,7 @@ export class Game {
         this.car.broke.length = 0;
         if (fresh.length) {
           sound.thud(0.6);
+          buzz(40);
           this.chase.shake(0.25);
           this.chaos.add(fresh.length * CHAOS.smash, 'Smash');
           this.onBreak?.(fresh);
@@ -202,7 +249,7 @@ export class Game {
     sound.setListener(cam.position.x, cam.position.z, Math.atan2(fx, fz));
     const c = this.car;
     sound.engine(c ? c.type : null, c ? c.speed : 0, c ? inp.thr : 0);
-    sound.horn(!!c && !still && (this.keys.isDown('KeyH') || this.touch.hornDown), c ? c.type : null);
+    sound.horn(!!c && !still && this.held('horn'), c ? c.type : null);
     const me = c ?? this.player;
     let near = Infinity;
     for (const cop of this.life.cops.cops) near = Math.min(near, Math.hypot(cop.x - me.x, cop.z - me.z));
@@ -320,6 +367,7 @@ export class Game {
   private toggleMapView(): void {
     this.mapView = !this.mapView;
     this.free.enabled = this.mapView;
+    this.look.enabled = !this.mapView;
     document.body.classList.toggle('mapview', this.mapView);
     const t = this.car ?? this.player;
     if (this.mapView) this.free.lookAt(t.x, t.z, 400, t.a + Math.PI);
@@ -497,6 +545,8 @@ export class Game {
   /** Get into a vehicle (on a bike you can be seen riding it). */
   private sit(c: Vehicle): void {
     sound.cue('getIn');
+    buzz(20);
+    if (settings().steerMode === 'tilt') this.tilt.calibrate(); // the way you hold it now is straight
     c.kind = 'player';
     this.car = c;
     this.player.figure.visible = false;
@@ -507,6 +557,7 @@ export class Game {
   /** Leave a vehicle parked where it is. */
   private leave(c: Vehicle): void {
     sound.cue('getOut');
+    buzz(20);
     setRider(c.mesh, null);
     c.park();
   }
@@ -615,10 +666,9 @@ export class Game {
   private refreshLabels(): void {
     const inCar = !!this.car || !!this.ride;
     const near = !inCar && (!!this.nearCar || !!this.nearFriend);
-    this.touch.bAct.textContent = inCar ? 'Get out' : this.nearFriend && this.nearFriendIsClosest() ? 'Ride' : 'Get in';
-    this.touch.bAct.classList.toggle('ready', near);
-    this.touch.bHand.textContent = inCar ? 'Drift' : 'Run';
-    this.touch.bBoost.textContent = `Boost ${this.boostsLeft}`;
+    const mode = this.mapView ? 'map' : this.ride ? 'ride' : this.car ? 'drive' : 'foot';
+    const act = inCar ? 'Get out' : this.nearFriend && this.nearFriendIsClosest() ? 'Ride' : 'Get in';
+    this.touch.setState({ mode, near, boosts: this.boostsLeft, steer: settings().steerMode }, { act, boosts: this.boostsLeft });
     document.body.classList.toggle('boosts', this.boostsLeft > 0 && !!this.car);
     if (!this.hint) return;
     this.hint.hidden = false;

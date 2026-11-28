@@ -28,18 +28,29 @@ function angDiff(a: number, b: number): number {
   return d;
 }
 
+/** How far up and down a swipe can tilt the view (task M.3). */
+const PITCH_MIN = -0.45;
+const PITCH_MAX = 1.1;
+/** Seconds after letting go before the view swings back behind you. */
+const RETURN_AFTER = 0.6;
+
 export class ChaseCamera {
   private camA = 0;
+  /** Swipe-to-look offsets (task M.3): turn round the target, and tilt up or down. */
+  private yaw = 0;
+  private pitch = 0;
+  private idle = 0;
   private shakeAmt = 0;
   private readonly pos = new THREE.Vector3();
   private readonly target = new THREE.Vector3();
-  private readonly look = new THREE.Vector3();
+  private readonly lookPt = new THREE.Vector3();
 
   constructor(private readonly camera: THREE.PerspectiveCamera) {}
 
   /** Jump straight behind the target (on start or after leaving the map view). */
   snap(t: Followable, world: CollisionWorld, inCar = false): void {
     this.camA = t.a;
+    this.yaw = this.pitch = 0;
     this.place(t, world, inCar);
     this.pos.copy(this.target);
     this.apply(t);
@@ -50,8 +61,26 @@ export class ChaseCamera {
     this.shakeAmt = Math.max(this.shakeAmt, amount);
   }
 
+  /**
+   * Swipe to look: add a turn (radians, positive = view turns right) and a tilt (positive =
+   * look further down). `dragging` keeps the view where the finger left it.
+   */
+  look(yaw: number, pitch: number, dragging: boolean): void {
+    // Heading grows to the left, so turning the view right lowers the angle.
+    this.yaw = angDiff(this.yaw - yaw, 0);
+    this.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, this.pitch + pitch));
+    if (dragging || yaw !== 0 || pitch !== 0) this.idle = 0;
+  }
+
   update(dt: number, t: Followable, world: CollisionWorld, inCar = false): void {
     this.camA += angDiff(t.a, this.camA) * Math.min(1, dt * (inCar ? 3.4 : 4.5));
+    // Swing back behind you after letting go: always when driving, on foot once you walk.
+    this.idle += dt;
+    if (this.idle > RETURN_AFTER && (inCar || Math.abs(t.speed) > 0.5)) {
+      const k = Math.min(1, dt * 2.5);
+      this.yaw -= this.yaw * k;
+      this.pitch -= this.pitch * k;
+    }
     this.place(t, world, inCar);
     this.pos.lerp(this.target, Math.min(1, dt * 6));
     this.apply(t);
@@ -66,15 +95,20 @@ export class ChaseCamera {
     const portrait = this.camera.aspect < 1;
     const sp = Math.abs(t.speed);
     const dist = (inCar ? (t.camDist ?? CAR_DIST) + sp * 0.11 : FOOT_DIST) * (portrait ? 1.12 : 1) * CAMERA_SCALE[settings().camera];
-    const h = inCar ? (t.camHeight ?? CAR_HEIGHT) : FOOT_HEIGHT;
-    const r = world.collide(t.x - Math.sin(this.camA) * dist, t.z - Math.cos(this.camA) * dist, 1.2);
+    const base = inCar ? (t.camHeight ?? CAR_HEIGHT) : FOOT_HEIGHT;
+    // Tilting down raises the camera and pulls it in a little; tilting up lowers it.
+    const h = Math.max(0.8, base * (1 + this.pitch));
+    const d = dist * (1 - Math.max(0, this.pitch) * 0.25);
+    const a = this.camA + this.yaw;
+    const r = world.collide(t.x - Math.sin(a) * d, t.z - Math.cos(a) * d, 1.2);
     // Never inside a hill behind the player.
     this.target.set(r.x, Math.max(t.y + h, world.heightAt(r.x, r.z) + 1.5), r.z);
   }
 
   private apply(t: Followable): void {
     this.camera.position.copy(this.pos);
-    this.look.set(t.x + Math.sin(this.camA) * 3.5, t.y + 1.7, t.z + Math.cos(this.camA) * 3.5);
-    this.camera.lookAt(this.look);
+    const a = this.camA + this.yaw;
+    this.lookPt.set(t.x + Math.sin(a) * 3.5, t.y + 1.7, t.z + Math.cos(a) * 3.5);
+    this.camera.lookAt(this.lookPt);
   }
 }
